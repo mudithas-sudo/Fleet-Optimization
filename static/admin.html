@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FleetOps — Delivery Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --panel: #ffffff;
+    --panel-2: #f6f7f8;
+    --line: #e8eaed;
+    --text: #131619;
+    --muted: #6b7177;
+    --primary: #131619;        /* black CTA */
+    --primary-text: #ffffff;
+    --blue: #276ef1;
+    --blue-soft: #eef4fe;
+    --green: #05944f;
+    --green-soft: #e6f4ec;
+    --red: #e11900;
+    --red-soft: #fdecea;
+    --amber: #b06f00;
+    --amber-soft: #fdf4e3;
+    --shadow-sm: 0 1px 2px rgba(19, 22, 25, .06), 0 2px 8px rgba(19, 22, 25, .05);
+    --shadow-lg: 0 4px 12px rgba(19, 22, 25, .10), 0 12px 32px rgba(19, 22, 25, .10);
+    --display: "Archivo", sans-serif;
+    --ui: "Manrope", sans-serif;
+    --r: 12px;
+  }
+  [data-theme="dark"] {
+    --bg: #0e1013;
+    --panel: #16181d;
+    --panel-2: #1d2025;
+    --line: #2a2e34;
+    --text: #e8eaed;
+    --muted: #8b9198;
+    --primary: #e8eaed;
+    --primary-text: #131619;
+    --blue: #5b93ff;
+    --blue-soft: #17213a;
+    --green: #2fb673;
+    --green-soft: #142a1e;
+    --red: #ff5c47;
+    --red-soft: #331c19;
+    --amber: #f6a609;
+    --amber-soft: #2c2312;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,.55);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--ui); font-size: 13.5px; font-weight: 500;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    transition: background .2s, color .2s;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 20px; height: 60px; flex: 0 0 auto;
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    font-family: var(--display); font-size: 21px; font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .brand em { font-style: normal; color: var(--blue); }
+  .tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .3px;
+    color: var(--muted); background: var(--panel-2);
+    padding: 5px 11px; border-radius: 999px;
+  }
+  #theme-toggle {
+    margin-left: auto; font-family: var(--ui); font-size: 12px; font-weight: 700;
+    background: var(--panel); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; cursor: pointer;
+  }
+  #theme-toggle:hover { color: var(--text); border-color: var(--muted); }
+  #trip-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 800;
+    padding: 7px 14px; border-radius: 999px; background: var(--panel-2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+  .status-planned  .dot { background: var(--blue); }
+  .status-active   .dot { background: var(--green); animation: pulse 1.4s infinite; }
+  .status-deviating .dot { background: var(--red); animation: pulse .7s infinite; }
+  .status-completed .dot { background: var(--muted); }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  aside {
+    width: 416px; flex: 0 0 auto; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--line);
+    padding: 18px; display: flex; flex-direction: column; gap: 16px;
+    position: relative;
+  }
+
+  .tabs {
+    display: flex; gap: 4px; background: var(--panel-2);
+    border-radius: 999px; padding: 4px;
+  }
+  .tabs button {
+    flex: 1; font-family: var(--ui); font-size: 12.5px; font-weight: 800;
+    padding: 9px 4px; border: none; border-radius: 999px; cursor: pointer;
+    background: transparent; color: var(--muted); white-space: nowrap;
+  }
+  .tabs button.active { background: var(--primary); color: var(--primary-text); }
+  .tabs .badge {
+    display: inline-block; min-width: 18px; padding: 2px 5px; margin-left: 5px;
+    border-radius: 999px; background: var(--blue); color: #fff;
+    font-size: 10px; font-weight: 800; vertical-align: 1px;
+  }
+  .tabs .badge.warn { background: var(--red); }
+  .tabs button.active .badge { background: var(--primary-text); color: var(--primary); }
+
+  h2 {
+    font-family: var(--display); font-size: 13px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .hint { color: var(--muted); line-height: 1.6; font-size: 12.5px; }
+
+  .search-input {
+    width: 100%; padding: 12px 14px;
+    background: var(--panel-2); border: 1.5px solid transparent; border-radius: var(--r);
+    color: var(--text); font-family: var(--ui); font-size: 13.5px; font-weight: 600;
+    outline: none; transition: border-color .15s, background .15s;
+  }
+  .search-input::placeholder { color: var(--muted); font-weight: 500; }
+  .search-input:focus { border-color: var(--text); background: var(--panel); }
+  .search-input.busy { border-color: var(--blue); animation: pulse 1s infinite; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 10.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+  .field input, .field select {
+    padding: 10px 12px; background: var(--panel-2); border: 1.5px solid transparent;
+    border-radius: 10px; color: var(--text); font-family: var(--ui);
+    font-size: 13px; font-weight: 600; outline: none; width: 100%;
+  }
+  .field input:focus, .field select:focus { border-color: var(--text); background: var(--panel); }
+  .form-card {
+    background: var(--panel-2); border-radius: var(--r); padding: 14px;
+    display: flex; flex-direction: column; gap: 11px;
+  }
+  .form-card .field input, .form-card .field select { background: var(--panel); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .seg { display: flex; gap: 6px; }
+  .seg button {
+    flex: 1; font-family: var(--ui); font-size: 12px; font-weight: 800;
+    padding: 8px 4px; border-radius: 9px; border: 1.5px solid transparent;
+    background: var(--panel); color: var(--muted); cursor: pointer;
+  }
+  .seg button.active { border-color: var(--text); color: var(--text); }
+
+  .toggle-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; background: var(--panel-2);
+    border-radius: var(--r); cursor: pointer; user-select: none;
+  }
+  .toggle-row > span:first-child { flex: 1; font-size: 13px; font-weight: 700; }
+  .toggle-row input { display: none; }
+  .switch {
+    width: 40px; height: 23px; border-radius: 999px; background: var(--line);
+    position: relative; transition: background .15s; flex: 0 0 auto;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2.5px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%; background: var(--panel);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .15s;
+  }
+  .toggle-row input:checked + .switch { background: var(--green); }
+  .toggle-row input:checked + .switch::after { left: 19px; }
+
+  .btn {
+    font-family: var(--ui); font-size: 14px; font-weight: 800;
+    padding: 13px; border-radius: var(--r); border: none;
+    background: var(--panel-2); color: var(--text); cursor: pointer;
+    transition: filter .15s, transform .05s;
+  }
+  .btn:hover { filter: brightness(.96); }
+  [data-theme="dark"] .btn:hover { filter: brightness(1.2); }
+  .btn:active { transform: scale(.985); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary { background: var(--primary); color: var(--primary-text); box-shadow: var(--shadow-sm); }
+  .btn-ghost { font-size: 13px; padding: 10px; }
+  .btn.danger { color: var(--red); }
+  .btn.danger:hover { background: var(--red-soft); }
+  .row { display: flex; gap: 10px; }
+  .row .btn { flex: 1; }
+
+  h2 .link-danger, h2 .link-action {
+    font-family: var(--ui); font-size: 11px; font-weight: 800;
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    padding: 2px 6px; border-radius: 6px;
+    text-transform: none; letter-spacing: 0;
+  }
+  h2 .link-danger { margin-left: auto; }
+  .dispatch-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--ui); font-size: 11.5px; font-weight: 800;
+    background: var(--primary); color: var(--primary-text);
+    border: none; border-radius: 999px; padding: 6px 13px; cursor: pointer;
+    text-transform: none; letter-spacing: .2px;
+    box-shadow: var(--shadow-sm); transition: transform .05s, filter .15s;
+  }
+  .dispatch-btn svg { width: 13px; height: 13px; }
+  .dispatch-btn:hover { filter: brightness(1.15); }
+  [data-theme="dark"] .dispatch-btn:hover { filter: brightness(.92); }
+  .dispatch-btn:active { transform: scale(.97); }
+  h2 .link-danger:hover { color: var(--red); background: var(--red-soft); }
+  h2 .link-action:hover { color: var(--text); background: var(--panel-2); }
+
+  /* ---- parcels ---- */
+  #depot-chip {
+    display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+    font-size: 11.5px; font-weight: 800; color: var(--muted);
+    background: var(--panel-2); border-radius: 999px; padding: 6px 12px;
+    cursor: pointer;
+  }
+  #depot-chip:hover { color: var(--text); }
+  #parcel-list { display: flex; flex-direction: column; gap: 8px; }
+  .parcel-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--panel); border: 1.5px solid var(--line);
+    border-radius: var(--r); padding: 11px 12px;
+  }
+  .parcel-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); flex: 0 0 auto; }
+  .parcel-row .info { flex: 1; min-width: 0; }
+  .parcel-row .label {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 7px;
+  }
+  .parcel-row .meta { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 3px; }
+  .size-chip {
+    flex: 0 0 auto; font-size: 9.5px; font-weight: 800; letter-spacing: .5px;
+    padding: 1px 6px; border-radius: 5px; background: var(--panel-2); color: var(--muted);
+    text-transform: uppercase;
+  }
+  .p-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--blue); }
+  .p-dot.assigned { background: var(--amber); }
+  .p-dot.in_transit { background: var(--green); animation: pulse 1.4s infinite; }
+  .p-dot.delivered { background: var(--muted); }
+  .deadline { flex: 0 0 auto; text-align: right; font-size: 11px; font-weight: 800; color: var(--muted); }
+  .deadline.warn { color: var(--amber); }
+  .deadline.urgent, .deadline.overdue { color: var(--red); }
+  .late-tag {
+    font-size: 9.5px; font-weight: 800; color: var(--red); background: var(--red-soft);
+    padding: 1px 6px; border-radius: 5px; text-transform: uppercase;
+  }
+  .parcel-row .del {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 14px; padding: 2px 5px; border-radius: 6px; flex: 0 0 auto;
+  }
+  .parcel-row .del:hover { color: var(--red); background: var(--red-soft); }
+
+  #run-footer {
+    position: sticky; bottom: 0; margin: 0 -18px -18px; padding: 12px 18px 16px;
+    background: var(--panel); border-top: 1px solid var(--line);
+    display: none;
+  }
+  #run-footer .btn { width: 100%; }
+
+  /* ---- registry ---- */
+  .reg-row {
+    display: flex; align-items: center; gap: 11px;
+    background: var(--panel); border: 1.5px solid var(--line);
+    border-radius: var(--r); padding: 11px 12px;
+  }
+  .reg-row .emoji { font-size: 19px; flex: 0 0 auto; }
+  .reg-row .info { flex: 1; min-width: 0; }
+  .reg-row .label { font-weight: 800; font-size: 13px; }
+  .reg-row .meta { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 2px; }
+  .reg-row .del {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 14px; padding: 2px 5px; border-radius: 6px;
+  }
+  .reg-row .del:hover { color: var(--red); background: var(--red-soft); }
+  .reg-list { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ---- fleet (trip list) ---- */
+  #trip-list { display: flex; flex-direction: column; gap: 8px; }
+  .trip-group {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: .7px;
+    text-transform: uppercase; color: var(--muted);
+    margin: 10px 2px 2px;
+  }
+  .trip-group:first-child { margin-top: 0; }
+  .trip-group .g-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+  .trip-group.g-active .g-dot { background: var(--green); }
+  .trip-group.g-planned .g-dot { background: var(--blue); }
+  .trip-group .g-line { flex: 1; height: 1px; background: var(--line); }
+  .trip-group .g-count {
+    font-size: 10px; background: var(--panel-2); color: var(--muted);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .trip-row {
+    display: flex; align-items: center; gap: 11px;
+    background: var(--panel); border: 1.5px solid var(--line);
+    border-radius: var(--r); padding: 12px 13px; cursor: pointer;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .trip-row:hover { border-color: var(--muted); }
+  .trip-row.selected { border-color: var(--text); box-shadow: var(--shadow-sm); }
+  .trip-row .info { flex: 1; min-width: 0; }
+  .trip-row .label {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 800; font-size: 13.5px;
+  }
+  .trip-row .meta { color: var(--muted); font-size: 11.5px; font-weight: 600; margin-top: 3px; }
+  .trip-row .dev-badge {
+    flex: 0 0 auto; min-width: 20px; text-align: center;
+    padding: 2px 7px; border-radius: 999px;
+    background: var(--red); color: #fff; font-size: 11px; font-weight: 800;
+  }
+  .empty { color: var(--muted); text-align: center; padding: 22px 0; line-height: 1.7; font-weight: 600; }
+
+  /* ---- floating cards over the map ---- */
+  .float-card {
+    display: none; flex-direction: column; gap: 15px;
+    position: absolute; top: 14px; right: 14px; z-index: 9;
+    width: min(350px, calc(100% - 28px));
+    max-height: calc(100% - 28px);
+    background: rgba(255, 255, 255, .93);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px; box-shadow: var(--shadow-lg);
+    padding: 16px; overflow-y: auto;
+    animation: slidein .22s ease;
+  }
+  [data-theme="dark"] .float-card { background: rgba(22, 24, 29, .93); }
+  @keyframes slidein { from { transform: translateX(26px); opacity: 0; } }
+  .panel-head { display: flex; align-items: center; gap: 8px; }
+  .panel-head h2 { flex: 1; }
+  .close-btn {
+    width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+    background: var(--panel-2); color: var(--muted); border: none;
+    font-size: 13px; cursor: pointer;
+  }
+  .close-btn:hover { color: var(--text); }
+  .totals { display: flex; gap: 8px; }
+  .kpi {
+    flex: 1; background: var(--panel-2); border-radius: var(--r); padding: 12px 13px;
+  }
+  .kpi b {
+    display: block; font-family: var(--display); font-size: 19px; font-weight: 800;
+    letter-spacing: -.3px;
+  }
+  .kpi span {
+    display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--muted); margin-top: 3px;
+  }
+  .kpi.stat b { color: var(--blue); }
+
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 9px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.num { text-align: right; font-weight: 800; white-space: nowrap; font-size: 12.5px; }
+  .leg-route { font-weight: 700; font-size: 12.5px; }
+  .leg-route small { color: var(--muted); display: block; font-weight: 600; margin-top: 2px; }
+
+  .risk-tag {
+    font-size: 9.5px; font-weight: 800; color: var(--red); background: var(--red-soft);
+    padding: 1px 6px; border-radius: 5px; text-transform: uppercase;
+  }
+  .done-tag { color: var(--green); font-weight: 800; }
+
+  #briefing {
+    background: var(--blue-soft); color: var(--text);
+    padding: 13px 15px; line-height: 1.65; border-radius: var(--r);
+    font-size: 12.5px; font-weight: 600;
+  }
+  #run-meta {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 12px; font-weight: 700; color: var(--muted);
+  }
+  #driver-link {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--panel-2); border-radius: var(--r); padding: 12px 14px;
+  }
+  #driver-link a { color: var(--blue); word-break: break-all; flex: 1; line-height: 1.5; font-size: 12px; font-weight: 700; }
+  #btn-copy {
+    flex: 0 0 auto; font-family: var(--ui); font-size: 12px; font-weight: 800;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; white-space: nowrap;
+  }
+  #btn-copy:hover { border-color: var(--muted); }
+
+  #alerts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .alert-row {
+    background: var(--red-soft); color: var(--text);
+    padding: 11px 13px; border-radius: var(--r); line-height: 1.55;
+    font-size: 12.5px; font-weight: 600;
+  }
+  .alert-row.ok { background: var(--green-soft); }
+  .alert-row.info { background: var(--blue-soft); }
+  .alert-row time { color: var(--muted); font-size: 11px; font-weight: 700; display: block; margin-bottom: 1px; }
+
+  /* driver picker */
+  .driver-card {
+    display: flex; align-items: center; gap: 11px;
+    background: var(--panel); border: 1.5px solid var(--line);
+    border-radius: var(--r); padding: 12px 13px; cursor: pointer;
+  }
+  .driver-card:hover:not(.disabled) { border-color: var(--muted); }
+  .driver-card.selected { border-color: var(--text); box-shadow: var(--shadow-sm); }
+  .driver-card.disabled { opacity: .5; cursor: not-allowed; }
+  .driver-card .emoji { font-size: 20px; }
+  .driver-card .info { flex: 1; min-width: 0; }
+  .driver-card .label { font-weight: 800; font-size: 13px; }
+  .driver-card .meta { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 2px; }
+  .driver-card .reason { color: var(--red); font-size: 10.5px; font-weight: 700; margin-top: 2px; }
+  .busy-chip {
+    font-size: 9.5px; font-weight: 800; color: var(--green); background: var(--green-soft);
+    padding: 1px 6px; border-radius: 5px; text-transform: uppercase; flex: 0 0 auto;
+  }
+
+  /* dispatch proposal */
+  .working {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--muted); font-weight: 700; font-size: 12.5px;
+    padding: 10px 0; animation: pulse 1.2s infinite; line-height: 1.6;
+  }
+  #dispatch-body { display: flex; flex-direction: column; gap: 10px; }
+  .dispatch-summary {
+    background: var(--blue-soft); border-radius: var(--r); padding: 12px 14px;
+    font-size: 12.5px; font-weight: 600; line-height: 1.6;
+  }
+  .batch-card {
+    background: var(--panel); border: 1.5px solid var(--line);
+    border-radius: var(--r); padding: 12px 13px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .batch-head { display: flex; align-items: center; gap: 9px; }
+  .batch-head input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
+  .batch-head .who { flex: 1; font-weight: 800; font-size: 13px; }
+  .batch-head .who small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; margin-top: 1px; }
+  .parcel-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .parcel-chip {
+    font-size: 10.5px; font-weight: 700; background: var(--panel-2);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .rationale { color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 600; }
+  .risk-note {
+    background: var(--red-soft); font-size: 11.5px; font-weight: 600;
+    padding: 8px 10px; border-radius: 8px; line-height: 1.5;
+  }
+  .unassigned-row {
+    background: var(--amber-soft); border-radius: 8px; padding: 9px 11px;
+    font-size: 12px; font-weight: 600; line-height: 1.5;
+  }
+  .warn-row {
+    background: var(--red-soft); border-radius: 8px; padding: 8px 11px;
+    font-size: 11.5px; font-weight: 600; color: var(--muted);
+  }
+
+  /* import modal */
+  #import-modal {
+    display: none; position: fixed; inset: 0; z-index: 30;
+    background: rgba(0,0,0,.45); align-items: center; justify-content: center;
+  }
+  #import-modal .modal-card {
+    background: var(--panel); border-radius: 16px; box-shadow: var(--shadow-lg);
+    width: min(680px, calc(100% - 40px)); max-height: 84vh;
+    display: flex; flex-direction: column; gap: 14px; padding: 20px;
+  }
+  #import-preview { overflow: auto; max-height: 46vh; }
+  #import-preview table { font-size: 12px; }
+  #import-preview th {
+    text-align: left; font-size: 10px; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--muted); padding: 4px; position: sticky; top: 0; background: var(--panel);
+  }
+  #import-preview td { padding: 6px 4px; font-weight: 600; }
+  .row-err { color: var(--red); font-size: 11px; }
+  .row-ok { color: var(--green); }
+
+  #map { flex: 1; }
+  #map-wrap { position: relative; flex: 1; display: flex; }
+
+  #alert-banner {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    background: var(--red); color: #fff;
+    font-family: var(--ui); font-size: 14px; font-weight: 800;
+    padding: 13px 24px; border-radius: 999px; display: none; z-index: 10;
+    box-shadow: var(--shadow-lg); animation: slam .25s; max-width: 70%;
+    text-align: center;
+  }
+  @keyframes slam { from { transform: translateX(-50%) translateY(-16px); opacity: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Fleet<em>Ops</em></div>
+  <div class="tag">Delivery Console</div>
+  <button id="theme-toggle">☾ Dark</button>
+  <div id="trip-status"><span class="dot"></span><span id="trip-status-text">No run</span></div>
+</header>
+<main>
+  <aside>
+    <div class="tabs">
+      <button id="tab-btn-parcels" class="active">Parcels<span class="badge warn" id="parcel-badge" style="display:none">0</span></button>
+      <button id="tab-btn-fleet">Runs<span class="badge" id="fleet-badge">0</span></button>
+      <button id="tab-btn-registry">Registry</button>
+    </div>
+
+    <!-- ================= PARCELS ================= -->
+    <section id="tab-parcels">
+      <h2>Parcels
+        <button id="btn-auto" class="dispatch-btn" title="The dispatch agent batches pending (or selected) parcels into runs">
+          <svg viewBox="0 0 14 14" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 7 H6"/><path d="M6 7 C 8.5 7 8.5 3 11 3"/><path d="M6 7 C 8.5 7 8.5 11 11 11"/><path d="M6 7 H11.5"/></g><g fill="currentColor"><path d="M10.5 1.6 L13 3 L10.5 4.4 Z"/><path d="M10.5 5.6 L13 7 L10.5 8.4 Z"/><path d="M10.5 9.6 L13 11 L10.5 12.4 Z"/></g></svg>
+          Dispatch
+        </button>
+        <button id="btn-import" class="link-action">⇪ Import</button>
+        <button id="btn-add-parcel" class="link-action">+ Add</button>
+        <button id="btn-clear-delivered" class="link-danger">Clear delivered</button>
+      </h2>
+      <div id="depot-chip" style="margin-top:10px" title="Depot — all runs start here">🏭 <span id="depot-label">…</span> · edit</div>
+
+      <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">
+        <div class="field"><label>Parcel name</label><input id="pf-name" placeholder="e.g. Router #4411"></div>
+        <div class="form-grid">
+          <div class="field"><label>Type</label><input id="pf-type" placeholder="electronics"></div>
+          <div class="field"><label>Deadline</label><input id="pf-deadline" type="datetime-local"></div>
+        </div>
+        <div class="field"><label>Size</label>
+          <div class="seg" id="pf-size">
+            <button data-s="small" class="active">Small</button>
+            <button data-s="medium">Medium</button>
+            <button data-s="large">Large</button>
+          </div>
+        </div>
+        <div class="field"><label>Destination — search or click the map</label>
+          <input id="pf-dest" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
+          <div class="hint" id="pf-dest-label" style="margin-top:4px">No destination set</div>
+        </div>
+        <div class="row">
+          <button class="btn btn-ghost" id="pf-cancel">Cancel</button>
+          <button class="btn btn-primary" id="pf-save" disabled>Add parcel</button>
+        </div>
+      </div>
+
+      <div id="parcel-list" style="margin-top:12px"></div>
+    </section>
+
+    <!-- ================= RUNS (fleet) ================= -->
+    <section id="tab-fleet" style="display:none">
+      <h2>Delivery runs <button id="btn-clear-all" class="link-danger">Clear all</button></h2>
+      <div id="trip-list" style="margin-top:12px"></div>
+    </section>
+
+    <!-- ================= REGISTRY ================= -->
+    <section id="tab-registry" style="display:none">
+      <h2>Vehicles <button id="btn-add-vehicle" class="link-action">+ Add</button></h2>
+      <div id="vehicle-form" class="form-card" style="display:none; margin-top:10px">
+        <div class="form-grid">
+          <div class="field"><label>Name</label><input id="vf-name" placeholder="Van 02"></div>
+          <div class="field"><label>Plate</label><input id="vf-plate" placeholder="PC-4471"></div>
+        </div>
+        <div class="field"><label>Type</label>
+          <div class="seg" id="vf-type">
+            <button data-t="car">🚗 Car</button>
+            <button data-t="van" class="active">🚐 Van</button>
+            <button data-t="truck">🚚 Truck</button>
+            <button data-t="bike">🏍️ Bike</button>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>Capacity (parcels)</label><input id="vf-capacity" type="number" min="1"></div>
+          <div class="field"><label>Max parcel size</label>
+            <select id="vf-maxsize">
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn btn-ghost" id="vf-cancel">Cancel</button>
+          <button class="btn btn-primary" id="vf-save">Add vehicle</button>
+        </div>
+      </div>
+      <div class="reg-list" id="vehicle-list" style="margin-top:10px"></div>
+
+      <h2 style="margin-top:18px">Drivers <button id="btn-add-driver" class="link-action">+ Add</button></h2>
+      <div id="driver-form" class="form-card" style="display:none; margin-top:10px">
+        <div class="form-grid">
+          <div class="field"><label>Name</label><input id="df-name" placeholder="Nuwan"></div>
+          <div class="field"><label>Phone</label><input id="df-phone" placeholder="+94 77 …"></div>
+        </div>
+        <div class="field"><label>Vehicle</label><select id="df-vehicle"></select></div>
+        <div class="row">
+          <button class="btn btn-ghost" id="df-cancel">Cancel</button>
+          <button class="btn btn-primary" id="df-save">Add driver</button>
+        </div>
+      </div>
+      <div class="reg-list" id="driver-list" style="margin-top:10px"></div>
+    </section>
+
+    <div id="run-footer">
+      <button class="btn btn-primary" id="btn-plan-run">Plan delivery run</button>
+    </div>
+  </aside>
+
+  <div id="map-wrap">
+    <div id="alert-banner"></div>
+    <div id="map"></div>
+
+    <!-- run detail card -->
+    <div id="trip-detail" class="float-card">
+      <div class="panel-head">
+        <h2>Run <span id="detail-id"></span></h2>
+        <button id="btn-close-detail" class="close-btn" title="Close">✕</button>
+      </div>
+      <div id="run-meta"></div>
+      <div class="totals">
+        <div class="kpi"><b id="kpi-dist">–</b><span>Planned</span></div>
+        <div class="kpi"><b id="kpi-time">–</b><span>Drive time</span></div>
+        <div class="kpi"><b id="kpi-parcels">–</b><span>Parcels</span></div>
+      </div>
+      <div class="totals">
+        <div class="kpi stat"><b id="kpi-actual">–</b><span>Driven</span></div>
+        <div class="kpi stat"><b id="kpi-devs">–</b><span>Deviations</span></div>
+        <div class="kpi stat"><b id="kpi-delivered">–</b><span>Delivered</span></div>
+      </div>
+      <h2>Manifest</h2>
+      <table id="manifest"></table>
+      <div id="briefing"></div>
+      <div id="driver-link"><a id="driver-url" target="_blank"></a><button id="btn-copy">Copy link</button></div>
+      <div class="row">
+        <button id="btn-delete" class="btn btn-ghost danger">Delete run</button>
+      </div>
+      <h2>Alerts</h2>
+      <div id="alerts"></div>
+    </div>
+
+    <!-- dispatch agent proposal card -->
+    <div id="dispatch-card" class="float-card">
+      <div class="panel-head">
+        <h2>Dispatch proposal</h2>
+        <button id="btn-close-dispatch" class="close-btn" title="Close">✕</button>
+      </div>
+      <div id="dispatch-body"></div>
+      <div class="row" id="dispatch-actions" style="display:none">
+        <button class="btn btn-ghost" id="btn-dispatch-discard">Discard</button>
+        <button class="btn btn-primary" id="btn-dispatch-approve">Create runs</button>
+      </div>
+    </div>
+
+    <!-- driver picker card -->
+    <div id="run-picker" class="float-card">
+      <div class="panel-head">
+        <h2>Assign driver · <span id="picker-count"></span> parcels</h2>
+        <button id="btn-close-picker" class="close-btn" title="Close">✕</button>
+      </div>
+      <div id="picker-drivers" style="display:flex;flex-direction:column;gap:8px"></div>
+      <label class="toggle-row">
+        <span>Avoid tolls</span>
+        <input type="checkbox" id="picker-tolls">
+        <span class="switch"></span>
+      </label>
+      <button class="btn btn-primary" id="btn-create-run" disabled>Plan run</button>
+    </div>
+  </div>
+</main>
+
+<!-- import modal -->
+<div id="import-modal">
+  <div class="modal-card">
+    <div class="panel-head">
+      <h2>Import parcels</h2>
+      <button id="btn-close-import" class="close-btn">✕</button>
+    </div>
+    <p class="hint">CSV or Excel with columns: <b>name, type, size, destination, deadline</b>.
+      Sizes: small/medium/large. Destination is free text (geocoded). Deadline: <b>YYYY-MM-DD HH:MM</b>.</p>
+    <input type="file" id="import-file" accept=".csv,.xlsx,.xls">
+    <div id="import-progress" class="hint"></div>
+    <div id="import-preview"></div>
+    <button class="btn btn-primary" id="btn-do-import" style="display:none">Import</button>
+  </div>
+</div>
+
+<script src="/static/js/maps-loader.js"></script>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/import.js"></script>
+<script src="/static/js/admin.js"></script>
+</body>
+</html>

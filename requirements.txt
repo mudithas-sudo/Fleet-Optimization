@@ -1,0 +1,6 @@
+google-adk==2.8.0
+fastapi
+uvicorn[standard]
+httpx
+python-dotenv
+sse-starlette

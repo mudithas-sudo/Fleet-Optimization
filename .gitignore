@@ -1,0 +1,6 @@
+venv/
+.env
+fleet.db*
+__pycache__/
+*.pyc
+.adk/
