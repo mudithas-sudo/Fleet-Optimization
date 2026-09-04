@@ -8,8 +8,10 @@
 
 let map;
 let activeTab = "parcels";
-const VEH_ICON = { car: "🚗", van: "🚐", truck: "🚚", bike: "🏍️" };
 const LIVE = ["active", "deviating"];
+
+// vehicle glyph as an icon-wrapped SVG (chrome uses SVG, never emoji)
+function vehBadge(type) { return `<span class="veh-ico">${vehIconSvg(type)}</span>`; }
 
 // domain state
 let parcels = {};          // id -> parcel
@@ -56,6 +58,16 @@ async function init() {
     $(`tab-btn-${t}`).onclick = () => switchTab(t);
   });
 
+  // fill the vehicle-type picker glyphs with SVG icons
+  document.querySelectorAll("#vf-type [data-veh]").forEach(el => {
+    el.innerHTML = vehIconSvg(el.dataset.veh);
+  });
+
+  // depot chip is a role=button — support keyboard activation
+  $("depot-chip").addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startDepotEdit(); }
+  });
+
   // parcels tab
   $("btn-add-parcel").onclick = () => toggleParcelForm(true);
   $("pf-cancel").onclick = () => toggleParcelForm(false);
@@ -64,8 +76,11 @@ async function init() {
   document.querySelectorAll("#pf-size button").forEach(b => {
     b.onclick = () => {
       pfSize = b.dataset.s;
-      document.querySelectorAll("#pf-size button").forEach(x =>
-        x.classList.toggle("active", x === b));
+      document.querySelectorAll("#pf-size button").forEach(x => {
+        const on = x === b;
+        x.classList.toggle("active", on);
+        x.setAttribute("aria-pressed", String(on));
+      });
     };
   });
   setupDestSearch();
@@ -90,8 +105,11 @@ async function init() {
   $("vf-save").onclick = saveVehicle;
   document.querySelectorAll("#vf-type button").forEach(b => {
     b.onclick = () => {
-      document.querySelectorAll("#vf-type button").forEach(x =>
-        x.classList.toggle("active", x === b));
+      document.querySelectorAll("#vf-type button").forEach(x => {
+        const on = x === b;
+        x.classList.toggle("active", on);
+        x.setAttribute("aria-pressed", String(on));
+      });
       const d = { bike: ["small", 2], car: ["medium", 4], van: ["large", 8], truck: ["large", 20] }[b.dataset.t];
       $("vf-maxsize").value = d[0];
       $("vf-capacity").value = d[1];
@@ -109,8 +127,11 @@ async function init() {
 function switchTab(tab) {
   activeTab = tab;
   ["parcels", "fleet", "registry"].forEach(t => {
-    $(`tab-btn-${t}`).classList.toggle("active", t === tab);
-    $(`tab-${t}`).style.display = t === tab ? "block" : "none";
+    const on = t === tab;
+    const btn = $(`tab-btn-${t}`);
+    btn.setAttribute("aria-selected", String(on));
+    btn.tabIndex = on ? 0 : -1;
+    $(`tab-${t}`).hidden = !on;
   });
   updateRunFooter();
 }
@@ -172,13 +193,14 @@ function fmtDeadline(p) {
 function renderParcels() {
   const list = Object.values(parcels).sort((a, b) => a.deadline - b.deadline);
   const overdue = list.filter(p => p.deadlineMissed && p.status !== "delivered").length;
-  $("parcel-badge").style.display = overdue ? "inline-block" : "none";
+  $("parcel-badge").hidden = !overdue;
   $("parcel-badge").textContent = overdue;
 
   const wrap = $("parcel-list");
   wrap.innerHTML = "";
   if (!list.length) {
-    wrap.innerHTML = `<div class="empty">No parcels yet.<br>Add one or import a spreadsheet.</div>`;
+    wrap.innerHTML = `<div class="empty">${iconSvg("depot", "i-lg")}
+      <b>No parcels yet</b>Add one manually or import a spreadsheet to get started.</div>`;
     return;
   }
   list.forEach(p => {
@@ -189,14 +211,14 @@ function renderParcels() {
       ? `<span class="late-tag">late</span>` : "";
     row.innerHTML = `
       ${p.status === "pending"
-        ? `<input type="checkbox" ${selectedParcels.has(p.id) ? "checked" : ""}>`
-        : `<span class="p-dot ${p.status}"></span>`}
+        ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
+        : `<span class="p-dot ${p.status}" title="${p.status.replace("_", " ")}"></span>`}
       <div class="info">
         <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${lateTag}</div>
         <div class="meta">${p.destination.label} · ${p.type} · ${p.status.replace("_", " ")}</div>
       </div>
-      <div class="deadline ${dl.cls}">${dl.text}</div>
-      ${p.status === "pending" ? `<button class="del" title="Delete">✕</button>` : ""}`;
+      <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
+      ${p.status === "pending" ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
     const cb = row.querySelector("input[type=checkbox]");
     if (cb) cb.onchange = () => {
       cb.checked ? selectedParcels.add(p.id) : selectedParcels.delete(p.id);
@@ -243,7 +265,12 @@ function toggleParcelForm(show) {
 
 function setPfDest(dest) {
   pfDest = dest;
-  $("pf-dest-label").textContent = `📍 ${dest.label}`;
+  $("pf-dest-label").innerHTML = "";
+  $("pf-dest-label").append(
+    Object.assign(document.createElement("span"), {
+      innerHTML: iconSvg("pin"), style: "vertical-align:-2px;margin-right:4px",
+    }),
+    document.createTextNode(dest.label));
   if (pfMarker) pfMarker.setMap(null);
   pfMarker = stopMarker(map, dest, 1, 3);
   $("pf-save").disabled = !$("pf-name").value.trim();
@@ -345,7 +372,7 @@ async function previewImport() {
       <td>${r.name || "—"}</td><td>${r.size}</td>
       <td>${r.destinationResolved ? r.destinationResolved.label : r.destination}</td>
       <td>${r.deadline}</td>
-      <td class="${r.error ? "row-err" : "row-ok"}">${r.error || "✓"}</td>
+      <td class="${r.error ? "row-err" : "row-ok"}">${r.error || "ready"}</td>
     </tr>`).join("")}
   </table>`;
   $("btn-do-import").style.display = ok ? "block" : "none";
@@ -385,7 +412,8 @@ function renderPickerDrivers() {
   const wrap = $("picker-drivers");
   wrap.innerHTML = "";
   if (!driversReg.length) {
-    wrap.innerHTML = `<div class="empty">No drivers yet — add vehicles and drivers in the Registry tab.</div>`;
+    wrap.innerHTML = `<div class="empty">${iconSvg("user", "i-lg")}
+      <b>No drivers yet</b>Add vehicles and drivers in the Registry tab first.</div>`;
   }
   driversReg.forEach(d => {
     const v = vehiclesReg.find(x => x.id === d.vehicleId);
@@ -398,15 +426,17 @@ function renderPickerDrivers() {
       if (!reason && over) reason = `max size ${v.maxParcelSize} < ${over.size} (${over.name})`;
     }
     const busy = Object.values(trips).some(t => t.driverId === d.id && LIVE.includes(t.status));
-    const card = document.createElement("div");
+    const card = document.createElement("button");
+    card.type = "button";
     card.className = "driver-card" + (reason ? " disabled" : "") +
       (pickerDriverId === d.id ? " selected" : "");
+    if (reason) card.disabled = true;
     card.innerHTML = `
-      <span class="emoji">${v ? VEH_ICON[v.type] : "❔"}</span>
+      <span class="veh-ico">${v ? vehIconSvg(v.type) : iconSvg("help")}</span>
       <div class="info">
         <div class="label">${d.name}</div>
         <div class="meta">${v ? `${v.name} · ${v.plate} · cap ${v.capacity} · max ${v.maxParcelSize}` : "no vehicle"}</div>
-        ${reason ? `<div class="reason">${reason}</div>` : ""}
+        ${reason ? `<div class="reason">${iconSvg("alert")} ${reason}</div>` : ""}
       </div>
       ${busy ? `<span class="busy-chip">en route</span>` : ""}`;
     if (!reason) card.onclick = () => { pickerDriverId = d.id; renderPickerDrivers(); };
@@ -456,9 +486,9 @@ async function autoAssign() {
   $("trip-detail").style.display = "none";
   $("dispatch-card").style.display = "flex";
   $("dispatch-actions").style.display = "none";
-  $("dispatch-body").innerHTML = `<div class="working">The dispatch agent is
-    planning ${scope ? scope.length + " selected" : "your"} runs — checking fleet
-    eligibility, routes and deadlines. This can take up to a minute…</div>`;
+  $("dispatch-body").innerHTML = `<div class="working"><span class="spinner"></span>
+    <span>The dispatch agent is planning ${scope ? scope.length + " selected" : "your"} runs —
+    checking fleet eligibility, routes and deadlines. This can take up to a minute…</span></div>`;
   try {
     dispatchPlan = await api("/api/dispatch/propose", {
       method: "POST", body: JSON.stringify({ parcelIds: scope }),
@@ -481,14 +511,14 @@ function renderDispatch() {
     card.className = "batch-card";
     card.innerHTML = `
       <div class="batch-head">
-        <input type="checkbox" checked data-i="${i}">
-        <div class="who">${VEH_ICON[b.vehicleType] || ""} ${b.driverName}
+        <input type="checkbox" checked data-i="${i}" aria-label="Include ${b.driverName}'s batch">
+        <div class="who">${vehIconSvg(b.vehicleType)} ${b.driverName}
           <small>${b.vehicleName} · ${b.vehiclePlate || b.vehicleType} · ${b.parcelIds.length} parcel${b.parcelIds.length === 1 ? "" : "s"}</small>
         </div>
       </div>
       <div class="parcel-chips">${b.parcelNames.map(n => `<span class="parcel-chip">${n}</span>`).join("")}</div>
       <div class="rationale">${b.rationale}</div>
-      ${b.riskNotes ? `<div class="risk-note">⚠ ${b.riskNotes}</div>` : ""}`;
+      ${b.riskNotes ? `<div class="risk-note">${iconSvg("alert")} ${b.riskNotes}</div>` : ""}`;
     card.querySelector("input").onchange = updateDispatchButton;
     body.append(card);
   });
@@ -553,17 +583,17 @@ async function loadRegistry() {
 function renderRegistry() {
   const vWrap = $("vehicle-list");
   vWrap.innerHTML = vehiclesReg.length ? "" :
-    `<div class="empty">No vehicles yet.</div>`;
+    `<div class="empty">${iconSvg("truck", "i-lg")}<b>No vehicles yet</b>Add a vehicle to assign drivers to it.</div>`;
   vehiclesReg.forEach(v => {
     const row = document.createElement("div");
     row.className = "reg-row";
     row.innerHTML = `
-      <span class="emoji">${VEH_ICON[v.type]}</span>
+      <span class="veh-ico">${vehIconSvg(v.type)}</span>
       <div class="info">
         <div class="label">${v.name} · ${v.plate || "—"}</div>
         <div class="meta">${v.type} · capacity ${v.capacity} · max size ${v.maxParcelSize}</div>
       </div>
-      <button class="del" title="Delete">✕</button>`;
+      <button class="del" type="button" aria-label="Delete vehicle ${v.name}">${iconSvg("trash")}</button>`;
     row.querySelector(".del").onclick = async () => {
       if (!confirm(`Delete vehicle ${v.name}?`)) return;
       try { await api(`/api/vehicles/${v.id}`, { method: "DELETE" }); await loadRegistry(); }
@@ -574,20 +604,20 @@ function renderRegistry() {
 
   const dWrap = $("driver-list");
   dWrap.innerHTML = driversReg.length ? "" :
-    `<div class="empty">No drivers yet.</div>`;
+    `<div class="empty">${iconSvg("user", "i-lg")}<b>No drivers yet</b>Add a driver and link them to a vehicle.</div>`;
   driversReg.forEach(d => {
     const v = vehiclesReg.find(x => x.id === d.vehicleId);
     const row = document.createElement("div");
     row.className = "reg-row";
     const queueUrl = `${location.origin}/static/driver.html?driver=${d.id}`;
     row.innerHTML = `
-      <span class="emoji">${v ? VEH_ICON[v.type] : "🧑"}</span>
+      <span class="veh-ico">${v ? vehIconSvg(v.type) : iconSvg("user")}</span>
       <div class="info">
         <div class="label">${d.name}</div>
         <div class="meta">${d.phone || "—"} · ${v ? v.name : "no vehicle"} ·
-          <a href="${queueUrl}" target="_blank" style="color:var(--blue)">driver link</a></div>
+          <a href="${queueUrl}" target="_blank" rel="noopener" style="color:var(--primary)">driver link</a></div>
       </div>
-      <button class="del" title="Delete">✕</button>`;
+      <button class="del" type="button" aria-label="Delete driver ${d.name}">${iconSvg("trash")}</button>`;
     row.querySelector(".del").onclick = async () => {
       if (!confirm(`Delete driver ${d.name}?`)) return;
       try { await api(`/api/drivers/${d.id}`, { method: "DELETE" }); await loadRegistry(); }
@@ -618,7 +648,7 @@ async function saveVehicle() {
 
 function renderDriverVehicleSelect() {
   $("df-vehicle").innerHTML = vehiclesReg.map(v =>
-    `<option value="${v.id}">${VEH_ICON[v.type]} ${v.name} (${v.plate || v.type})</option>`).join("")
+    `<option value="${v.id}">${v.name} · ${v.type} (${v.plate || v.type})</option>`).join("")
     || `<option value="">— add a vehicle first —</option>`;
 }
 
@@ -683,17 +713,19 @@ function groupHeader(g, count) {
 }
 
 function tripRow(t) {
-  const row = document.createElement("div");
+  const row = document.createElement("button");
+  row.type = "button";
   row.className = `trip-row status-${t.status}` + (t.id === selectedId ? " selected" : "");
+  if (t.id === selectedId) row.setAttribute("aria-current", "true");
   const drv = t.driverName ? ` · ${t.driverName}` : "";
   const del = t.parcelCount ? ` · ${t.deliveredCount}/${t.parcelCount} delivered` : "";
   row.innerHTML = `
-    <span class="dot"></span>
+    <span class="veh-ico">${vehIconSvg(t.vehicleType)}</span>
     <div class="info">
-      <div class="label">${VEH_ICON[t.vehicleType] || "🚗"} ${t.label}</div>
+      <div class="label">${t.label}</div>
       <div class="meta">${t.id}${drv} · ${fmtKm(t.totalDistanceMeters)}${del}</div>
     </div>
-    ${t.deviations ? `<span class="dev-badge">${t.deviations}</span>` : ""}`;
+    ${t.deviations ? `<span class="dev-badge">${iconSvg("alert")} ${t.deviations}</span>` : ""}`;
   row.onclick = () => selectTrip(t.id);
   return row;
 }
@@ -705,7 +737,8 @@ function renderTripList() {
   const wrap = $("trip-list");
   wrap.innerHTML = "";
   if (!list.length) {
-    wrap.innerHTML = `<div class="empty">No delivery runs yet.<br>Select parcels in the Parcels tab.</div>`;
+    wrap.innerHTML = `<div class="empty">${iconSvg("truck", "i-lg")}
+      <b>No delivery runs yet</b>Select pending parcels in the Parcels tab, then assign a driver.</div>`;
     return;
   }
   TRIP_GROUPS.forEach(g => {
@@ -739,8 +772,8 @@ function renderDetail() {
   const v = vehiclesReg.find(x => x.id === detail.vehicleId);
   const d = driversReg.find(x => x.id === detail.driverId);
   $("run-meta").innerHTML = [
-    d ? `<span class="tag">🧑 ${d.name}</span>` : "",
-    v ? `<span class="tag">${VEH_ICON[v.type]} ${v.name} · ${v.plate || v.type}</span>` : "",
+    d ? `<span class="tag">${iconSvg("user")} ${d.name}</span>` : "",
+    v ? `<span class="tag">${vehIconSvg(v.type)} ${v.name} · ${v.plate || v.type}</span>` : "",
     detail.avoidTolls ? `<span class="tag">no tolls</span>` : "",
   ].join("");
 
@@ -748,7 +781,7 @@ function renderDetail() {
   const delayMin = Math.round(
     (r.totalDurationSeconds - (r.staticDurationSeconds || r.totalDurationSeconds)) / 60);
   $("kpi-time").innerHTML = fmtMin(r.totalDurationSeconds) +
-    (delayMin >= 5 ? ` <small style="color:var(--red);font-size:11px">+${delayMin} traffic</small>` : "");
+    (delayMin >= 5 ? ` <small style="color:var(--danger);font-size:11px">+${delayMin} traffic</small>` : "");
   $("kpi-parcels").textContent = (detail.parcelIds || []).length || r.orderedStops.length;
   $("kpi-actual").textContent =
     detail.actualDistanceMeters ? fmtKm(detail.actualDistanceMeters) : "–";
@@ -768,7 +801,7 @@ function renderDetail() {
   $("btn-copy").onclick = async () => {
     try {
       await navigator.clipboard.writeText(url);
-      $("btn-copy").textContent = "Copied ✓";
+      $("btn-copy").textContent = "Copied";
     } catch (_) {
       getSelection().selectAllChildren(link);
       $("btn-copy").textContent = "Press Ctrl+C";
@@ -791,7 +824,7 @@ function renderManifest() {
       const e = etas[s.parcelId];
       const delivered = p && p.status === "delivered";
       const status = delivered
-        ? `<span class="done-tag">✓ ${p.deadlineMissed ? "late" : "done"}</span>`
+        ? `<span class="done-tag">${iconSvg("check")} ${p.deadlineMissed ? "late" : "done"}</span>`
         : (e && e.atRisk ? `<span class="risk-tag">at risk</span>` : "");
       const eta = e ? new Date(e.eta * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
       return `<tr>
@@ -974,17 +1007,21 @@ const ALERT_STYLE = {
   reroute: "info", started: "info", ended: "info",
 };
 
+const ALERT_ICON = { ok: "check", info: "info" };
+
 function addAlertRow(a, prepend = false) {
   const row = document.createElement("div");
-  row.className = "alert-row " + (ALERT_STYLE[a.type] || "");
-  row.innerHTML = `<time>${fmtClock(a.ts)}</time>${a.message}`;
+  const style = ALERT_STYLE[a.type] || "";
+  row.className = "alert-row " + style;
+  row.innerHTML = `${iconSvg(ALERT_ICON[style] || "alert")}<div><time>${fmtClock(a.ts)}</time>${a.message}</div>`;
   prepend ? $("alerts").prepend(row) : $("alerts").append(row);
 }
 
 function flashBanner(msg) {
   const b = $("alert-banner");
-  b.textContent = "⚠ " + msg;
-  b.style.display = "block";
+  b.innerHTML = iconSvg("alert", "i-lg") + "<span></span>";
+  b.querySelector("span").textContent = msg;
+  b.style.display = "flex";
   clearTimeout(b._t);
   b._t = setTimeout(() => { b.style.display = "none"; }, 6000);
 }

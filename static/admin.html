@@ -6,544 +6,808 @@
 <title>FleetOps — Delivery Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  /* ============================================================
+     FleetOps design system — "Swiss minimal" (ui-ux-pro-max)
+     Tracking blue + delivery orange · Plus Jakarta Sans
+     All colour/spacing/type via semantic tokens, themed per mode.
+     Legacy token aliases (--blue/--red/…) kept for inline JS refs.
+     ============================================================ */
   :root {
-    --bg: #f3f4f6;
-    --panel: #ffffff;
-    --panel-2: #f6f7f8;
-    --line: #e8eaed;
-    --text: #131619;
-    --muted: #6b7177;
-    --primary: #131619;        /* black CTA */
-    --primary-text: #ffffff;
-    --blue: #276ef1;
-    --blue-soft: #eef4fe;
-    --green: #05944f;
-    --green-soft: #e6f4ec;
-    --red: #e11900;
-    --red-soft: #fdecea;
-    --amber: #b06f00;
-    --amber-soft: #fdf4e3;
-    --shadow-sm: 0 1px 2px rgba(19, 22, 25, .06), 0 2px 8px rgba(19, 22, 25, .05);
-    --shadow-lg: 0 4px 12px rgba(19, 22, 25, .10), 0 12px 32px rgba(19, 22, 25, .10);
-    --display: "Archivo", sans-serif;
-    --ui: "Manrope", sans-serif;
-    --r: 12px;
+    color-scheme: light;
+
+    /* surfaces & text */
+    --bg: #f1f4f9;
+    --surface: #ffffff;
+    --surface-2: #eef2f7;
+    --surface-3: #e4eaf2;
+    --border: #d5dde8;
+    --border-strong: #b7c3d4;
+    --text: #0f1b2d;
+    --text-muted: #55647a;
+    --text-subtle: #5e6b80;
+
+    /* brand */
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --on-primary: #ffffff;
+    --primary-soft: #e8f0fe;
+    --accent: #ea580c;
+    --accent-hover: #fb6a12;
+    --on-accent: #201203;
+    --accent-soft: #fdecdf;
+
+    /* status */
+    --success: #0f7a43;
+    --success-soft: #e2f2e9;
+    --warning: #8a5200;
+    --warning-soft: #f9ecd6;
+    --danger: #c42a17;
+    --danger-soft: #fbe7e4;
+
+    /* effects */
+    --focus-ring: 0 0 0 3px rgba(37, 99, 235, .35);
+    --shadow-sm: 0 1px 2px rgba(15, 27, 45, .06), 0 1px 3px rgba(15, 27, 45, .10);
+    --shadow-md: 0 4px 14px rgba(15, 27, 45, .10);
+    --shadow-lg: 0 14px 40px rgba(15, 27, 45, .18);
+    --scrim: rgba(15, 27, 45, .48);
+
+    /* spacing — dense dashboard, 4px rhythm */
+    --space-1: 4px; --space-2: 8px; --space-3: 12px;
+    --space-4: 16px; --space-5: 24px; --space-6: 32px;
+
+    /* radius */
+    --radius-sm: 6px; --radius: 10px; --radius-lg: 14px; --radius-full: 999px;
+
+    /* type */
+    --font: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --fs-xs: 11px; --fs-sm: 12.5px; --fs-base: 14px; --fs-md: 15px;
+    --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 27px;
+
+    --dur: .18s;
+    --ease: cubic-bezier(.2, 0, 0, 1);
+
+    /* legacy aliases (referenced from *.js inline styles / helpers) */
+    --panel: var(--surface);
+    --panel-2: var(--surface-2);
+    --line: var(--border);
+    --muted: var(--text-muted);
+    --primary-text: var(--on-primary);
+    --blue: var(--primary);
+    --blue-soft: var(--primary-soft);
+    --green: var(--success);
+    --green-soft: var(--success-soft);
+    --red: var(--danger);
+    --red-soft: var(--danger-soft);
+    --amber: var(--warning);
+    --amber-soft: var(--warning-soft);
+    --display: var(--font);
+    --ui: var(--font);
+    --r: var(--radius);
   }
+
   [data-theme="dark"] {
-    --bg: #0e1013;
-    --panel: #16181d;
-    --panel-2: #1d2025;
-    --line: #2a2e34;
-    --text: #e8eaed;
-    --muted: #8b9198;
-    --primary: #e8eaed;
-    --primary-text: #131619;
-    --blue: #5b93ff;
-    --blue-soft: #17213a;
-    --green: #2fb673;
-    --green-soft: #142a1e;
-    --red: #ff5c47;
-    --red-soft: #331c19;
-    --amber: #f6a609;
-    --amber-soft: #2c2312;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-    --shadow-lg: 0 12px 32px rgba(0,0,0,.55);
+    color-scheme: dark;
+
+    --bg: #0a0e16;
+    --surface: #121926;
+    --surface-2: #1a2231;
+    --surface-3: #232e40;
+    --border: #2b3648;
+    --border-strong: #3d4b63;
+    --text: #e9eef6;
+    --text-muted: #9fb0c6;
+    --text-subtle: #8091a9;
+
+    --primary: #5b9bff;
+    --primary-hover: #7db0ff;
+    --on-primary: #08111f;
+    --primary-soft: #172845;
+    --accent: #ff7f43;
+    --accent-hover: #ff9560;
+    --on-accent: #1c0f06;
+    --accent-soft: #35220f;
+
+    --success: #3dbd78;
+    --success-soft: #10241a;
+    --warning: #e0a33f;
+    --warning-soft: #2b2413;
+    --danger: #ff6f5e;
+    --danger-soft: #331b18;
+
+    --focus-ring: 0 0 0 3px rgba(91, 155, 255, .45);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, .5);
+    --shadow-lg: 0 18px 46px rgba(0, 0, 0, .62);
+    --scrim: rgba(0, 0, 0, .62);
   }
+
   * { box-sizing: border-box; margin: 0; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
   body {
     background: var(--bg); color: var(--text);
-    font-family: var(--ui); font-size: 13.5px; font-weight: 500;
+    font-family: var(--font); font-size: var(--fs-base); font-weight: 500;
+    line-height: 1.5;
     height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-    transition: background .2s, color .2s;
+    transition: background var(--dur), color var(--dur);
     -webkit-font-smoothing: antialiased;
   }
+
+  a { color: var(--primary); }
+
+  /* visible focus for keyboard users everywhere */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--radius-sm);
+  }
+
+  .skip-link {
+    position: absolute; left: 12px; top: 8px; z-index: 100;
+    background: var(--surface); color: var(--text);
+    padding: 10px 16px; border-radius: var(--radius);
+    font-weight: 700; box-shadow: var(--shadow-lg);
+    transform: translateY(-160%); transition: transform var(--dur) var(--ease);
+  }
+  .skip-link:focus { transform: translateY(0); }
+
+  /* icons */
+  .i {
+    width: 16px; height: 16px; flex: 0 0 auto;
+    stroke: currentColor; fill: none;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .i-sm { width: 14px; height: 14px; }
+  .i-lg { width: 20px; height: 20px; }
+
+  /* ---------- header ---------- */
   header {
-    display: flex; align-items: center; gap: 14px;
-    padding: 0 20px; height: 60px; flex: 0 0 auto;
-    background: var(--panel); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: 0 var(--space-5); height: 58px; flex: 0 0 auto;
+    background: var(--surface); border-bottom: 1px solid var(--border);
   }
   .brand {
-    font-family: var(--display); font-size: 21px; font-weight: 800;
-    letter-spacing: -0.5px;
+    font-size: var(--fs-xl); font-weight: 800; letter-spacing: -.02em;
+    display: flex; align-items: center;
   }
-  .brand em { font-style: normal; color: var(--blue); }
+  .brand .logo {
+    width: 26px; height: 26px; border-radius: 8px; margin-right: 9px;
+    background: var(--primary); color: var(--on-primary);
+    display: grid; place-items: center;
+  }
+  .brand .logo svg { width: 16px; height: 16px; }
+  .brand em { font-style: normal; color: var(--primary); }
   .tag {
-    font-size: 11px; font-weight: 700; letter-spacing: .3px;
-    color: var(--muted); background: var(--panel-2);
-    padding: 5px 11px; border-radius: 999px;
+    font-size: var(--fs-xs); font-weight: 700; letter-spacing: .02em;
+    color: var(--text-muted); background: var(--surface-2);
+    padding: 5px 11px; border-radius: var(--radius-full);
   }
-  #theme-toggle {
-    margin-left: auto; font-family: var(--ui); font-size: 12px; font-weight: 700;
-    background: var(--panel); color: var(--muted);
-    border: 1px solid var(--line); border-radius: 999px;
-    padding: 7px 14px; cursor: pointer;
-  }
-  #theme-toggle:hover { color: var(--text); border-color: var(--muted); }
-  #trip-status {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 800;
-    padding: 7px 14px; border-radius: 999px; background: var(--panel-2);
-  }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
-  .status-planned  .dot { background: var(--blue); }
-  .status-active   .dot { background: var(--green); animation: pulse 1.4s infinite; }
-  .status-deviating .dot { background: var(--red); animation: pulse .7s infinite; }
-  .status-completed .dot { background: var(--muted); }
-  @keyframes pulse { 50% { opacity: .3; } }
+  .header-spacer { margin-left: auto; }
 
+  .icon-btn {
+    width: 38px; height: 38px; flex: 0 0 auto;
+    display: grid; place-items: center;
+    background: var(--surface); color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: var(--radius-full);
+    cursor: pointer; transition: color var(--dur), border-color var(--dur), background var(--dur);
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
+  .icon-btn .i { width: 18px; height: 18px; }
+
+  #trip-status {
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: var(--fs-sm); font-weight: 700;
+    padding: 7px 13px; border-radius: var(--radius-full);
+    background: var(--surface-2); color: var(--text-muted);
+  }
+  #trip-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-subtle); flex: 0 0 auto; }
+  #trip-status.status-planned  { color: var(--primary); }
+  #trip-status.status-planned  .dot { background: var(--primary); }
+  #trip-status.status-active   { color: var(--success); }
+  #trip-status.status-active   .dot { background: var(--success); animation: pulse 1.6s infinite; }
+  #trip-status.status-deviating { color: var(--danger); }
+  #trip-status.status-deviating .dot { background: var(--danger); animation: pulse .8s infinite; }
+  #trip-status.status-completed .dot { background: var(--text-subtle); }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  /* ---------- layout ---------- */
   main { flex: 1; display: flex; min-height: 0; }
   aside {
-    width: 416px; flex: 0 0 auto; overflow-y: auto;
-    background: var(--panel); border-right: 1px solid var(--line);
-    padding: 18px; display: flex; flex-direction: column; gap: 16px;
-    position: relative;
+    width: 420px; flex: 0 0 auto; overflow-y: auto;
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);
+    position: relative; scroll-padding-bottom: 80px;
   }
 
+  /* ---------- tabs ---------- */
   .tabs {
-    display: flex; gap: 4px; background: var(--panel-2);
-    border-radius: 999px; padding: 4px;
+    display: flex; gap: 3px; background: var(--surface-2);
+    border-radius: var(--radius-full); padding: 3px;
   }
   .tabs button {
-    flex: 1; font-family: var(--ui); font-size: 12.5px; font-weight: 800;
-    padding: 9px 4px; border: none; border-radius: 999px; cursor: pointer;
-    background: transparent; color: var(--muted); white-space: nowrap;
+    flex: 1; font-family: inherit; font-size: var(--fs-sm); font-weight: 700;
+    padding: 9px 6px; border: none; border-radius: var(--radius-full); cursor: pointer;
+    background: transparent; color: var(--text-muted); white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    transition: color var(--dur), background var(--dur);
   }
-  .tabs button.active { background: var(--primary); color: var(--primary-text); }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-selected="true"] {
+    background: var(--surface); color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
   .tabs .badge {
-    display: inline-block; min-width: 18px; padding: 2px 5px; margin-left: 5px;
-    border-radius: 999px; background: var(--blue); color: #fff;
-    font-size: 10px; font-weight: 800; vertical-align: 1px;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: var(--radius-full); background: var(--primary); color: #fff;
+    font-size: 10px; font-weight: 800;
   }
-  .tabs .badge.warn { background: var(--red); }
-  .tabs button.active .badge { background: var(--primary-text); color: var(--primary); }
+  .tabs .badge.warn { background: var(--danger); }
 
+  /* ---------- section headings ---------- */
   h2 {
-    font-family: var(--display); font-size: 13px; font-weight: 700;
-    letter-spacing: .8px; text-transform: uppercase; color: var(--muted);
-    display: flex; align-items: center; gap: 8px;
+    font-size: var(--fs-xs); font-weight: 800;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--text-subtle);
+    display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
   }
+  h2 .spacer { margin-left: auto; }
 
-  .hint { color: var(--muted); line-height: 1.6; font-size: 12.5px; }
+  .hint { color: var(--text-muted); line-height: 1.6; font-size: var(--fs-sm); }
 
+  /* ---------- inline header actions ---------- */
+  .link-action, .link-danger {
+    font-family: inherit; font-size: var(--fs-xs); font-weight: 700;
+    background: none; border: 1px solid transparent; color: var(--text-muted);
+    cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm);
+    text-transform: none; letter-spacing: 0;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: color var(--dur), background var(--dur), border-color var(--dur);
+  }
+  .link-action:hover { color: var(--text); background: var(--surface-2); }
+  .link-danger:hover { color: var(--danger); background: var(--danger-soft); }
+
+  .dispatch-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: inherit; font-size: var(--fs-xs); font-weight: 800;
+    background: var(--accent); color: var(--on-accent);
+    border: none; border-radius: var(--radius-full); padding: 6px 13px; cursor: pointer;
+    text-transform: none; letter-spacing: .01em;
+    box-shadow: var(--shadow-sm);
+    transition: background var(--dur), box-shadow var(--dur);
+  }
+  .dispatch-btn .i { width: 13px; height: 13px; }
+  .dispatch-btn:hover { background: var(--accent-hover); box-shadow: var(--shadow-md); }
+
+  /* ---------- inputs ---------- */
   .search-input {
-    width: 100%; padding: 12px 14px;
-    background: var(--panel-2); border: 1.5px solid transparent; border-radius: var(--r);
-    color: var(--text); font-family: var(--ui); font-size: 13.5px; font-weight: 600;
-    outline: none; transition: border-color .15s, background .15s;
+    width: 100%; padding: 11px 13px;
+    background: var(--surface-2); border: 1.5px solid transparent; border-radius: var(--radius);
+    color: var(--text); font-family: inherit; font-size: var(--fs-base); font-weight: 600;
+    outline: none; transition: border-color var(--dur), background var(--dur), box-shadow var(--dur);
   }
-  .search-input::placeholder { color: var(--muted); font-weight: 500; }
-  .search-input:focus { border-color: var(--text); background: var(--panel); }
-  .search-input.busy { border-color: var(--blue); animation: pulse 1s infinite; }
+  .search-input::placeholder { color: var(--text-subtle); font-weight: 500; }
+  .search-input:focus { border-color: var(--primary); background: var(--surface); box-shadow: var(--focus-ring); }
+  .search-input.busy { border-color: var(--primary); animation: pulse 1s infinite; }
 
   .field { display: flex; flex-direction: column; gap: 5px; }
-  .field label { font-size: 10.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+  .field label {
+    font-size: var(--fs-xs); font-weight: 800; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
   .field input, .field select {
-    padding: 10px 12px; background: var(--panel-2); border: 1.5px solid transparent;
-    border-radius: 10px; color: var(--text); font-family: var(--ui);
-    font-size: 13px; font-weight: 600; outline: none; width: 100%;
+    padding: 10px 12px; background: var(--surface-2); border: 1.5px solid transparent;
+    border-radius: var(--radius-sm); color: var(--text); font-family: inherit;
+    font-size: var(--fs-base); font-weight: 600; outline: none; width: 100%;
+    transition: border-color var(--dur), background var(--dur), box-shadow var(--dur);
   }
-  .field input:focus, .field select:focus { border-color: var(--text); background: var(--panel); }
+  .field input:focus, .field select:focus {
+    border-color: var(--primary); background: var(--surface); box-shadow: var(--focus-ring);
+  }
   .form-card {
-    background: var(--panel-2); border-radius: var(--r); padding: 14px;
-    display: flex; flex-direction: column; gap: 11px;
+    background: var(--surface-2); border-radius: var(--radius); padding: var(--space-3);
+    display: flex; flex-direction: column; gap: var(--space-3);
   }
-  .form-card .field input, .form-card .field select { background: var(--panel); }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-card .field input, .form-card .field select { background: var(--surface); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 
   .seg { display: flex; gap: 6px; }
   .seg button {
-    flex: 1; font-family: var(--ui); font-size: 12px; font-weight: 800;
-    padding: 8px 4px; border-radius: 9px; border: 1.5px solid transparent;
-    background: var(--panel); color: var(--muted); cursor: pointer;
+    flex: 1; font-family: inherit; font-size: var(--fs-sm); font-weight: 700;
+    padding: 8px 4px; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+    background: var(--surface); color: var(--text-muted); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    transition: border-color var(--dur), color var(--dur), background var(--dur);
   }
-  .seg button.active { border-color: var(--text); color: var(--text); }
+  .seg button:hover { color: var(--text); }
+  .seg button.active { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .seg button .i { width: 15px; height: 15px; }
 
   .toggle-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 14px; background: var(--panel-2);
-    border-radius: var(--r); cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: 11px 13px; background: var(--surface-2);
+    border-radius: var(--radius); cursor: pointer; user-select: none;
   }
-  .toggle-row > span:first-child { flex: 1; font-size: 13px; font-weight: 700; }
-  .toggle-row input { display: none; }
+  .toggle-row > span:first-child { flex: 1; font-size: var(--fs-base); font-weight: 700; }
+  .toggle-row input { position: absolute; opacity: 0; width: 0; height: 0; }
   .switch {
-    width: 40px; height: 23px; border-radius: 999px; background: var(--line);
-    position: relative; transition: background .15s; flex: 0 0 auto;
+    width: 40px; height: 23px; border-radius: var(--radius-full); background: var(--border-strong);
+    position: relative; transition: background var(--dur); flex: 0 0 auto;
   }
   .switch::after {
     content: ""; position: absolute; top: 2.5px; left: 3px;
-    width: 18px; height: 18px; border-radius: 50%; background: var(--panel);
-    box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .15s;
+    width: 18px; height: 18px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: left var(--dur) var(--ease);
   }
-  .toggle-row input:checked + .switch { background: var(--green); }
+  .toggle-row input:checked + .switch { background: var(--success); }
   .toggle-row input:checked + .switch::after { left: 19px; }
+  .toggle-row input:focus-visible + .switch { box-shadow: var(--focus-ring); }
 
+  /* ---------- buttons ---------- */
   .btn {
-    font-family: var(--ui); font-size: 14px; font-weight: 800;
-    padding: 13px; border-radius: var(--r); border: none;
-    background: var(--panel-2); color: var(--text); cursor: pointer;
-    transition: filter .15s, transform .05s;
+    font-family: inherit; font-size: var(--fs-md); font-weight: 800;
+    padding: 12px 16px; border-radius: var(--radius); border: 1px solid transparent;
+    background: var(--surface-2); color: var(--text); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background var(--dur), box-shadow var(--dur), border-color var(--dur), opacity var(--dur);
   }
-  .btn:hover { filter: brightness(.96); }
-  [data-theme="dark"] .btn:hover { filter: brightness(1.2); }
-  .btn:active { transform: scale(.985); }
-  .btn:disabled { opacity: .4; cursor: not-allowed; }
-  .btn-primary { background: var(--primary); color: var(--primary-text); box-shadow: var(--shadow-sm); }
-  .btn-ghost { font-size: 13px; padding: 10px; }
-  .btn.danger { color: var(--red); }
-  .btn.danger:hover { background: var(--red-soft); }
-  .row { display: flex; gap: 10px; }
+  .btn:hover { background: var(--surface-3); }
+  .btn:active { background: var(--surface-3); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); box-shadow: var(--shadow-md); }
+  .btn-primary:active:not(:disabled) { background: var(--accent-hover); }
+  .btn-ghost { font-size: var(--fs-base); padding: 10px 14px; border-color: var(--border); background: var(--surface); }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .btn.danger { color: var(--danger); border-color: var(--border); background: var(--surface); }
+  .btn.danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+  .row { display: flex; gap: var(--space-3); }
   .row .btn { flex: 1; }
 
-  h2 .link-danger, h2 .link-action {
-    font-family: var(--ui); font-size: 11px; font-weight: 800;
-    background: none; border: none; color: var(--muted); cursor: pointer;
-    padding: 2px 6px; border-radius: 6px;
-    text-transform: none; letter-spacing: 0;
-  }
-  h2 .link-danger { margin-left: auto; }
-  .dispatch-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-family: var(--ui); font-size: 11.5px; font-weight: 800;
-    background: var(--primary); color: var(--primary-text);
-    border: none; border-radius: 999px; padding: 6px 13px; cursor: pointer;
-    text-transform: none; letter-spacing: .2px;
-    box-shadow: var(--shadow-sm); transition: transform .05s, filter .15s;
-  }
-  .dispatch-btn svg { width: 13px; height: 13px; }
-  .dispatch-btn:hover { filter: brightness(1.15); }
-  [data-theme="dark"] .dispatch-btn:hover { filter: brightness(.92); }
-  .dispatch-btn:active { transform: scale(.97); }
-  h2 .link-danger:hover { color: var(--red); background: var(--red-soft); }
-  h2 .link-action:hover { color: var(--text); background: var(--panel-2); }
-
-  /* ---- parcels ---- */
+  /* ---------- depot chip ---------- */
   #depot-chip {
     display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
-    font-size: 11.5px; font-weight: 800; color: var(--muted);
-    background: var(--panel-2); border-radius: 999px; padding: 6px 12px;
-    cursor: pointer;
+    font-size: var(--fs-sm); font-weight: 700; color: var(--text-muted);
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-full);
+    padding: 6px 12px; cursor: pointer;
+    transition: color var(--dur), border-color var(--dur);
   }
-  #depot-chip:hover { color: var(--text); }
-  #parcel-list { display: flex; flex-direction: column; gap: 8px; }
+  #depot-chip:hover { color: var(--text); border-color: var(--border-strong); }
+  #depot-chip .i { width: 14px; height: 14px; color: var(--accent); }
+
+  /* ---------- parcels ---------- */
+  #parcel-list { display: flex; flex-direction: column; gap: var(--space-2); }
   .parcel-row {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--panel); border: 1.5px solid var(--line);
-    border-radius: var(--r); padding: 11px 12px;
+    display: flex; align-items: center; gap: var(--space-3);
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 11px 12px;
   }
-  .parcel-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); flex: 0 0 auto; }
+  .parcel-row input[type=checkbox] {
+    width: 18px; height: 18px; accent-color: var(--primary); flex: 0 0 auto; cursor: pointer;
+  }
   .parcel-row .info { flex: 1; min-width: 0; }
   .parcel-row .label {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 7px;
+    font-weight: 700; font-size: var(--fs-base); display: flex; align-items: center; gap: 7px;
   }
-  .parcel-row .meta { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 3px; }
+  .parcel-row .meta { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; margin-top: 3px; }
   .size-chip {
-    flex: 0 0 auto; font-size: 9.5px; font-weight: 800; letter-spacing: .5px;
-    padding: 1px 6px; border-radius: 5px; background: var(--panel-2); color: var(--muted);
+    flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 5px; background: var(--surface-3); color: var(--text-muted);
     text-transform: uppercase;
   }
-  .p-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--blue); }
-  .p-dot.assigned { background: var(--amber); }
-  .p-dot.in_transit { background: var(--green); animation: pulse 1.4s infinite; }
-  .p-dot.delivered { background: var(--muted); }
-  .deadline { flex: 0 0 auto; text-align: right; font-size: 11px; font-weight: 800; color: var(--muted); }
-  .deadline.warn { color: var(--amber); }
-  .deadline.urgent, .deadline.overdue { color: var(--red); }
+  .p-dot {
+    width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+  .p-dot.assigned { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent); }
+  .p-dot.in_transit { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent); animation: pulse 1.6s infinite; }
+  .p-dot.delivered { background: var(--text-subtle); box-shadow: none; }
+  .deadline {
+    flex: 0 0 auto; text-align: right; font-size: var(--fs-xs); font-weight: 800;
+    color: var(--text-muted); display: flex; align-items: center; gap: 4px;
+  }
+  .deadline .i { width: 12px; height: 12px; }
+  .deadline.warn { color: var(--warning); }
+  .deadline.urgent, .deadline.overdue { color: var(--danger); }
   .late-tag {
-    font-size: 9.5px; font-weight: 800; color: var(--red); background: var(--red-soft);
+    font-size: 10px; font-weight: 800; color: var(--danger); background: var(--danger-soft);
     padding: 1px 6px; border-radius: 5px; text-transform: uppercase;
   }
-  .parcel-row .del {
-    background: none; border: none; color: var(--muted); cursor: pointer;
-    font-size: 14px; padding: 2px 5px; border-radius: 6px; flex: 0 0 auto;
+  .parcel-row .del, .reg-row .del {
+    background: none; border: none; color: var(--text-subtle); cursor: pointer;
+    padding: 4px; border-radius: var(--radius-sm); flex: 0 0 auto;
+    display: grid; place-items: center;
+    transition: color var(--dur), background var(--dur);
   }
-  .parcel-row .del:hover { color: var(--red); background: var(--red-soft); }
+  .parcel-row .del:hover, .reg-row .del:hover { color: var(--danger); background: var(--danger-soft); }
+  .parcel-row .del .i, .reg-row .del .i { width: 15px; height: 15px; }
 
   #run-footer {
-    position: sticky; bottom: 0; margin: 0 -18px -18px; padding: 12px 18px 16px;
-    background: var(--panel); border-top: 1px solid var(--line);
+    position: sticky; bottom: 0; margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border);
     display: none;
   }
   #run-footer .btn { width: 100%; }
 
-  /* ---- registry ---- */
+  /* ---------- registry ---------- */
   .reg-row {
-    display: flex; align-items: center; gap: 11px;
-    background: var(--panel); border: 1.5px solid var(--line);
-    border-radius: var(--r); padding: 11px 12px;
+    display: flex; align-items: center; gap: var(--space-3);
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 11px 12px;
   }
-  .reg-row .emoji { font-size: 19px; flex: 0 0 auto; }
+  .reg-row .veh-ico {
+    width: 34px; height: 34px; flex: 0 0 auto; border-radius: var(--radius-sm);
+    background: var(--surface-2); color: var(--text-muted);
+    display: grid; place-items: center;
+  }
+  .reg-row .veh-ico .i { width: 19px; height: 19px; }
   .reg-row .info { flex: 1; min-width: 0; }
-  .reg-row .label { font-weight: 800; font-size: 13px; }
-  .reg-row .meta { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 2px; }
-  .reg-row .del {
-    background: none; border: none; color: var(--muted); cursor: pointer;
-    font-size: 14px; padding: 2px 5px; border-radius: 6px;
-  }
-  .reg-row .del:hover { color: var(--red); background: var(--red-soft); }
-  .reg-list { display: flex; flex-direction: column; gap: 8px; }
+  .reg-row .label { font-weight: 700; font-size: var(--fs-base); }
+  .reg-row .meta { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; margin-top: 2px; }
+  .reg-list { display: flex; flex-direction: column; gap: var(--space-2); }
 
-  /* ---- fleet (trip list) ---- */
-  #trip-list { display: flex; flex-direction: column; gap: 8px; }
+  /* ---------- runs list ---------- */
+  #trip-list { display: flex; flex-direction: column; gap: var(--space-2); }
   .trip-group {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 10.5px; font-weight: 800; letter-spacing: .7px;
-    text-transform: uppercase; color: var(--muted);
-    margin: 10px 2px 2px;
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: 10px; font-weight: 800; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-subtle);
+    margin: var(--space-3) 2px 2px;
   }
   .trip-group:first-child { margin-top: 0; }
-  .trip-group .g-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
-  .trip-group.g-active .g-dot { background: var(--green); }
-  .trip-group.g-planned .g-dot { background: var(--blue); }
-  .trip-group .g-line { flex: 1; height: 1px; background: var(--line); }
+  .trip-group .g-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-subtle); flex: 0 0 auto; }
+  .trip-group.g-active .g-dot { background: var(--success); }
+  .trip-group.g-planned .g-dot { background: var(--primary); }
+  .trip-group .g-line { flex: 1; height: 1px; background: var(--border); }
   .trip-group .g-count {
-    font-size: 10px; background: var(--panel-2); color: var(--muted);
-    padding: 2px 8px; border-radius: 999px;
+    font-size: 10px; background: var(--surface-2); color: var(--text-muted);
+    padding: 2px 8px; border-radius: var(--radius-full);
   }
   .trip-row {
-    display: flex; align-items: center; gap: 11px;
-    background: var(--panel); border: 1.5px solid var(--line);
-    border-radius: var(--r); padding: 12px 13px; cursor: pointer;
-    transition: border-color .12s, box-shadow .12s;
+    display: flex; align-items: center; gap: var(--space-3);
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 11px 12px; cursor: pointer;
+    text-align: left; width: 100%; font-family: inherit; color: var(--text);
+    transition: border-color var(--dur), box-shadow var(--dur), background var(--dur);
   }
-  .trip-row:hover { border-color: var(--muted); }
-  .trip-row.selected { border-color: var(--text); box-shadow: var(--shadow-sm); }
+  .trip-row:hover { border-color: var(--border-strong); background: var(--surface-2); }
+  .trip-row.selected { border-color: var(--primary); box-shadow: var(--shadow-sm); }
+  .trip-row .veh-ico {
+    width: 30px; height: 30px; flex: 0 0 auto; border-radius: var(--radius-sm);
+    background: var(--surface-2); color: var(--text-muted); display: grid; place-items: center;
+  }
+  .trip-row .veh-ico .i { width: 17px; height: 17px; }
   .trip-row .info { flex: 1; min-width: 0; }
   .trip-row .label {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-weight: 800; font-size: 13.5px;
+    font-weight: 700; font-size: var(--fs-base);
   }
-  .trip-row .meta { color: var(--muted); font-size: 11.5px; font-weight: 600; margin-top: 3px; }
+  .trip-row .meta { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; margin-top: 3px; }
   .trip-row .dev-badge {
-    flex: 0 0 auto; min-width: 20px; text-align: center;
-    padding: 2px 7px; border-radius: 999px;
-    background: var(--red); color: #fff; font-size: 11px; font-weight: 800;
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px; border-radius: var(--radius-full);
+    background: var(--danger-soft); color: var(--danger); font-size: var(--fs-xs); font-weight: 800;
   }
-  .empty { color: var(--muted); text-align: center; padding: 22px 0; line-height: 1.7; font-weight: 600; }
+  .trip-row .dev-badge .i { width: 11px; height: 11px; }
 
-  /* ---- floating cards over the map ---- */
-  .float-card {
-    display: none; flex-direction: column; gap: 15px;
-    position: absolute; top: 14px; right: 14px; z-index: 9;
-    width: min(350px, calc(100% - 28px));
-    max-height: calc(100% - 28px);
-    background: rgba(255, 255, 255, .93);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border-radius: 16px; box-shadow: var(--shadow-lg);
-    padding: 16px; overflow-y: auto;
-    animation: slidein .22s ease;
+  .empty {
+    color: var(--text-muted); text-align: center; padding: var(--space-6) var(--space-4);
+    line-height: 1.7; font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
   }
-  [data-theme="dark"] .float-card { background: rgba(22, 24, 29, .93); }
+  .empty .i { width: 26px; height: 26px; color: var(--text-subtle); stroke-width: 1.6; }
+  .empty b { color: var(--text); font-weight: 800; }
+
+  /* ---------- floating cards over the map ---------- */
+  .float-card {
+    display: none; flex-direction: column; gap: var(--space-4);
+    position: absolute; top: var(--space-4); right: var(--space-4); z-index: 9;
+    width: min(360px, calc(100% - 28px));
+    max-height: calc(100% - 28px);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+    padding: var(--space-4); overflow-y: auto;
+    animation: slidein .22s var(--ease);
+  }
   @keyframes slidein { from { transform: translateX(26px); opacity: 0; } }
-  .panel-head { display: flex; align-items: center; gap: 8px; }
+  .panel-head { display: flex; align-items: center; gap: var(--space-2); }
   .panel-head h2 { flex: 1; }
   .close-btn {
-    width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
-    background: var(--panel-2); color: var(--muted); border: none;
-    font-size: 13px; cursor: pointer;
+    width: 32px; height: 32px; border-radius: 50%; flex: 0 0 auto;
+    background: var(--surface-2); color: var(--text-muted); border: none;
+    cursor: pointer; display: grid; place-items: center;
+    transition: color var(--dur), background var(--dur);
   }
-  .close-btn:hover { color: var(--text); }
-  .totals { display: flex; gap: 8px; }
+  .close-btn:hover { color: var(--text); background: var(--surface-3); }
+  .close-btn .i { width: 15px; height: 15px; }
+
+  .totals { display: flex; gap: var(--space-2); }
   .kpi {
-    flex: 1; background: var(--panel-2); border-radius: var(--r); padding: 12px 13px;
+    flex: 1; background: var(--surface-2); border-radius: var(--radius); padding: 11px 12px;
   }
   .kpi b {
-    display: block; font-family: var(--display); font-size: 19px; font-weight: 800;
-    letter-spacing: -.3px;
+    display: block; font-size: var(--fs-lg); font-weight: 800; letter-spacing: -.01em;
   }
   .kpi span {
-    display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .6px;
-    text-transform: uppercase; color: var(--muted); margin-top: 3px;
+    display: block; font-size: 10px; font-weight: 800; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-muted); margin-top: 3px;
   }
-  .kpi.stat b { color: var(--blue); }
+  .kpi.stat b { color: var(--primary); }
 
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 9px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td { padding: 9px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-  td.num { text-align: right; font-weight: 800; white-space: nowrap; font-size: 12.5px; }
-  .leg-route { font-weight: 700; font-size: 12.5px; }
-  .leg-route small { color: var(--muted); display: block; font-weight: 600; margin-top: 2px; }
+  td.num { text-align: right; font-weight: 800; white-space: nowrap; font-size: var(--fs-sm); }
+  .leg-route { font-weight: 700; font-size: var(--fs-sm); }
+  .leg-route small { color: var(--text-muted); display: block; font-weight: 600; margin-top: 2px; }
 
   .risk-tag {
-    font-size: 9.5px; font-weight: 800; color: var(--red); background: var(--red-soft);
+    font-size: 10px; font-weight: 800; color: var(--danger); background: var(--danger-soft);
     padding: 1px 6px; border-radius: 5px; text-transform: uppercase;
   }
-  .done-tag { color: var(--green); font-weight: 800; }
+  .done-tag { color: var(--success); font-weight: 800; display: inline-flex; align-items: center; gap: 3px; }
+  .done-tag .i { width: 12px; height: 12px; }
 
   #briefing {
-    background: var(--blue-soft); color: var(--text);
-    padding: 13px 15px; line-height: 1.65; border-radius: var(--r);
-    font-size: 12.5px; font-weight: 600;
+    background: var(--primary-soft); color: var(--text);
+    padding: 12px 14px; line-height: 1.6; border-radius: var(--radius);
+    font-size: var(--fs-sm); font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   }
   #run-meta {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    font-size: 12px; font-weight: 700; color: var(--muted);
+    display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+    font-size: var(--fs-sm); font-weight: 700; color: var(--text-muted);
   }
+  #run-meta .tag { display: inline-flex; align-items: center; gap: 5px; background: var(--surface-2); }
+  #run-meta .tag .i { width: 13px; height: 13px; }
+
   #driver-link {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--panel-2); border-radius: var(--r); padding: 12px 14px;
+    display: flex; align-items: center; gap: var(--space-3);
+    background: var(--surface-2); border-radius: var(--radius); padding: 11px 13px;
   }
-  #driver-link a { color: var(--blue); word-break: break-all; flex: 1; line-height: 1.5; font-size: 12px; font-weight: 700; }
+  #driver-link a { color: var(--primary); word-break: break-all; flex: 1; line-height: 1.5; font-size: var(--fs-xs); font-weight: 700; }
   #btn-copy {
-    flex: 0 0 auto; font-family: var(--ui); font-size: 12px; font-weight: 800;
-    background: var(--panel); color: var(--text);
-    border: 1px solid var(--line); border-radius: 8px;
+    flex: 0 0 auto; font-family: inherit; font-size: var(--fs-sm); font-weight: 800;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
     padding: 8px 12px; cursor: pointer; white-space: nowrap;
+    transition: border-color var(--dur), background var(--dur);
   }
-  #btn-copy:hover { border-color: var(--muted); }
+  #btn-copy:hover { border-color: var(--border-strong); background: var(--surface-2); }
 
-  #alerts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  #alerts { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
   .alert-row {
-    background: var(--red-soft); color: var(--text);
-    padding: 11px 13px; border-radius: var(--r); line-height: 1.55;
-    font-size: 12.5px; font-weight: 600;
+    background: var(--danger-soft); color: var(--text);
+    padding: 10px 12px; border-radius: var(--radius); line-height: 1.5;
+    font-size: var(--fs-sm); font-weight: 600;
+    border-left: 3px solid var(--danger);
+    display: flex; gap: 8px;
   }
-  .alert-row.ok { background: var(--green-soft); }
-  .alert-row.info { background: var(--blue-soft); }
-  .alert-row time { color: var(--muted); font-size: 11px; font-weight: 700; display: block; margin-bottom: 1px; }
+  .alert-row .i { width: 15px; height: 15px; margin-top: 1px; color: var(--danger); }
+  .alert-row.ok { background: var(--success-soft); border-left-color: var(--success); }
+  .alert-row.ok .i { color: var(--success); }
+  .alert-row.info { background: var(--primary-soft); border-left-color: var(--primary); }
+  .alert-row.info .i { color: var(--primary); }
+  .alert-row time { color: var(--text-muted); font-size: 10px; font-weight: 700; display: block; margin-bottom: 1px; }
 
-  /* driver picker */
+  /* ---------- driver picker ---------- */
   .driver-card {
-    display: flex; align-items: center; gap: 11px;
-    background: var(--panel); border: 1.5px solid var(--line);
-    border-radius: var(--r); padding: 12px 13px; cursor: pointer;
+    display: flex; align-items: center; gap: var(--space-3);
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 11px 12px; cursor: pointer;
+    text-align: left; width: 100%; font-family: inherit; color: var(--text);
+    transition: border-color var(--dur), box-shadow var(--dur), background var(--dur);
   }
-  .driver-card:hover:not(.disabled) { border-color: var(--muted); }
-  .driver-card.selected { border-color: var(--text); box-shadow: var(--shadow-sm); }
-  .driver-card.disabled { opacity: .5; cursor: not-allowed; }
-  .driver-card .emoji { font-size: 20px; }
+  .driver-card:hover:not(.disabled) { border-color: var(--border-strong); background: var(--surface-2); }
+  .driver-card.selected { border-color: var(--primary); box-shadow: var(--shadow-sm); background: var(--primary-soft); }
+  .driver-card.disabled { opacity: .55; cursor: not-allowed; }
+  .driver-card .veh-ico {
+    width: 32px; height: 32px; flex: 0 0 auto; border-radius: var(--radius-sm);
+    background: var(--surface-2); color: var(--text-muted); display: grid; place-items: center;
+  }
+  .driver-card .veh-ico .i { width: 18px; height: 18px; }
   .driver-card .info { flex: 1; min-width: 0; }
-  .driver-card .label { font-weight: 800; font-size: 13px; }
-  .driver-card .meta { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 2px; }
-  .driver-card .reason { color: var(--red); font-size: 10.5px; font-weight: 700; margin-top: 2px; }
+  .driver-card .label { font-weight: 700; font-size: var(--fs-base); }
+  .driver-card .meta { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; margin-top: 2px; }
+  .driver-card .reason { color: var(--danger); font-size: 10.5px; font-weight: 700; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+  .driver-card .reason .i { width: 12px; height: 12px; }
   .busy-chip {
-    font-size: 9.5px; font-weight: 800; color: var(--green); background: var(--green-soft);
-    padding: 1px 6px; border-radius: 5px; text-transform: uppercase; flex: 0 0 auto;
+    font-size: 10px; font-weight: 800; color: var(--success); background: var(--success-soft);
+    padding: 2px 7px; border-radius: 5px; text-transform: uppercase; flex: 0 0 auto;
   }
 
-  /* dispatch proposal */
+  /* ---------- dispatch proposal ---------- */
   .working {
-    display: flex; align-items: center; gap: 10px;
-    color: var(--muted); font-weight: 700; font-size: 12.5px;
-    padding: 10px 0; animation: pulse 1.2s infinite; line-height: 1.6;
+    display: flex; align-items: center; gap: var(--space-3);
+    color: var(--text-muted); font-weight: 700; font-size: var(--fs-sm);
+    padding: 10px 0; line-height: 1.6;
   }
-  #dispatch-body { display: flex; flex-direction: column; gap: 10px; }
+  .working .spinner {
+    width: 18px; height: 18px; flex: 0 0 auto;
+    border: 2.5px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #dispatch-body { display: flex; flex-direction: column; gap: var(--space-3); }
   .dispatch-summary {
-    background: var(--blue-soft); border-radius: var(--r); padding: 12px 14px;
-    font-size: 12.5px; font-weight: 600; line-height: 1.6;
+    background: var(--primary-soft); border-radius: var(--radius); padding: 11px 13px;
+    font-size: var(--fs-sm); font-weight: 600; line-height: 1.6;
+    border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   }
   .batch-card {
-    background: var(--panel); border: 1.5px solid var(--line);
-    border-radius: var(--r); padding: 12px 13px;
-    display: flex; flex-direction: column; gap: 8px;
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 11px 12px;
+    display: flex; flex-direction: column; gap: var(--space-2);
   }
-  .batch-head { display: flex; align-items: center; gap: 9px; }
-  .batch-head input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
-  .batch-head .who { flex: 1; font-weight: 800; font-size: 13px; }
-  .batch-head .who small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; margin-top: 1px; }
+  .batch-head { display: flex; align-items: center; gap: var(--space-2); }
+  .batch-head input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--primary); cursor: pointer; }
+  .batch-head .who { flex: 1; font-weight: 800; font-size: var(--fs-base); display: flex; align-items: center; gap: 6px; }
+  .batch-head .who .i { width: 15px; height: 15px; color: var(--text-muted); }
+  .batch-head .who small { display: block; color: var(--text-muted); font-weight: 600; font-size: var(--fs-xs); margin-top: 1px; }
   .parcel-chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .parcel-chip {
-    font-size: 10.5px; font-weight: 700; background: var(--panel-2);
-    border-radius: 6px; padding: 3px 8px;
+    font-size: 10.5px; font-weight: 700; background: var(--surface-2);
+    border-radius: 5px; padding: 3px 8px; color: var(--text-muted);
   }
-  .rationale { color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 600; }
+  .rationale { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.55; font-weight: 600; }
   .risk-note {
-    background: var(--red-soft); font-size: 11.5px; font-weight: 600;
-    padding: 8px 10px; border-radius: 8px; line-height: 1.5;
+    background: var(--danger-soft); font-size: var(--fs-xs); font-weight: 600;
+    padding: 8px 10px; border-radius: var(--radius-sm); line-height: 1.5;
+    display: flex; gap: 6px;
   }
+  .risk-note .i { width: 14px; height: 14px; color: var(--danger); flex: 0 0 auto; margin-top: 1px; }
   .unassigned-row {
-    background: var(--amber-soft); border-radius: 8px; padding: 9px 11px;
-    font-size: 12px; font-weight: 600; line-height: 1.5;
+    background: var(--warning-soft); border-radius: var(--radius-sm); padding: 9px 11px;
+    font-size: var(--fs-sm); font-weight: 600; line-height: 1.5;
   }
   .warn-row {
-    background: var(--red-soft); border-radius: 8px; padding: 8px 11px;
-    font-size: 11.5px; font-weight: 600; color: var(--muted);
+    background: var(--danger-soft); border-radius: var(--radius-sm); padding: 8px 11px;
+    font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted);
   }
 
-  /* import modal */
+  /* ---------- import modal ---------- */
   #import-modal {
     display: none; position: fixed; inset: 0; z-index: 30;
-    background: rgba(0,0,0,.45); align-items: center; justify-content: center;
+    background: var(--scrim); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    align-items: center; justify-content: center; padding: var(--space-4);
   }
   #import-modal .modal-card {
-    background: var(--panel); border-radius: 16px; box-shadow: var(--shadow-lg);
-    width: min(680px, calc(100% - 40px)); max-height: 84vh;
-    display: flex; flex-direction: column; gap: 14px; padding: 20px;
+    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    width: min(680px, 100%); max-height: 84vh;
+    display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5);
+  }
+  #import-modal input[type=file] {
+    font-family: inherit; font-size: var(--fs-sm); color: var(--text-muted);
+    padding: 10px; border: 1.5px dashed var(--border-strong); border-radius: var(--radius); width: 100%;
   }
   #import-preview { overflow: auto; max-height: 46vh; }
-  #import-preview table { font-size: 12px; }
+  #import-preview table { font-size: var(--fs-sm); }
   #import-preview th {
-    text-align: left; font-size: 10px; letter-spacing: .6px; text-transform: uppercase;
-    color: var(--muted); padding: 4px; position: sticky; top: 0; background: var(--panel);
+    text-align: left; font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--text-muted); padding: 4px; position: sticky; top: 0; background: var(--surface);
   }
   #import-preview td { padding: 6px 4px; font-weight: 600; }
-  .row-err { color: var(--red); font-size: 11px; }
-  .row-ok { color: var(--green); }
+  .row-err { color: var(--danger); font-size: var(--fs-xs); }
+  .row-ok { color: var(--success); }
 
+  /* ---------- map ---------- */
   #map { flex: 1; }
   #map-wrap { position: relative; flex: 1; display: flex; }
 
   #alert-banner {
-    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
-    background: var(--red); color: #fff;
-    font-family: var(--ui); font-size: 14px; font-weight: 800;
-    padding: 13px 24px; border-radius: 999px; display: none; z-index: 10;
-    box-shadow: var(--shadow-lg); animation: slam .25s; max-width: 70%;
+    position: absolute; top: var(--space-5); left: 50%; transform: translateX(-50%);
+    background: var(--danger); color: #fff;
+    font-family: inherit; font-size: var(--fs-md); font-weight: 800;
+    padding: 12px 22px; border-radius: var(--radius-full); display: none; z-index: 10;
+    box-shadow: var(--shadow-lg); animation: slam .25s var(--ease); max-width: 72%;
     text-align: center;
+    align-items: center; gap: 9px;
   }
+  #alert-banner .i { width: 18px; height: 18px; }
   @keyframes slam { from { transform: translateX(-50%) translateY(-16px); opacity: 0; } }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 900px) {
+    header { padding: 0 var(--space-4); gap: var(--space-2); }
+    .tag { display: none; }
+    main { flex-direction: column; }
+    aside {
+      width: 100%; max-height: 46vh; border-right: none; border-bottom: 1px solid var(--border);
+    }
+    #map-wrap { min-height: 54vh; }
+    .float-card { width: calc(100% - 24px); left: 12px; right: 12px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+  }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#parcel-list">Skip to content</a>
 <header>
-  <div class="brand">Fleet<em>Ops</em></div>
-  <div class="tag">Delivery Console</div>
-  <button id="theme-toggle">☾ Dark</button>
-  <div id="trip-status"><span class="dot"></span><span id="trip-status-text">No run</span></div>
+  <h1 class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" class="i" style="stroke-width:2.2"><path d="M3 17h13V6H3zM16 10h4l1 4v3h-5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
+    </span>
+    Fleet<em>Ops</em>
+  </h1>
+  <span class="tag">Delivery Console</span>
+  <div class="header-spacer"></div>
+  <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
+  <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
 </header>
 <main>
   <aside>
-    <div class="tabs">
-      <button id="tab-btn-parcels" class="active">Parcels<span class="badge warn" id="parcel-badge" style="display:none">0</span></button>
-      <button id="tab-btn-fleet">Runs<span class="badge" id="fleet-badge">0</span></button>
-      <button id="tab-btn-registry">Registry</button>
+    <div class="tabs" role="tablist" aria-label="Console sections">
+      <button id="tab-btn-parcels" role="tab" aria-selected="true" aria-controls="tab-parcels">
+        Parcels<span class="badge warn" id="parcel-badge" hidden>0</span>
+      </button>
+      <button id="tab-btn-fleet" role="tab" aria-selected="false" aria-controls="tab-fleet" tabindex="-1">
+        Runs<span class="badge" id="fleet-badge">0</span>
+      </button>
+      <button id="tab-btn-registry" role="tab" aria-selected="false" aria-controls="tab-registry" tabindex="-1">
+        Registry
+      </button>
     </div>
 
     <!-- ================= PARCELS ================= -->
-    <section id="tab-parcels">
+    <section id="tab-parcels" role="tabpanel" aria-labelledby="tab-btn-parcels">
       <h2>Parcels
-        <button id="btn-auto" class="dispatch-btn" title="The dispatch agent batches pending (or selected) parcels into runs">
-          <svg viewBox="0 0 14 14" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 7 H6"/><path d="M6 7 C 8.5 7 8.5 3 11 3"/><path d="M6 7 C 8.5 7 8.5 11 11 11"/><path d="M6 7 H11.5"/></g><g fill="currentColor"><path d="M10.5 1.6 L13 3 L10.5 4.4 Z"/><path d="M10.5 5.6 L13 7 L10.5 8.4 Z"/><path d="M10.5 9.6 L13 11 L10.5 12.4 Z"/></g></svg>
+        <span class="spacer"></span>
+        <button id="btn-auto" class="dispatch-btn" type="button" title="The dispatch agent batches pending (or selected) parcels into runs">
+          <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 12h5M9 12c4 0 4-6 9-6M9 12c4 0 4 6 9 6M9 12h9"/><path d="M17 4l3 2-3 2M17 14l3 2-3 2"/></svg>
           Dispatch
         </button>
-        <button id="btn-import" class="link-action">⇪ Import</button>
-        <button id="btn-add-parcel" class="link-action">+ Add</button>
-        <button id="btn-clear-delivered" class="link-danger">Clear delivered</button>
+        <button id="btn-import" class="link-action" type="button">
+          <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+          Import
+        </button>
+        <button id="btn-add-parcel" class="link-action" type="button">
+          <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+        <button id="btn-clear-delivered" class="link-danger" type="button">Clear delivered</button>
       </h2>
-      <div id="depot-chip" style="margin-top:10px" title="Depot — all runs start here">🏭 <span id="depot-label">…</span> · edit</div>
+      <div id="depot-chip" style="margin-top:10px" title="Depot — all runs start here" role="button" tabindex="0">
+        <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/></svg>
+        <span id="depot-label">…</span> · edit
+      </div>
 
       <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">
-        <div class="field"><label>Parcel name</label><input id="pf-name" placeholder="e.g. Router #4411"></div>
+        <div class="field"><label for="pf-name">Parcel name</label><input id="pf-name" placeholder="e.g. Router #4411"></div>
         <div class="form-grid">
-          <div class="field"><label>Type</label><input id="pf-type" placeholder="electronics"></div>
-          <div class="field"><label>Deadline</label><input id="pf-deadline" type="datetime-local"></div>
+          <div class="field"><label for="pf-type">Type</label><input id="pf-type" placeholder="electronics"></div>
+          <div class="field"><label for="pf-deadline">Deadline</label><input id="pf-deadline" type="datetime-local"></div>
         </div>
-        <div class="field"><label>Size</label>
-          <div class="seg" id="pf-size">
-            <button data-s="small" class="active">Small</button>
-            <button data-s="medium">Medium</button>
-            <button data-s="large">Large</button>
+        <div class="field"><label id="pf-size-label">Size</label>
+          <div class="seg" id="pf-size" role="group" aria-labelledby="pf-size-label">
+            <button type="button" data-s="small" class="active" aria-pressed="true">Small</button>
+            <button type="button" data-s="medium" aria-pressed="false">Medium</button>
+            <button type="button" data-s="large" aria-pressed="false">Large</button>
           </div>
         </div>
-        <div class="field"><label>Destination — search or click the map</label>
+        <div class="field"><label for="pf-dest">Destination — search or click the map</label>
           <input id="pf-dest" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
           <div class="hint" id="pf-dest-label" style="margin-top:4px">No destination set</div>
         </div>
         <div class="row">
-          <button class="btn btn-ghost" id="pf-cancel">Cancel</button>
-          <button class="btn btn-primary" id="pf-save" disabled>Add parcel</button>
+          <button class="btn btn-ghost" id="pf-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="pf-save" type="button" disabled>Add parcel</button>
         </div>
       </div>
 
@@ -551,30 +815,35 @@
     </section>
 
     <!-- ================= RUNS (fleet) ================= -->
-    <section id="tab-fleet" style="display:none">
-      <h2>Delivery runs <button id="btn-clear-all" class="link-danger">Clear all</button></h2>
+    <section id="tab-fleet" role="tabpanel" aria-labelledby="tab-btn-fleet" hidden>
+      <h2>Delivery runs <span class="spacer"></span><button id="btn-clear-all" class="link-danger" type="button">Clear all</button></h2>
       <div id="trip-list" style="margin-top:12px"></div>
     </section>
 
     <!-- ================= REGISTRY ================= -->
-    <section id="tab-registry" style="display:none">
-      <h2>Vehicles <button id="btn-add-vehicle" class="link-action">+ Add</button></h2>
+    <section id="tab-registry" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
+      <h2>Vehicles <span class="spacer"></span>
+        <button id="btn-add-vehicle" class="link-action" type="button">
+          <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </h2>
       <div id="vehicle-form" class="form-card" style="display:none; margin-top:10px">
         <div class="form-grid">
-          <div class="field"><label>Name</label><input id="vf-name" placeholder="Van 02"></div>
-          <div class="field"><label>Plate</label><input id="vf-plate" placeholder="PC-4471"></div>
+          <div class="field"><label for="vf-name">Name</label><input id="vf-name" placeholder="Van 02"></div>
+          <div class="field"><label for="vf-plate">Plate</label><input id="vf-plate" placeholder="PC-4471"></div>
         </div>
-        <div class="field"><label>Type</label>
-          <div class="seg" id="vf-type">
-            <button data-t="car">🚗 Car</button>
-            <button data-t="van" class="active">🚐 Van</button>
-            <button data-t="truck">🚚 Truck</button>
-            <button data-t="bike">🏍️ Bike</button>
+        <div class="field"><label id="vf-type-label">Type</label>
+          <div class="seg" id="vf-type" role="group" aria-labelledby="vf-type-label">
+            <button type="button" data-t="car" aria-pressed="false"><span data-veh="car" aria-hidden="true"></span> Car</button>
+            <button type="button" data-t="van" class="active" aria-pressed="true"><span data-veh="van" aria-hidden="true"></span> Van</button>
+            <button type="button" data-t="truck" aria-pressed="false"><span data-veh="truck" aria-hidden="true"></span> Truck</button>
+            <button type="button" data-t="bike" aria-pressed="false"><span data-veh="bike" aria-hidden="true"></span> Bike</button>
           </div>
         </div>
         <div class="form-grid">
-          <div class="field"><label>Capacity (parcels)</label><input id="vf-capacity" type="number" min="1"></div>
-          <div class="field"><label>Max parcel size</label>
+          <div class="field"><label for="vf-capacity">Capacity (parcels)</label><input id="vf-capacity" type="number" min="1"></div>
+          <div class="field"><label for="vf-maxsize">Max parcel size</label>
             <select id="vf-maxsize">
               <option value="small">Small</option>
               <option value="medium">Medium</option>
@@ -583,41 +852,48 @@
           </div>
         </div>
         <div class="row">
-          <button class="btn btn-ghost" id="vf-cancel">Cancel</button>
-          <button class="btn btn-primary" id="vf-save">Add vehicle</button>
+          <button class="btn btn-ghost" id="vf-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="vf-save" type="button">Add vehicle</button>
         </div>
       </div>
       <div class="reg-list" id="vehicle-list" style="margin-top:10px"></div>
 
-      <h2 style="margin-top:18px">Drivers <button id="btn-add-driver" class="link-action">+ Add</button></h2>
+      <h2 style="margin-top:18px">Drivers <span class="spacer"></span>
+        <button id="btn-add-driver" class="link-action" type="button">
+          <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </h2>
       <div id="driver-form" class="form-card" style="display:none; margin-top:10px">
         <div class="form-grid">
-          <div class="field"><label>Name</label><input id="df-name" placeholder="Nuwan"></div>
-          <div class="field"><label>Phone</label><input id="df-phone" placeholder="+94 77 …"></div>
+          <div class="field"><label for="df-name">Name</label><input id="df-name" placeholder="Nuwan"></div>
+          <div class="field"><label for="df-phone">Phone</label><input id="df-phone" placeholder="+94 77 …"></div>
         </div>
-        <div class="field"><label>Vehicle</label><select id="df-vehicle"></select></div>
+        <div class="field"><label for="df-vehicle">Vehicle</label><select id="df-vehicle"></select></div>
         <div class="row">
-          <button class="btn btn-ghost" id="df-cancel">Cancel</button>
-          <button class="btn btn-primary" id="df-save">Add driver</button>
+          <button class="btn btn-ghost" id="df-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="df-save" type="button">Add driver</button>
         </div>
       </div>
       <div class="reg-list" id="driver-list" style="margin-top:10px"></div>
     </section>
 
     <div id="run-footer">
-      <button class="btn btn-primary" id="btn-plan-run">Plan delivery run</button>
+      <button class="btn btn-primary" id="btn-plan-run" type="button">Plan delivery run</button>
     </div>
   </aside>
 
   <div id="map-wrap">
-    <div id="alert-banner"></div>
+    <div id="alert-banner" role="alert"></div>
     <div id="map"></div>
 
     <!-- run detail card -->
-    <div id="trip-detail" class="float-card">
+    <div id="trip-detail" class="float-card" role="dialog" aria-label="Run detail">
       <div class="panel-head">
         <h2>Run <span id="detail-id"></span></h2>
-        <button id="btn-close-detail" class="close-btn" title="Close">✕</button>
+        <button id="btn-close-detail" class="close-btn" type="button" aria-label="Close run detail">
+          <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
       </div>
       <div id="run-meta"></div>
       <div class="totals">
@@ -633,57 +909,63 @@
       <h2>Manifest</h2>
       <table id="manifest"></table>
       <div id="briefing"></div>
-      <div id="driver-link"><a id="driver-url" target="_blank"></a><button id="btn-copy">Copy link</button></div>
+      <div id="driver-link"><a id="driver-url" target="_blank" rel="noopener"></a><button id="btn-copy" type="button">Copy link</button></div>
       <div class="row">
-        <button id="btn-delete" class="btn btn-ghost danger">Delete run</button>
+        <button id="btn-delete" class="btn btn-ghost danger" type="button">Delete run</button>
       </div>
       <h2>Alerts</h2>
-      <div id="alerts"></div>
+      <div id="alerts" aria-live="polite"></div>
     </div>
 
     <!-- dispatch agent proposal card -->
-    <div id="dispatch-card" class="float-card">
+    <div id="dispatch-card" class="float-card" role="dialog" aria-label="Dispatch proposal">
       <div class="panel-head">
         <h2>Dispatch proposal</h2>
-        <button id="btn-close-dispatch" class="close-btn" title="Close">✕</button>
+        <button id="btn-close-dispatch" class="close-btn" type="button" aria-label="Close dispatch proposal">
+          <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
       </div>
-      <div id="dispatch-body"></div>
+      <div id="dispatch-body" aria-live="polite"></div>
       <div class="row" id="dispatch-actions" style="display:none">
-        <button class="btn btn-ghost" id="btn-dispatch-discard">Discard</button>
-        <button class="btn btn-primary" id="btn-dispatch-approve">Create runs</button>
+        <button class="btn btn-ghost" id="btn-dispatch-discard" type="button">Discard</button>
+        <button class="btn btn-primary" id="btn-dispatch-approve" type="button">Create runs</button>
       </div>
     </div>
 
     <!-- driver picker card -->
-    <div id="run-picker" class="float-card">
+    <div id="run-picker" class="float-card" role="dialog" aria-label="Assign driver">
       <div class="panel-head">
         <h2>Assign driver · <span id="picker-count"></span> parcels</h2>
-        <button id="btn-close-picker" class="close-btn" title="Close">✕</button>
+        <button id="btn-close-picker" class="close-btn" type="button" aria-label="Close driver picker">
+          <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
       </div>
       <div id="picker-drivers" style="display:flex;flex-direction:column;gap:8px"></div>
       <label class="toggle-row">
         <span>Avoid tolls</span>
         <input type="checkbox" id="picker-tolls">
-        <span class="switch"></span>
+        <span class="switch" aria-hidden="true"></span>
       </label>
-      <button class="btn btn-primary" id="btn-create-run" disabled>Plan run</button>
+      <button class="btn btn-primary" id="btn-create-run" type="button" disabled>Plan run</button>
     </div>
   </div>
 </main>
 
 <!-- import modal -->
-<div id="import-modal">
+<div id="import-modal" role="dialog" aria-modal="true" aria-label="Import parcels">
   <div class="modal-card">
     <div class="panel-head">
       <h2>Import parcels</h2>
-      <button id="btn-close-import" class="close-btn">✕</button>
+      <button id="btn-close-import" class="close-btn" type="button" aria-label="Close import dialog">
+        <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
     </div>
     <p class="hint">CSV or Excel with columns: <b>name, type, size, destination, deadline</b>.
       Sizes: small/medium/large. Destination is free text (geocoded). Deadline: <b>YYYY-MM-DD HH:MM</b>.</p>
-    <input type="file" id="import-file" accept=".csv,.xlsx,.xls">
-    <div id="import-progress" class="hint"></div>
+    <input type="file" id="import-file" accept=".csv,.xlsx,.xls" aria-label="Choose a CSV or Excel file">
+    <div id="import-progress" class="hint" aria-live="polite"></div>
     <div id="import-preview"></div>
-    <button class="btn btn-primary" id="btn-do-import" style="display:none">Import</button>
+    <button class="btn btn-primary" id="btn-do-import" type="button" style="display:none">Import</button>
   </div>
 </div>
 
