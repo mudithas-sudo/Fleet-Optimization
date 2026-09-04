@@ -1,5 +1,37 @@
 // Shared helpers for admin + driver pages.
 
+// ---- icon set (Lucide-style stroke SVGs; no emoji anywhere in the chrome) ----
+const ICONS = {
+  car: '<path d="M5 17H3a1 1 0 0 1-1-1v-3.3a1 1 0 0 1 .7-.95l1.9-.64a1 1 0 0 0 .58-.5l1.54-3.08A2 2 0 0 1 9 6h6a2 2 0 0 1 1.8 1.1l1.54 3.07a1 1 0 0 0 .58.5l1.9.64a1 1 0 0 1 .7.95V16a1 1 0 0 1-1 1h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/><path d="M9.5 17h5"/>',
+  van: '<path d="M3 6h11a2 2 0 0 1 2 2v9H3z"/><path d="M16 9h3l3 4v4h-6"/><circle cx="7.5" cy="17" r="2"/><circle cx="17.5" cy="17" r="2"/>',
+  truck: '<path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><path d="M10 17h1"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  bike: '<circle cx="6" cy="17" r="3.2"/><circle cx="18" cy="17" r="3.2"/><path d="M6 17 12 6h3"/><path d="m12 6 3.5 6.5H18"/><circle cx="15" cy="5" r="1"/>',
+  user: '<circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 0 1 5.5 1.2c0 1.8-2.7 2.3-2.7 3.8"/><path d="M12 17h.01"/>',
+  depot: '<path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/>',
+  pin: '<path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  alert: '<path d="M12 3 2 20h20Z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M18 6l-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
+  map: '<path d="m9 4 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14M15 6v14"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M5 5l1.5 1.5M17.5 17.5 19 19M2 12h2M20 12h2M5 19l1.5-1.5M17.5 6.5 19 5"/>',
+};
+
+// inline <svg> string for an icon name (decorative by default)
+function iconSvg(name, cls = "") {
+  return `<svg viewBox="0 0 24 24" class="i ${cls}" aria-hidden="true" fill="none" ` +
+    `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+    `${ICONS[name] || ICONS.help}</svg>`;
+}
+
+const VEHICLE_ICON_NAME = { car: "car", van: "van", truck: "truck", bike: "bike" };
+function vehIconSvg(type, cls = "") { return iconSvg(VEHICLE_ICON_NAME[type] || "help", cls); }
+
 // ---- theme: light by default, dark optional, persisted per browser ----
 const THEME_KEY = "fleetops-theme";
 const _themeListeners = [];
@@ -8,10 +40,21 @@ function currentTheme() {
   try { return localStorage.getItem(THEME_KEY) || "light"; } catch (_) { return "light"; }
 }
 
+// paint a theme-toggle button as an icon control with the right a11y state
+function setThemeToggle(btn, theme) {
+  if (!btn) return;
+  const dark = theme === "dark";
+  btn.innerHTML = dark ? iconSvg("sun") : iconSvg("moon");
+  const label = dark ? "Switch to light theme" : "Switch to dark theme";
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("aria-pressed", String(dark));
+  btn.title = label;
+}
+
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  const btn = document.getElementById("theme-toggle");
-  if (btn) btn.textContent = theme === "dark" ? "☀ Light" : "☾ Dark";
+  setThemeToggle(document.getElementById("theme-toggle"), theme);
+  setThemeToggle(document.getElementById("theme-toggle-q"), theme);
   _themeListeners.forEach(fn => fn(theme));
 }
 
@@ -29,8 +72,9 @@ function onThemeChange(fn) { _themeListeners.push(fn); }
 
 function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : null; }
 // routes are blue (the universal navigation convention) so the amber/red
-// traffic overlays and alert colors stay unambiguous
-function routeColor() { return currentTheme() === "dark" ? "#5b93ff" : "#276ef1"; }
+// traffic overlays and alert colors stay unambiguous — tracking blue from
+// the design system
+function routeColor() { return currentTheme() === "dark" ? "#5b9bff" : "#2563eb"; }
 
 const MAP_DARK_STYLE = [
   { elementType: "geometry", stylers: [{ color: "#1d2228" }] },
@@ -71,12 +115,12 @@ function fmtClock(ts) {
 // Numbered stop marker (classic Marker with inline SVG icon).
 function stopMarker(map, position, index, total) {
   const isEnd = index === total - 1;
-  const fill = index === 0 ? "#05944f" : isEnd ? "#e11900" : "#131619";
+  const fill = index === 0 ? "#0f7a43" : isEnd ? "#ea580c" : "#2563eb";
   const label = index === 0 ? "S" : isEnd ? "E" : String(index);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
     <path d="M17 0C7.6 0 0 7.6 0 17c0 12.8 17 27 17 27s17-14.2 17-27C34 7.6 26.4 0 17 0z" fill="${fill}"/>
     <circle cx="17" cy="16" r="10" fill="#ffffff"/>
-    <text x="17" y="21" font-family="Manrope,Arial,sans-serif" font-size="13" font-weight="800" fill="${fill}" text-anchor="middle">${label}</text>
+    <text x="17" y="21" font-family="'Plus Jakarta Sans',Arial,sans-serif" font-size="13" font-weight="800" fill="${fill}" text-anchor="middle">${label}</text>
   </svg>`;
   return new google.maps.Marker({
     map, position,
@@ -91,8 +135,8 @@ function stopMarker(map, position, index, total) {
 // Vehicle marker (pulsing dot).
 function vehicleMarker(map, position) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-    <circle cx="14" cy="14" r="13" fill="#131619" opacity="0.2"/>
-    <circle cx="14" cy="14" r="7.5" fill="#131619" stroke="#ffffff" stroke-width="2.5"/>
+    <circle cx="14" cy="14" r="13" fill="#2563eb" opacity="0.2"/>
+    <circle cx="14" cy="14" r="7.5" fill="#2563eb" stroke="#ffffff" stroke-width="2.5"/>
   </svg>`;
   return new google.maps.Marker({
     map, position, zIndex: 999,
@@ -245,7 +289,7 @@ function drawRoute(map, path) {
 }
 
 // congestion overlays from route.traffic ([startIdx, endIdx, speed] over path)
-const TRAFFIC_COLORS = { SLOW: "#f6a609", TRAFFIC_JAM: "#e11900" };
+const TRAFFIC_COLORS = { SLOW: "#e8890c", TRAFFIC_JAM: "#d02f1f" };
 
 function drawTraffic(map, path, traffic) {
   return (traffic || []).map(([s, e, speed]) => new google.maps.Polyline({
