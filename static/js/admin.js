@@ -256,7 +256,7 @@ function parcelRow(p) {
   const chips = [
     p.status === "delivered" && p.deadlineMissed ? `<span class="late-tag">late</span>` : "",
     p.pickup && p.status !== "awaiting_redelivery" ? `<span class="p-chip" title="Collect at ${p.pickup.label}">P</span>` : "",
-    p.status === "awaiting_redelivery" ? `<span class="redeliv-chip">redelivery</span>` : "",
+    p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the depot">redeliv</span>` : "",
   ].join(" ");
   const where = p.pickup && p.status !== "awaiting_redelivery"
     ? `Collect · ${p.pickup.label} → ${p.destination.label}`
