@@ -1,7 +1,7 @@
 # FleetOps runs as one long-lived FastAPI process (REST + SSE + static
 # frontend, SQLite on local disk). That rules out serverless/edge hosts
 # like Vercel; this image runs as-is on any container platform —
-# Hugging Face Spaces, Render, Railway, Fly.io, or a plain VM.
+# Render, Railway, Fly.io, or a plain VM.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -9,8 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8000 \
     FAKE_ROUTES=1
 
-# Run as a non-root user (Hugging Face Spaces requires UID 1000; harmless
-# elsewhere). Gives the app a writable HOME for any library caches.
+# Run as a non-root user with a writable HOME for library caches.
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user \

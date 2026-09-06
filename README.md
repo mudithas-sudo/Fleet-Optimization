@@ -1,17 +1,3 @@
----
-title: FleetOps
-emoji: 🚚
-colorFrom: blue
-colorTo: yellow
-sdk: docker
-app_port: 8000
-pinned: false
-short_description: Delivery fleet dispatch console + driver navigator (ADK + Maps)
----
-
-<!-- The YAML block above is Hugging Face Space config (Docker SDK); GitHub
-     renders it as a small metadata table. See ## Deploy. -->
-
 # FleetOps — Delivery Management Demo (dev branch)
 
 **This branch is the delivery-management variant**: parcels (name/type/size/
@@ -99,43 +85,19 @@ FleetOps is **one long-lived process** — FastAPI serving REST + Server-Sent
 Events + the static frontend, with SQLite on local disk and live counters in
 memory. That rules out serverless/edge hosts like **Vercel** (read-only
 filesystem, no long-lived connections, fresh process per request — the live
-fleet map, deviation alerts and auto-reroute would all break). Use a container
-host. The repo ships a [`Dockerfile`](Dockerfile) plus config for two free
-ones.
-
-### Hugging Face Spaces — free, no credit card (recommended)
-
-The YAML header at the top of this file makes the repo a **Docker Space**.
-
-1. [huggingface.co](https://huggingface.co) → **New → Space** → SDK **Docker**,
-   name it `fleetops`.
-2. In the Space: **Settings → Variables and secrets** → add *secrets*
-   `GOOGLE_API_KEY` and `MAPS_API_KEY`. (`FAKE_ROUTES=1` is the Dockerfile
-   default; add it as a *variable* set to `0` once your Maps key has billing.)
-3. Push this repo to the Space:
-   ```bash
-   git remote add hf https://huggingface.co/spaces/<your-hf-user>/fleetops
-   git push hf HEAD:main          # first push may need  --force
-   ```
-   The Space builds the Dockerfile and serves at
-   `https://<your-hf-user>-fleetops.hf.space`.
-
-Restrict the Maps key to the `*.hf.space` HTTP referrer. Free Spaces pause
-after ~48 h idle (one click to resume); storage is ephemeral, so `fleet.db`
-resets on rebuild — same as `rm fleet.db*`.
-
-**Auto-deploy on push:** `.github/workflows/deploy-hf-space.yml` mirrors `main`
-to the Space. Enable it by adding a repo **secret** `HF_TOKEN`
-([write token](https://huggingface.co/settings/tokens)) and a repo **variable**
-`HF_SPACE_URL` = `https://huggingface.co/spaces/<your-hf-user>/fleetops`.
+fleet map, deviation alerts and auto-reroute would all break). Use a container host.
 
 ### Render — free, no credit card
 
 [`render.yaml`](render.yaml) is a blueprint: Render dashboard → **New →
-Blueprint** → pick this repo → set `GOOGLE_API_KEY` and `MAPS_API_KEY` when
-prompted. Auto-deploys on push to `main`. Free plan sleeps after 15 min idle
-(~40 s cold start) and has no persistent disk (uncomment the `disk:` block for
-durable storage — paid).
+Blueprint** → connect this repo → set `GOOGLE_API_KEY` and `MAPS_API_KEY` when
+prompted → **Apply**. First build ~4 min; auto-deploys on every push to `main`.
+
+Free-plan tradeoffs: the service sleeps after 15 min idle (~40 s cold start)
+and has no persistent disk, so `fleet.db` resets on redeploy — same as
+`rm fleet.db*` locally. Uncomment the `disk:` block in `render.yaml` for
+durable storage (paid). Restrict `MAPS_API_KEY` to the `*.onrender.com` HTTP
+referrer once you have the URL.
 
 ### Railway / Fly.io / a VM
 
