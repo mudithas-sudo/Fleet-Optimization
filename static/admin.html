@@ -769,9 +769,9 @@
     <section id="tab-parcels" role="tabpanel" aria-labelledby="tab-btn-parcels">
       <h2>Parcels
         <span class="spacer"></span>
-        <button id="btn-auto" class="dispatch-btn" type="button" title="The dispatch agent batches pending (or selected) parcels into runs">
+        <button id="btn-auto" class="dispatch-btn" type="button" title="AI groups your pending (or selected) parcels into delivery runs and assigns a driver to each — you review before anything is created">
           <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 12h5M9 12c4 0 4-6 9-6M9 12c4 0 4 6 9 6M9 12h9"/><path d="M17 4l3 2-3 2M17 14l3 2-3 2"/></svg>
-          Dispatch
+          Suggest runs
         </button>
         <button id="btn-import" class="link-action" type="button">
           <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
@@ -918,10 +918,10 @@
     </div>
 
     <!-- dispatch agent proposal card -->
-    <div id="dispatch-card" class="float-card" role="dialog" aria-label="Dispatch proposal">
+    <div id="dispatch-card" class="float-card" role="dialog" aria-label="Suggested runs">
       <div class="panel-head">
-        <h2>Dispatch proposal</h2>
-        <button id="btn-close-dispatch" class="close-btn" type="button" aria-label="Close dispatch proposal">
+        <h2>Suggested runs</h2>
+        <button id="btn-close-dispatch" class="close-btn" type="button" aria-label="Close suggested runs">
           <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>

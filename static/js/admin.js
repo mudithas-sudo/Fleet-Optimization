@@ -519,7 +519,7 @@ async function autoAssign() {
   $("dispatch-card").style.display = "flex";
   $("dispatch-actions").style.display = "none";
   $("dispatch-body").innerHTML = `<div class="working"><span class="spinner"></span>
-    <span>The dispatch agent is planning ${scope ? scope.length + " selected" : "your"} runs —
+    <span>Grouping ${scope ? scope.length + " selected" : "your pending"} parcels into runs —
     checking fleet eligibility, routes and deadlines. This can take up to a minute…</span></div>`;
   try {
     dispatchPlan = await api("/api/dispatch/propose", {
@@ -527,7 +527,7 @@ async function autoAssign() {
     });
     renderDispatch();
   } catch (err) {
-    $("dispatch-body").innerHTML = `<div class="warn-row">Dispatch failed: ${err.message}</div>`;
+    $("dispatch-body").innerHTML = `<div class="warn-row">Couldn't suggest runs: ${err.message}</div>`;
   }
 }
 
