@@ -63,9 +63,12 @@ async function init() {
     el.innerHTML = vehIconSvg(el.dataset.veh);
   });
 
-  // depot chip is a role=button — support keyboard activation
+  // depot chip is a role=button toggle — Enter/Space activate, Esc cancels
   $("depot-chip").addEventListener("keydown", e => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startDepotEdit(); }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleDepotEdit(); }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && depotEditing) cancelDepotEdit();
   });
 
   // parcels tab
@@ -84,7 +87,7 @@ async function init() {
     };
   });
   setupDestSearch();
-  $("depot-chip").onclick = startDepotEdit;
+  $("depot-chip").onclick = toggleDepotEdit;
   $("btn-plan-run").onclick = openPicker;
   $("btn-auto").onclick = autoAssign;
   $("btn-close-dispatch").onclick = closeDispatch;
@@ -138,6 +141,10 @@ function switchTab(tab) {
 
 function onMapClick(lat, lng) {
   if (depotEditing) {
+    depotEditing = false;
+    $("depot-chip").setAttribute("aria-pressed", "false");
+    $("depot-label").textContent = "saving…";
+    $("depot-action").textContent = "";
     depot = { lat, lng, label: depot?.label || "Depot" };
     api("/api/revgeocode?lat=" + lat + "&lng=" + lng).then(r => {
       if (r.label) depot.label = r.label;
@@ -160,15 +167,34 @@ async function loadDepot() {
   $("depot-label").textContent = depot.label;
 }
 
+function toggleDepotEdit() {
+  depotEditing ? cancelDepotEdit() : startDepotEdit();
+}
+
 function startDepotEdit() {
   depotEditing = true;
-  $("depot-label").textContent = "click the map to move the depot…";
+  $("depot-chip").setAttribute("aria-pressed", "true");
+  $("depot-label").textContent = "click the map to move the depot";
+  $("depot-action").textContent = " · cancel";
+}
+
+function cancelDepotEdit() {
+  depotEditing = false;
+  $("depot-chip").setAttribute("aria-pressed", "false");
+  $("depot-label").textContent = depot.label;
+  $("depot-action").textContent = " · edit";
 }
 
 async function saveDepot() {
   depotEditing = false;
-  await api("/api/settings/depot", { method: "PUT", body: JSON.stringify(depot) });
+  $("depot-chip").setAttribute("aria-pressed", "false");
+  try {
+    await api("/api/settings/depot", { method: "PUT", body: JSON.stringify(depot) });
+  } catch (err) {
+    alert("Couldn't save the depot: " + err.message);
+  }
   $("depot-label").textContent = depot.label;
+  $("depot-action").textContent = " · edit";
 }
 
 // ---------------- parcels ----------------

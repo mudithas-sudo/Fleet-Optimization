@@ -783,9 +783,9 @@
         </button>
         <button id="btn-clear-delivered" class="link-danger" type="button">Clear delivered</button>
       </h2>
-      <div id="depot-chip" style="margin-top:10px" title="Depot — all runs start here" role="button" tabindex="0">
+      <div id="depot-chip" style="margin-top:10px" title="Depot — every delivery run starts here. Click to move it on the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
         <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/></svg>
-        <span id="depot-label">…</span> · edit
+        <span id="depot-label">…</span><span id="depot-action"> · edit</span>
       </div>
 
       <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">
