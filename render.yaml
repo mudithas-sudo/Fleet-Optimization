@@ -1,0 +1,43 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy:
+#   1. Push this repo to GitHub (done).
+#   2. Render dashboard → New → Blueprint → pick mudithas-sudo/Fleet-Optimization.
+#   3. Render reads this file and prompts for GOOGLE_API_KEY and MAPS_API_KEY.
+#   4. Create — first build ~3 min. App at https://fleetops-XXXX.onrender.com
+#
+# Free plan notes: the service sleeps after 15 min idle (~40s cold start) and
+# has no persistent disk, so fleet.db resets on redeploy/sleep — same as
+# `rm fleet.db*` locally. Uncomment the disk block for durable storage (paid).
+
+services:
+  - type: web
+    name: fleetops
+    runtime: docker
+    plan: free
+    region: singapore          # closest Render region to the Colombo demo data
+    branch: main
+    healthCheckPath: /api/config
+    autoDeploy: true            # redeploy on every push to main
+    envVars:
+      - key: FAKE_ROUTES
+        value: "1"              # set to "0" once MAPS_API_KEY has billing enabled
+      - key: MODEL
+        value: gemini-3.5-flash-lite
+      - key: DISPATCH_MODEL
+        value: gemini-3.5-flash
+      - key: ROUTING_PREF
+        value: TRAFFIC_AWARE
+      - key: GOOGLE_API_KEY
+        sync: false             # Gemini key (AI Studio) — set in the dashboard
+      - key: MAPS_API_KEY
+        sync: false             # Google Maps Platform key — set in the dashboard
+
+    # --- optional: persist fleet.db across deploys (Render paid feature) ---
+    # disk:
+    #   name: fleetops-data
+    #   mountPath: /data
+    #   sizeGB: 1
+    # add to envVars above:
+    #   - key: DB_PATH
+    #     value: /data/fleet.db
