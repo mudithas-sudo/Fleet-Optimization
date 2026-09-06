@@ -13,11 +13,24 @@ to the same destination.
 This is the classic **Pickup & Delivery Problem**: each pickup parcel adds a
 second stop, and its pickup must be visited **before** its delivery.
 
+## Decisions (settled with the user)
+
+1. **Aborted run with collected parcels** → a real `awaiting_redelivery`
+   status. The parcel is assumed returned to the depot; re-dispatch treats it
+   as a normal depot-origin delivery (its original `pickup` is kept for
+   history but skipped).
+2. **Pickup time windows** are supported: an optional `[earliest, latest]` on
+   the pickup. Treated as a **soft constraint** like delivery deadlines —
+   the planner sequences to hit it and the manifest flags "at risk" if the
+   ETA falls outside it; never a hard reject.
+3. **Progress stays automatic** — collected/delivered are marked as the
+   vehicle passes each stop, no driver confirm buttons at this stage.
+
 ## Non-goals (v1)
 
-Time windows on pickups; peak/partial-load capacity modelling; standalone
-pickup-only or delivery-only jobs; driver manual confirm buttons (progress
-stays automatic as the vehicle passes a stop, matching the current simulator).
+Peak/partial-load capacity modelling; standalone pickup-only or delivery-only
+jobs; a hard time-window scheduler; barcode/signature capture (that lands with
+the separate proof-of-delivery feature).
 
 ---
 
@@ -26,10 +39,14 @@ stays automatic as the vehicle passes a stop, matching the current simulator).
 Parcels are JSON blobs in SQLite — no migration, just new optional fields.
 
 ```
-parcel.pickup       : {lat, lng, label} | null   # null ⇒ loaded at the depot (today's behaviour)
+parcel.pickup       : {lat, lng, label, earliest?: float, latest?: float} | null
+                      # null ⇒ loaded at the depot (today's behaviour)
+                      # earliest/latest ⇒ optional collection time window (epoch secs)
 parcel.pickedUpAt   : float | null               # timestamp, mirrors deliveredAt
 parcel.status       : pending | assigned | in_transit | picked_up | delivered
-                      # picked_up only occurs when pickup != null
+                                                 | awaiting_redelivery
+                      # picked_up only when pickup != null
+                      # awaiting_redelivery: was collected, run aborted, now back at the depot
 ```
 
 Stop dicts (in `route.orderedStops`, built by `delivery.build_run_stops`):
@@ -51,9 +68,13 @@ else `delivery`. Parcels with no `pickup` key are treated as `null`.
 ```
 [{**depot, kind: "depot"}]
 for p in parcels:
-    if p.pickup:  append {**p.pickup,       label: "Collect · <name>", parcelId: p.id, kind: "pickup"}
-    append              {**p.destination,   label: "<name>",           parcelId: p.id, kind: "delivery"}
+    if p.pickup and p.status != "awaiting_redelivery":
+        append {**p.pickup,     label: "Collect · <name>", parcelId: p.id, kind: "pickup"}
+    append     {**p.destination, label: "<name>",          parcelId: p.id, kind: "delivery"}
 ```
+
+(An `awaiting_redelivery` parcel is back at the depot, so it gets no pickup
+stop — just a delivery, like an ordinary depot-origin parcel.)
 
 Coincident stops (same lat/lng, e.g. 5 parcels to one address, or 2 collected
 at one warehouse) are **deduped into one stop carrying a `parcelIds` list**.
@@ -85,12 +106,25 @@ receives the pre-ordered stops.
 ## Planner agent (`app/planner/`)
 
 - `agent.py` prompt gains: *some stops are pickups (label "Collect · …"); a
-  parcel's pickup must be visited before its delivery; `compute_routes` returns
-  a precedence-valid order — use it; describe collections and drop-offs in the
-  briefing.*
-- `tools.py` `compute_routes`: stops from session state already carry `kind`;
-  no signature change. `compute_route` branches on `any(s.kind == "pickup")`.
+  parcel's pickup must be visited before its delivery, and within its
+  collection window if one is given; `compute_routes` returns a
+  precedence-valid order — use it; call out any pickup/delivery the ETA puts at
+  risk; describe collections and drop-offs in the briefing.*
+- The stops passed via session state carry `kind` and, for pickups, the
+  window (`earliest`/`latest`) so the agent can sequence around it.
+- `tools.py` `compute_routes`: no signature change. `compute_route` branches on
+  `any(s.kind == "pickup")` to use precedence ordering instead of Google's
+  `optimizeWaypointOrder`.
 - Output schema unchanged. `ordered_stop_labels` stays descriptive.
+
+### Pickup time windows
+
+Google Routes v2 has no per-waypoint time windows, so this is a **soft
+constraint**, handled exactly like delivery deadlines: `compute_planned_etas`
+gets a row per pickup stop too, and marks `atRisk` when the projected ETA is
+before `earliest` (too early — would wait) or after `latest` (too late). The
+agent sequences to avoid it; the manifest shows the badge; nothing is
+hard-rejected.
 
 ## Suggest runs agent (`app/dispatcher/`)
 
@@ -119,9 +153,12 @@ stop (same leg-boundary + proximity confirmation as today):
 - Trip **start**: all run parcels → `in_transit` (unchanged).
 - Trip **end / arrived**: undelivered (incl. `picked_up`) → `delivered` at the
   final stop.
-- Trip **end / manual abort**: `in_transit` **and** `picked_up` → back to
-  `pending`. *Known simplification — a real system needs a return-to-depot or
-  hand-off flow for already-collected parcels. See open questions.*
+- Trip **end / manual abort**:
+  - `in_transit` (pickup not yet done) → `pending` — still needs collecting
+    from its original pickup point.
+  - `picked_up` → `awaiting_redelivery` — assumed returned to the depot with
+    the driver. Re-dispatch treats it as a depot-origin delivery (skips the
+    `pickup` stop); the original `pickup` stays on the record for history.
 - Trip summary gains `collectedCount` beside `deliveredCount`.
 
 ## Reroute (`_maybe_reroute` / `_do_reroute`)
@@ -141,17 +178,22 @@ done.
 - Below Destination: a toggle **"Collect from a pickup location"** (off by
   default = loaded at depot).
 - When on: a second place field (`pf-pickup` + `pf-pickup-label`), same
-  search-or-map UX as destination.
+  search-or-map UX as destination, plus two optional `datetime-local` inputs
+  for the collection window (from / until).
 - Each location field gets a small **"set on map"** button that arms map-click
   for *that* field (replaces the current implicit "click sets destination").
-- `saveParcel` POSTs `pickup`. `POST /api/parcels` model: `pickup: Stop | None`.
+- `saveParcel` POSTs `pickup: {lat,lng,label,earliest?,latest?}`.
+  `POST /api/parcels` model: `pickup: Pickup | None`.
 
 ### Parcel rows (`renderParcels` / `parcelRow`)
 
 - With a pickup: meta shows `Collect · <pickup> → <destination>` (truncated),
-  plus a small **P** chip.
-- "Out for delivery" group's match extends to include `picked_up`; row meta
-  shows the sub-status ("collected — en route to drop").
+  plus a small **P** chip; if a window is set, show it.
+- Groups (`PARCEL_GROUPS`): `awaiting_redelivery` joins the **Pending** group's
+  match (it's re-plannable) with a "redelivery" chip; `picked_up` joins the
+  **Out for delivery** match, row meta shows "collected — en route to drop".
+- `create_run` / `delivery.create_run`: accept `pending` **and**
+  `awaiting_redelivery` parcels (currently pending-only).
 
 ### Map markers (`common.js` `stopMarker`; `admin.js`, `driver.js`)
 
@@ -163,7 +205,7 @@ done.
 
 - One row per stop in route order: **Collect — <label>** / **Deliver —
   <label>**, each with its ETA and a tick when done ("collected" / "delivered"
-  / "at risk").
+  / "at risk" — at risk also covers a pickup ETA outside its window).
 
 ### Driver nav (`static/js/driver.js`, `_flatten_steps`)
 
@@ -172,22 +214,10 @@ done.
 
 ---
 
-## Open questions
-
-1. **Aborted run with collected parcels** — v1 sends them back to `pending`
-   (loses the "physically on the van" fact). Acceptable for the demo, or add an
-   `awaiting_redelivery` state?
-2. **Pickup timing** — just "before delivery", or is there a "collect after
-   HH:MM" constraint to model?
-3. **Driver confirmation** — keep auto-progress as the van passes each stop, or
-   add "Confirm pickup / delivery" buttons in the driver PWA?
-
----
-
 ## Phasing
 
 | Phase | Contents |
 |---|---|
-| **1** | Data model · `build_run_stops` + coincident-stop dedupe · deterministic precedence order · `_check_stop_progress` + `picked_up` · form / rows / markers / manifest / driver wording. Runs work end-to-end with pickups. |
-| **2** | Planner agent proposes the pickup→delivery order; server validate + repair; briefing describes collections. |
-| **3** | Suggest-runs agent pickup-aware · reroute precedence guard · resolve the open questions. |
+| **1** | Data model (`pickup` + window, `picked_up`, `awaiting_redelivery`) · `build_run_stops` + coincident-stop dedupe · deterministic precedence order · `_check_stop_progress` · abort → `awaiting_redelivery` · form / rows / markers / manifest / driver wording. Runs work end-to-end with pickups. |
+| **2** | Planner agent proposes the pickup→delivery order respecting windows; server validate + repair; pickup ETAs in `compute_planned_etas`; briefing describes collections and flags at-risk. |
+| **3** | Suggest-runs agent pickup-aware · reroute precedence guard · coincident-stop polish. |
