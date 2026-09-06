@@ -190,47 +190,79 @@ function fmtDeadline(p) {
   return { text: d.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }), cls: "" };
 }
 
+// Parcels are shown in status groups so only pending ones can be selected for
+// a run — assigned/in-transit parcels are already committed to a driver and
+// delivered ones are history.
+const PARCEL_GROUPS = [
+  { key: "pending",  label: "Pending",          dot: "g-planned",
+    match: s => s === "pending" },
+  { key: "transit",  label: "Out for delivery", dot: "g-active",
+    match: s => s === "assigned" || s === "in_transit" },
+  { key: "done",     label: "Delivered",        dot: "",
+    match: s => s === "delivered" },
+];
+
+function parcelGroupHead(label, count, dotMod) {
+  const head = document.createElement("div");
+  head.className = "trip-group " + dotMod;
+  head.innerHTML = `<span class="g-dot"></span><span>${label}</span>` +
+    `<span class="g-line"></span><span class="g-count">${count}</span>`;
+  return head;
+}
+
+function parcelRow(p) {
+  const row = document.createElement("div");
+  row.className = "parcel-row";
+  const dl = fmtDeadline(p);
+  const lateTag = p.status === "delivered" && p.deadlineMissed
+    ? `<span class="late-tag">late</span>` : "";
+  row.innerHTML = `
+    ${p.status === "pending"
+      ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
+      : `<span class="p-dot ${p.status}" title="${p.status.replace("_", " ")}"></span>`}
+    <div class="info">
+      <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${lateTag}</div>
+      <div class="meta">${p.destination.label} · ${p.type} · ${p.status.replace("_", " ")}</div>
+    </div>
+    <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
+    ${p.status === "pending" ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
+  const cb = row.querySelector("input[type=checkbox]");
+  if (cb) cb.onchange = () => {
+    cb.checked ? selectedParcels.add(p.id) : selectedParcels.delete(p.id);
+    updateRunFooter();
+  };
+  const del = row.querySelector(".del");
+  if (del) del.onclick = async () => {
+    if (!confirm(`Delete parcel "${p.name}"?`)) return;
+    try { await api(`/api/parcels/${p.id}`, { method: "DELETE" }); }
+    catch (err) { alert(err.message); }
+  };
+  return row;
+}
+
 function renderParcels() {
-  const list = Object.values(parcels).sort((a, b) => a.deadline - b.deadline);
-  const overdue = list.filter(p => p.deadlineMissed && p.status !== "delivered").length;
+  const all = Object.values(parcels);
+  const overdue = all.filter(p => p.deadlineMissed && p.status !== "delivered").length;
   $("parcel-badge").hidden = !overdue;
   $("parcel-badge").textContent = overdue;
 
   const wrap = $("parcel-list");
   wrap.innerHTML = "";
-  if (!list.length) {
+  if (!all.length) {
     wrap.innerHTML = `<div class="empty">${iconSvg("depot", "i-lg")}
       <b>No parcels yet</b>Add one manually or import a spreadsheet to get started.</div>`;
+    updateRunFooter();
     return;
   }
-  list.forEach(p => {
-    const row = document.createElement("div");
-    row.className = "parcel-row";
-    const dl = fmtDeadline(p);
-    const lateTag = p.status === "delivered" && p.deadlineMissed
-      ? `<span class="late-tag">late</span>` : "";
-    row.innerHTML = `
-      ${p.status === "pending"
-        ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
-        : `<span class="p-dot ${p.status}" title="${p.status.replace("_", " ")}"></span>`}
-      <div class="info">
-        <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${lateTag}</div>
-        <div class="meta">${p.destination.label} · ${p.type} · ${p.status.replace("_", " ")}</div>
-      </div>
-      <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
-      ${p.status === "pending" ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
-    const cb = row.querySelector("input[type=checkbox]");
-    if (cb) cb.onchange = () => {
-      cb.checked ? selectedParcels.add(p.id) : selectedParcels.delete(p.id);
-      updateRunFooter();
-    };
-    const del = row.querySelector(".del");
-    if (del) del.onclick = async () => {
-      if (!confirm(`Delete parcel "${p.name}"?`)) return;
-      try { await api(`/api/parcels/${p.id}`, { method: "DELETE" }); }
-      catch (err) { alert(err.message); }
-    };
-    wrap.append(row);
+
+  PARCEL_GROUPS.forEach(g => {
+    const items = all.filter(p => g.match(p.status)).sort((a, b) =>
+      g.key === "done"
+        ? (b.deliveredAt || 0) - (a.deliveredAt || 0)
+        : a.deadline - b.deadline);
+    if (!items.length) return;
+    wrap.append(parcelGroupHead(g.label, items.length, g.dot));
+    items.forEach(p => wrap.append(parcelRow(p)));
   });
   updateRunFooter();
 }
