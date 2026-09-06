@@ -21,11 +21,19 @@ VEHICLE_DEFAULTS = {
     "truck": {"maxParcelSize": "large", "capacity": 20},
 }
 
-PARCEL_ACTIVE_STATUSES = ("assigned", "in_transit")
+# a parcel committed to a run (can't be edited/deleted or picked for a new run)
+PARCEL_ACTIVE_STATUSES = ("assigned", "in_transit", "picked_up")
+# a parcel that can be selected for a (new) run
+PARCEL_PLANNABLE_STATUSES = ("pending", "awaiting_redelivery")
 
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:6]}"
+
+
+def stop_kind(stop: dict) -> str:
+    """Back-compat: pre-pickup stops have no `kind`."""
+    return stop.get("kind") or ("depot" if stop.get("depot") else "delivery")
 
 
 def new_parcel(data: dict) -> dict:
@@ -35,6 +43,8 @@ def new_parcel(data: dict) -> dict:
         "type": data.get("type", "general"),
         "size": data["size"],
         "destination": data["destination"],
+        "pickup": data.get("pickup"),      # {lat,lng,label,earliest?,latest?} or None
+        "pickedUpAt": None,
         "deadline": data["deadline"],
         "status": "pending",
         "deadlineMissed": False,
@@ -94,8 +104,10 @@ def entity_in_use(kind: str, entity_id: str) -> bool:
 
 def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None) -> dict:
     parcel["status"] = status
-    if trip_id is not None or status == "pending":
+    if trip_id is not None or status in ("pending", "awaiting_redelivery"):
         parcel["tripId"] = trip_id
+    if status == "picked_up":
+        parcel["pickedUpAt"] = ts or time.time()
     if status == "delivered":
         parcel["deliveredAt"] = ts or time.time()
         parcel["deadlineMissed"] = parcel["deliveredAt"] > parcel["deadline"]
@@ -116,7 +128,9 @@ def flag_overdue(parcels: list[dict]) -> list[dict]:
 
 
 def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) -> list[dict]:
-    """Per parcel-stop ETA (cumulative leg durations) vs its deadline."""
+    """Per parcel-stop ETA (cumulative leg durations). Delivery stops are at
+    risk when the ETA is past the deadline; pickup stops when it falls outside
+    the parcel's collection window."""
     etas, elapsed = [], 0.0
     for i, stop in enumerate(route["orderedStops"]):
         if i > 0:
@@ -124,22 +138,46 @@ def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) 
         pid = stop.get("parcelId")
         if not pid or pid not in parcels_by_id:
             continue
-        deadline = parcels_by_id[pid]["deadline"]
+        p = parcels_by_id[pid]
         eta = departure_ts + elapsed
-        etas.append({"stopIndex": i, "parcelId": pid, "eta": eta,
-                     "deadline": deadline, "atRisk": eta > deadline})
+        if stop_kind(stop) == "pickup":
+            w = p.get("pickup") or {}
+            earliest, latest = w.get("earliest"), w.get("latest")
+            at_risk = (latest is not None and eta > latest) or \
+                      (earliest is not None and eta < earliest)
+            etas.append({"stopIndex": i, "parcelId": pid, "kind": "pickup",
+                         "eta": eta, "earliest": earliest, "latest": latest,
+                         "atRisk": at_risk})
+        else:
+            etas.append({"stopIndex": i, "parcelId": pid, "kind": "delivery",
+                         "eta": eta, "deadline": p["deadline"],
+                         "atRisk": eta > p["deadline"]})
     return etas
 
 
 def build_run_stops(parcels: list[dict]) -> list[dict]:
-    """Depot + one stop per parcel. Stop dicts carry parcelId — routing
-    reuses these dicts through optimization and reroutes, keeping the
-    stop↔parcel mapping stable. Shared by create_run and the dispatch agent's
-    evaluate_route tool."""
+    """Depot + a stop per parcel action. A parcel with a pickup contributes a
+    collect stop *and* a delivery stop (both carrying its parcelId + a `kind`);
+    everything else is one delivery stop loaded at the depot. A parcel in
+    `awaiting_redelivery` was already collected and returned to the depot, so it
+    gets no pickup stop. Shared by create_run and the dispatch evaluate_route
+    tool."""
     depot = get_depot()
-    return [{**depot, "depot": True}] + [
-        {"lat": p["destination"]["lat"], "lng": p["destination"]["lng"],
-         "label": p["name"], "parcelId": p["id"]} for p in parcels]
+    stops = [{**depot, "depot": True, "kind": "depot"}]
+    for p in parcels:
+        pk = p.get("pickup")
+        if pk and p["status"] != "awaiting_redelivery":
+            stops.append({"lat": pk["lat"], "lng": pk["lng"], "label": pk["label"],
+                          "parcelId": p["id"], "kind": "pickup"})
+        stops.append({"lat": p["destination"]["lat"], "lng": p["destination"]["lng"],
+                      "label": p["name"], "parcelId": p["id"], "kind": "delivery"})
+    return stops
+
+
+def route_has_pickup(route: dict, parcel_id: str) -> bool:
+    """Does this run's route collect the given parcel en route?"""
+    return any(stop_kind(s) == "pickup" and s.get("parcelId") == parcel_id
+              for s in route["orderedStops"])
 
 
 class RunError(Exception):
@@ -167,8 +205,8 @@ async def create_run(parcel_ids: list[str], driver_id: str,
         p = db.load_entity("parcels", pid)
         if not p:
             raise RunError(f"Parcel {pid} not found", 404)
-        if p["status"] != "pending":
-            raise RunError(f"Parcel '{p['name']}' is not pending")
+        if p["status"] not in PARCEL_PLANNABLE_STATUSES:
+            raise RunError(f"Parcel '{p['name']}' is not available to plan")
         parcels.append(p)
     if not parcels:
         raise RunError("Select at least one parcel", 400)

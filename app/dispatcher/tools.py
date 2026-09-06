@@ -27,10 +27,11 @@ def list_pending_parcels(tool_context: ToolContext) -> dict:
     now = time.time()
     rows = []
     for p in delivery.flag_overdue(db.all_entities("parcels")):
-        if p["status"] != "pending":
+        if p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
             continue
         if scope and p["id"] not in scope:
             continue
+        pk = p.get("pickup") if p["status"] != "awaiting_redelivery" else None
         rows.append({
             "id": p["id"],
             "name": p["name"],
@@ -39,6 +40,9 @@ def list_pending_parcels(tool_context: ToolContext) -> dict:
             "lat": round(p["destination"]["lat"], 4),
             "lng": round(p["destination"]["lng"], 4),
             "deadlineInMinutes": round((p["deadline"] - now) / 60),
+            "pickup": ({"label": pk["label"],
+                        "lat": round(pk["lat"], 4), "lng": round(pk["lng"], 4)}
+                       if pk else None),
         })
     rows.sort(key=lambda r: r["deadlineInMinutes"])
     return {"parcels": rows[:MAX_PARCELS], "count": len(rows[:MAX_PARCELS])}

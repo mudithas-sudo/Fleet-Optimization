@@ -98,13 +98,33 @@ def _flatten_steps(legs: list[dict], ordered_stops: list[dict]) -> list[dict]:
                 "instruction": instruction,
                 "endDist": round(cum),
             })
-        label = ordered_stops[li + 1]["label"] if li + 1 < len(ordered_stops) else "destination"
+        stop = ordered_stops[li + 1] if li + 1 < len(ordered_stops) else {}
+        label = stop.get("label", "destination")
+        kind = stop.get("kind")
+        verb = "Collect at" if kind == "pickup" else "Deliver to" if kind == "delivery" else "Arrive at"
         steps.append({
             "maneuver": "ARRIVE",
-            "instruction": f"Arrive at {label}",
+            "instruction": f"{verb} {label}",
             "endDist": round(cum),
         })
     return steps
+
+
+def _order_with_precedence(stops: list[dict]) -> list[dict]:
+    """Nearest-neighbour order from the depot with one hard rule: a parcel's
+    delivery stop is never visited before its pickup stop. Used instead of the
+    Routes API's waypoint optimisation, which has no notion of precedence."""
+    depot, rest, ordered = stops[0], list(stops[1:]), []
+    cur = depot
+    while rest:
+        blocked = {s["parcelId"] for s in rest if s.get("kind") == "pickup"}
+        cands = [s for s in rest
+                 if not (s.get("kind") == "delivery" and s.get("parcelId") in blocked)]
+        nxt = min(cands, key=lambda s: _haversine_m(cur, s))
+        ordered.append(nxt)
+        rest.remove(nxt)
+        cur = nxt
+    return [depot] + ordered
 
 
 # bikes get true two-wheeler routing; every other fleet type drives
@@ -120,6 +140,12 @@ async def compute_route(stops: list[dict], avoid_tolls: bool = False,
     """
     if len(stops) < 2:
         raise RoutingError("Need at least an origin and a destination.")
+
+    # pickup stops carry a precedence constraint the Routes optimiser can't
+    # express — order them ourselves and pin the order.
+    if any(s.get("kind") == "pickup" for s in stops):
+        stops = _order_with_precedence(stops)
+        optimize = False
 
     origin, dest, intermediates = stops[0], stops[-1], stops[1:-1]
 

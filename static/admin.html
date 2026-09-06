@@ -400,12 +400,19 @@
     padding: 1px 6px; border-radius: 5px; background: var(--surface-3); color: var(--text-muted);
     text-transform: uppercase;
   }
+  .p-chip, .redeliv-chip {
+    flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 5px; text-transform: uppercase;
+  }
+  .p-chip { background: var(--warning-soft); color: var(--warning); }
+  .redeliv-chip { background: var(--primary-soft); color: var(--primary); }
   .p-dot {
     width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
   }
   .p-dot.assigned { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent); }
-  .p-dot.in_transit { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent); animation: pulse 1.6s infinite; }
+  .p-dot.in_transit,
+  .p-dot.picked_up { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent); animation: pulse 1.6s infinite; }
   .p-dot.delivered { background: var(--text-subtle); box-shadow: none; }
   .deadline {
     flex: 0 0 auto; text-align: right; font-size: var(--fs-xs); font-weight: 800;
@@ -804,6 +811,21 @@
         <div class="field"><label for="pf-dest">Destination — search or click the map</label>
           <input id="pf-dest" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
           <div class="hint" id="pf-dest-label" style="margin-top:4px">No destination set</div>
+        </div>
+        <label class="toggle-row" style="padding:10px 12px">
+          <span>Collect from a pickup location</span>
+          <input type="checkbox" id="pf-has-pickup">
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+        <div id="pf-pickup-fields" hidden style="display:flex;flex-direction:column;gap:11px">
+          <div class="field"><label for="pf-pickup">Pickup — search or click the map</label>
+            <input id="pf-pickup" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
+            <div class="hint" id="pf-pickup-label" style="margin-top:4px">No pickup set</div>
+          </div>
+          <div class="form-grid">
+            <div class="field"><label for="pf-pickup-from">Collect from</label><input id="pf-pickup-from" type="datetime-local"></div>
+            <div class="field"><label for="pf-pickup-until">Collect until</label><input id="pf-pickup-until" type="datetime-local"></div>
+          </div>
         </div>
         <div class="row">
           <button class="btn btn-ghost" id="pf-cancel" type="button">Cancel</button>

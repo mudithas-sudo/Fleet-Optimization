@@ -118,11 +118,20 @@ async def revgeocode(lat: float, lng: float):
 
 # ---------- delivery management: parcels / vehicles / drivers / depot ----------
 
+class Pickup(BaseModel):
+    lat: float
+    lng: float
+    label: str
+    earliest: float | None = None   # epoch secs — collect no earlier than
+    latest: float | None = None     # epoch secs — collect no later than
+
+
 class ParcelIn(BaseModel):
     name: str
     type: str = "general"
     size: str
     destination: Stop
+    pickup: Pickup | None = None
     deadline: float
 
 
@@ -186,8 +195,8 @@ async def bulk_parcels(req: BulkParcels):
 @app.put("/api/parcels/{parcel_id}")
 async def edit_parcel(parcel_id: str, p: ParcelIn):
     parcel = _entity_or_404("parcels", parcel_id)
-    if parcel["status"] != "pending":
-        raise HTTPException(409, "Only pending parcels can be edited.")
+    if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        raise HTTPException(409, "This parcel is on a run — it can't be edited.")
     _validate_parcel(p)
     parcel.update(p.model_dump())
     parcel["deadlineMissed"] = False
@@ -199,7 +208,7 @@ async def edit_parcel(parcel_id: str, p: ParcelIn):
 @app.delete("/api/parcels/{parcel_id}")
 async def delete_parcel(parcel_id: str):
     parcel = _entity_or_404("parcels", parcel_id)
-    if parcel["status"] != "pending":
+    if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
         raise HTTPException(409, "Parcel is on a delivery run — it can't be deleted.")
     db.delete_entity("parcels", parcel_id)
     store.broadcast_global("parcel", {"parcel": parcel, "deleted": True})
@@ -376,6 +385,7 @@ def _summary(t: dict) -> dict:
                       if t.get("driverId") else None,
         "parcelCount": len(t.get("parcelIds") or []),
         "deliveredCount": t.get("deliveredCount", 0),
+        "collectedCount": t.get("collectedCount", 0),
     }
 
 
@@ -445,10 +455,15 @@ async def delete_trip(trip_id: str):
     if trip["status"] in LIVE_STATUSES:
         raise HTTPException(
             409, "Trip is live — the driver has started it. End the trip first.")
-    # deleting a planned run releases its parcels for re-dispatch
+    # deleting a planned/ended run releases its parcels for re-dispatch;
+    # already-collected parcels come back as awaiting_redelivery
     for pid in trip.get("parcelIds") or []:
         p = db.load_entity("parcels", pid)
-        if p and p["status"] in delivery.PARCEL_ACTIVE_STATUSES:
+        if not p:
+            continue
+        if p["status"] == "picked_up":
+            delivery.set_parcel_status(p, "awaiting_redelivery", trip_id=None)
+        elif p["status"] in delivery.PARCEL_ACTIVE_STATUSES:
             delivery.set_parcel_status(p, "pending", trip_id=None)
     store.broadcast(trip_id, "removed", {})
     store.delete_trip(trip_id)
@@ -504,8 +519,9 @@ async def end_trip(trip_id: str, req: EndRequest | None = None):
         "completed" if arrived else "ended",
         "Driver arrived — trip completed" if arrived else "Trip ended by the driver")
     trip["alerts"].append(alert)
-    # arrived: any parcels not yet ticked off are delivered at the final stop;
-    # manual end: undelivered parcels go back to pending for re-dispatch
+    # arrived: any parcels not yet ticked off are delivered at the final stop.
+    # manual end: not-yet-collected parcels go back to pending; already-collected
+    # ones come back as awaiting_redelivery (assumed returned to the depot).
     for pid in trip.get("parcelIds") or []:
         p = db.load_entity("parcels", pid)
         if not p or p["status"] == "delivered":
@@ -513,6 +529,8 @@ async def end_trip(trip_id: str, req: EndRequest | None = None):
         if arrived:
             delivery.set_parcel_status(p, "delivered")
             trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
+        elif p["status"] == "picked_up":
+            delivery.set_parcel_status(p, "awaiting_redelivery", trip_id=None)
         else:
             delivery.set_parcel_status(p, "pending", trip_id=None)
     store.save_trip(trip)
@@ -532,7 +550,7 @@ async def post_position(trip_id: str, pos: Position):
 
     runtime = store.runtime(trip_id)
     alert, along = deviation.check_position(trip, runtime, pos.lat, pos.lng)
-    _check_deliveries(trip, runtime)
+    _check_stop_progress(trip, runtime)
     if alert:
         trip["alerts"].append(alert)
         trip["status"] = "deviating" if alert["type"] == "deviation" else "active"
@@ -547,18 +565,19 @@ async def post_position(trip_id: str, pos: Position):
 ARRIVE_RADIUS_M = 40
 
 
-def _check_deliveries(trip: dict, runtime: dict):
-    """Mark a run's parcels delivered as the vehicle's on-route progress passes
-    each parcel stop (leg-boundary cums vs runtime 'along', plus a proximity
-    confirmation so a window-fallback projection can't fake a delivery)."""
+def _check_stop_progress(trip: dict, runtime: dict):
+    """As the vehicle's on-route progress passes each parcel stop, mark the
+    parcel collected (pickup stop) or delivered (delivery stop) — leg-boundary
+    cums vs runtime 'along', plus a proximity confirmation so a window-fallback
+    projection can't fake it."""
     if not trip.get("parcelIds") or trip["status"] not in ("active", "deviating"):
         return
     bounds, cum = [0.0], 0.0
     for leg in trip["route"]["legs"]:
         cum += leg["distanceMeters"]
         bounds.append(cum)
-    pos = trip.get("lastPosition") or {}
-    for i, stop in enumerate(trip["route"]["orderedStops"]):
+    route, pos = trip["route"], trip.get("lastPosition") or {}
+    for i, stop in enumerate(route["orderedStops"]):
         pid = stop.get("parcelId")
         if i == 0 or not pid or runtime["along"] < bounds[i] - ARRIVE_RADIUS_M:
             continue
@@ -570,15 +589,29 @@ def _check_deliveries(trip: dict, runtime: dict):
         if not (near or well_past):
             continue
         p = db.load_entity("parcels", pid)
-        if not p or p["status"] != "in_transit":
+        if not p:
             continue
-        delivery.set_parcel_status(p, "delivered")
-        trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
-        late = " (past deadline)" if p["deadlineMissed"] else ""
-        alert = _lifecycle_alert(trip["id"], "delivered",
-                                 f"Delivered: {p['name']}{late}")
-        trip["alerts"].append(alert)
-        store.broadcast(trip["id"], "alert", alert)
+        kind = delivery.stop_kind(stop)
+        if kind == "pickup" and p["status"] == "in_transit":
+            delivery.set_parcel_status(p, "picked_up")
+            trip["collectedCount"] = trip.get("collectedCount", 0) + 1
+            _emit(trip, "collected", f"Collected: {p['name']}")
+        elif kind == "delivery":
+            # a parcel collected en route must be picked up before it's dropped
+            if delivery.route_has_pickup(route, pid) and p["status"] != "picked_up":
+                continue
+            if p["status"] not in ("in_transit", "picked_up"):
+                continue
+            delivery.set_parcel_status(p, "delivered")
+            trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
+            late = " (past deadline)" if p["deadlineMissed"] else ""
+            _emit(trip, "delivered", f"Delivered: {p['name']}{late}")
+
+
+def _emit(trip: dict, kind: str, message: str):
+    alert = _lifecycle_alert(trip["id"], kind, message)
+    trip["alerts"].append(alert)
+    store.broadcast(trip["id"], "alert", alert)
 
 
 def _maybe_reroute(trip: dict, runtime: dict, lat: float, lng: float, along: float):
