@@ -1,0 +1,33 @@
+name: Deploy to Hugging Face Space
+
+# Mirrors `main` to a Hugging Face Docker Space on every push.
+# Enable by adding, in the GitHub repo settings:
+#   - secret   HF_TOKEN      = a Hugging Face write token
+#   - variable HF_SPACE_URL  = https://huggingface.co/spaces/<user>/fleetops
+# Until both are set the job is skipped.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.HF_SPACE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_URL: ${{ vars.HF_SPACE_URL }}
+        run: |
+          set -euo pipefail
+          repo_path="${HF_SPACE_URL#https://huggingface.co/}"   # spaces/<user>/<name>
+          hf_user="$(printf '%s' "$repo_path" | cut -d/ -f2)"
+          git push --force \
+            "https://${hf_user}:${HF_TOKEN}@huggingface.co/${repo_path}" \
+            HEAD:main
