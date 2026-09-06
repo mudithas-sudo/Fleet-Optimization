@@ -79,6 +79,32 @@ Keys in `.env`:
   distances so the whole demo still works. Set `FAKE_ROUTES=0` once the billed
   key is in place to get road-following, order-optimized routes.
 
+## Deploy
+
+FleetOps is **one long-lived process** — FastAPI serving REST + Server-Sent
+Events + the static frontend, with SQLite on local disk and live counters in
+memory. That rules out serverless/edge hosts like **Vercel** (read-only
+filesystem, no long-lived connections, fresh process per request — the live
+fleet map, deviation alerts and auto-reroute would all break). Use a container host.
+
+### Render — free, no credit card
+
+[`render.yaml`](render.yaml) is a blueprint: Render dashboard → **New →
+Blueprint** → connect this repo → set `GOOGLE_API_KEY` and `MAPS_API_KEY` when
+prompted → **Apply**. First build ~4 min; auto-deploys on every push to `main`.
+
+Free-plan tradeoffs: the service sleeps after 15 min idle (~40 s cold start)
+and has no persistent disk, so `fleet.db` resets on redeploy — same as
+`rm fleet.db*` locally. Uncomment the `disk:` block in `render.yaml` for
+durable storage (paid). Restrict `MAPS_API_KEY` to the `*.onrender.com` HTTP
+referrer once you have the URL.
+
+### Railway / Fly.io / a VM
+
+Build the `Dockerfile`; provide `FAKE_ROUTES`, `GOOGLE_API_KEY`, `MAPS_API_KEY`,
+and optionally `DB_PATH` pointing at a mounted volume. The container listens on
+`$PORT` (default 8000).
+
 ## Demo script
 
 1. Open `http://localhost:8000` (admin). Add 4–5 stops in a deliberately

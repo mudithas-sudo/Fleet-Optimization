@@ -16,7 +16,6 @@ let stepIdx = 0;
 let rafId = null, lastFrameT = 0, arrived = false, camAccumT = 0;
 let lastPos = null, lastLo = 0;   // most recent simulated position (for the 1s server tick)
 let driverId = null;              // set when opened via a per-driver queue link
-const VEH_ICON = { car: "🚗", van: "🚐", truck: "🚚", bike: "🏍️" };
 
 const OFFSET_RATE = 15 /* m per second */, OFFSET_MAX = 300, TICK_MS = 1000;
 const SPEED_PRESETS = [30, 50, 80, 110];
@@ -89,9 +88,8 @@ async function init() {
   drawStops();
   fitVisible();
 
-  const vehIcon = { car: "🚗", van: "🚐", truck: "🚚", bike: "🏍️" }[trip.vehicleType] || "🚗";
-  $("trip-meta").textContent =
-    `${vehIcon} ${trip.id} · ${fmtKm(trip.route.totalDistanceMeters)} · ${fmtMin(trip.route.totalDurationSeconds)}`;
+  $("trip-meta").innerHTML =
+    `${vehIconSvg(trip.vehicleType)} <span>${trip.id} · ${fmtKm(trip.route.totalDistanceMeters)} · ${fmtMin(trip.route.totalDurationSeconds)}</span>`;
   if (trip.vehicleType === "truck") {   // trucks are speed-capped in the simulator
     $("speed").max = 80;
     if (speedKmh > 80) setSpeed(80);
@@ -100,11 +98,15 @@ async function init() {
   $("btn-start").disabled = false;
 
   $("speed").oninput = () => setSpeed(Number($("speed").value));
-  $("speed-bubble").onclick = () => {
+  const cycleSpeed = () => {
     const max = Number($("speed").max);
     const presets = SPEED_PRESETS.filter(v => v <= max);
     const next = presets[(presets.indexOf(speedKmh) + 1) % presets.length] ?? presets[0];
     setSpeed(next);
+  };
+  $("speed-bubble").onclick = cycleSpeed;
+  $("speed-bubble").onkeydown = e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleSpeed(); }
   };
   $("btn-start").onclick = startTrip;
   $("btn-deviate").onclick = toggleDeviate;
@@ -229,12 +231,11 @@ async function initQueue() {
   $("queue").classList.remove("hidden");
   $("sheet").classList.add("hidden");
   const btn = $("theme-toggle-q");
-  btn.textContent = currentTheme() === "dark" ? "☀ Light" : "☾ Dark";
+  setThemeToggle(btn, currentTheme());
   btn.onclick = () => {
     const next = currentTheme() === "dark" ? "light" : "dark";
     try { localStorage.setItem("fleetops-theme", next); } catch (_) {}
     applyTheme(next);
-    btn.textContent = next === "dark" ? "☀ Light" : "☾ Dark";
   };
   await refreshQueue();
   setInterval(() => { if (!document.hidden) refreshQueue(); }, 30000);
@@ -245,17 +246,19 @@ async function refreshQueue() {
   try {
     q = await api(`/api/drivers/${driverId}/queue`);
   } catch (err) {
-    $("q-runs").innerHTML = `<div class="q-empty">Could not load your runs:<br>${err.message}</div>`;
+    $("q-runs").innerHTML = `<div class="q-empty">${iconSvg("alert")}
+      <div>Could not load your runs<br>${err.message}</div></div>`;
     return;
   }
   $("q-name").textContent = q.driver.name;
-  $("q-vehicle").textContent = q.vehicle
-    ? `${VEH_ICON[q.vehicle.type] || ""} ${q.vehicle.name} · ${q.vehicle.plate || q.vehicle.type}`
-    : "No vehicle assigned";
+  $("q-vehicle").innerHTML = q.vehicle
+    ? `${vehIconSvg(q.vehicle.type)} <span>${q.vehicle.name} · ${q.vehicle.plate || q.vehicle.type}</span>`
+    : `${iconSvg("help")} <span>No vehicle assigned</span>`;
   const wrap = $("q-runs");
   wrap.innerHTML = "";
   if (!q.runs.length) {
-    wrap.innerHTML = `<div class="q-empty">No runs assigned yet.<br>Dispatch will send work your way.</div>`;
+    wrap.innerHTML = `<div class="q-empty">${iconSvg("truck")}
+      <div><b>No runs assigned yet</b><br>Dispatch will send work your way.</div></div>`;
     return;
   }
   q.runs.forEach(r => {
@@ -511,6 +514,7 @@ function setOffroute(on) {
 function toggleDeviate() {
   deviating = !deviating;
   $("btn-deviate").classList.toggle("on", deviating);
+  $("btn-deviate").setAttribute("aria-pressed", String(deviating));
 }
 
 function toggleOverview() {

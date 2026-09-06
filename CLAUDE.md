@@ -47,6 +47,8 @@ Plain HTML/JS in `static/`, no build. `admin.html`/`admin.js` is the dispatch co
 
 Conventions: light theme is default with dark as a toggle — all colors are CSS custom properties on `:root` overridden under `[data-theme="dark"]`, and map style/route colors follow via `themeAwareMap`/`mapThemeStyles()`. The driver map uses `mapId: "DEMO_MAP_ID"` (vector: tilt/heading camera + AdvancedMarker, falls back gracefully); the admin map uses a classic styled raster map, so `styles:` works there but not on the driver map. Bump the `CACHE` version in `static/sw.js` when changing driver-page shell files, or the PWA serves stale ones.
 
+Design system: "Swiss minimal" from the `ui-ux-pro-max` skill — tracking-blue `--primary` + delivery-orange `--accent` (CTA, near-black text), Plus Jakarta Sans, semantic spacing/radius/shadow tokens, `prefers-reduced-motion` honoured, WCAG-AA contrast. The `<style>` blocks in `admin.html`/`driver.html` are the source of truth; legacy `--blue/--red/--muted/...` aliases exist so inline JS refs keep working. **No emoji in the chrome** — icons come from `ICONS`/`iconSvg()`/`vehIconSvg()` in `common.js` (Lucide-style stroke SVGs). Rationale and per-page rules: `design-system/fleetops/MASTER.md` + `pages/`.
+
 ## Routes API gotchas (learned the hard way)
 
 - The `X-Goog-FieldMask` header is mandatory; omitting it is a 400.
