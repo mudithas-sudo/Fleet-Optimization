@@ -638,7 +638,8 @@ async def _do_reroute(trip_id: str, lat: float, lng: float, remaining: list[dict
         prior = store.get_trip(trip_id)
         route = await routing.compute_route(
             stops, avoid_tolls=prior.get("avoidTolls", False),
-            optimize=False, vehicle_type=prior.get("vehicleType", "car"))
+            optimize=False, vehicle_type=prior.get("vehicleType", "car"),
+            presequenced=True)   # `remaining` keeps the planned (valid) order
     except routing.RoutingError:
         return  # keep the old route; deviation alerts continue
     finally:

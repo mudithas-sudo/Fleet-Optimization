@@ -92,9 +92,9 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
 
     Returns:
         {status:"ineligible", reason} if the vehicle can't take the batch;
-        else {status:"ok", totalKm, totalMinutes, perParcel:[{parcelId,
-        etaInMinutes, deadlineInMinutes, atRisk}]} — these ETAs are the only
-        valid timing source.
+        else {status:"ok", totalKm, totalMinutes, perStop:[{parcelId, kind,
+        etaInMinutes, dueInMinutes, atRisk}]} — one row per collect/deliver
+        stop; these ETAs are the only valid timing source.
     """
     driver = db.load_entity("drivers", driver_id)
     if not driver:
@@ -128,10 +128,13 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
         "status": "ok",
         "totalKm": round(route["totalDistanceMeters"] / 1000, 1),
         "totalMinutes": round(route["totalDurationSeconds"] / 60),
-        "perParcel": [{
+        "perStop": [{
             "parcelId": e["parcelId"],
+            "kind": e.get("kind", "delivery"),
             "etaInMinutes": round((e["eta"] - now) / 60),
-            "deadlineInMinutes": round((e["deadline"] - now) / 60),
+            "dueInMinutes": (round((e["deadline"] - now) / 60) if e.get("deadline")
+                             else round((e["latest"] - now) / 60) if e.get("latest")
+                             else None),
             "atRisk": e["atRisk"],
         } for e in etas],
     }

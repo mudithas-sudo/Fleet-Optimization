@@ -216,8 +216,8 @@ done.
 
 ## Phasing
 
-| Phase | Contents |
-|---|---|
-| **1** | Data model (`pickup` + window, `picked_up`, `awaiting_redelivery`) · `build_run_stops` + coincident-stop dedupe · deterministic precedence order · `_check_stop_progress` · abort → `awaiting_redelivery` · form / rows / markers / manifest / driver wording. Runs work end-to-end with pickups. |
-| **2** | Planner agent proposes the pickup→delivery order respecting windows; server validate + repair; pickup ETAs in `compute_planned_etas`; briefing describes collections and flags at-risk. |
-| **3** | Suggest-runs agent pickup-aware · reroute precedence guard · coincident-stop polish. |
+| Phase | Status | Contents |
+|---|---|---|
+| **1** | ✅ done | Data model (`pickup` + window, `picked_up`, `awaiting_redelivery`) · `build_run_stops` · deterministic precedence order · `_check_stop_progress` · abort → `awaiting_redelivery` · form / rows / markers / manifest / driver wording. Runs work end-to-end with pickups. |
+| **2** | ✅ done | Planner agent proposes the visiting order via `compute_routes(order_json=…)`; `routing.repair_precedence` guarantees pickup-before-delivery; the tool returns per-stop ETA + at-risk (window / deadline); `compute_route(presequenced=…)` keeps the agent's order; briefing narrates collections and flags at-risk. |
+| **3** | not started | Suggest-runs agent pickup-aware (`evaluate_route` now returns `perStop` with kind; prompt + clustering next) · reroute precedence guard · coincident-stop dedupe (deferred — one stop per parcel-action even at the same coords). |

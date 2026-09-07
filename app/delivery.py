@@ -168,9 +168,11 @@ def build_run_stops(parcels: list[dict]) -> list[dict]:
         pk = p.get("pickup")
         if pk and p["status"] != "awaiting_redelivery":
             stops.append({"lat": pk["lat"], "lng": pk["lng"], "label": pk["label"],
-                          "parcelId": p["id"], "kind": "pickup"})
+                          "parcelId": p["id"], "kind": "pickup",
+                          "earliest": pk.get("earliest"), "latest": pk.get("latest")})
         stops.append({"lat": p["destination"]["lat"], "lng": p["destination"]["lng"],
-                      "label": p["name"], "parcelId": p["id"], "kind": "delivery"})
+                      "label": p["name"], "parcelId": p["id"], "kind": "delivery",
+                      "deadline": p["deadline"]})
     return stops
 
 

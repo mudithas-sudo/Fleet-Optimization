@@ -127,24 +127,50 @@ def _order_with_precedence(stops: list[dict]) -> list[dict]:
     return [depot] + ordered
 
 
+def repair_precedence(rest: list[dict]) -> list[dict]:
+    """Take a proposed visiting order (depot excluded) and make it
+    precedence-valid: a delivery whose pickup hasn't been visited yet is held
+    aside and re-inserted right after its pickup. A stable no-op when the order
+    is already valid. The planner agent proposes an order; this is the guard."""
+    has_pickup = {s["parcelId"] for s in rest if s.get("kind") == "pickup"}
+    result, held, collected = [], {}, set()
+    for s in rest:
+        pid = s.get("parcelId")
+        if (s.get("kind") == "delivery" and pid in has_pickup and pid not in collected):
+            held[pid] = s
+            continue
+        result.append(s)
+        if s.get("kind") == "pickup":
+            collected.add(pid)
+            if pid in held:
+                result.append(held.pop(pid))
+    result.extend(held.values())   # pickup never appeared (shouldn't happen)
+    return result
+
+
 # bikes get true two-wheeler routing; every other fleet type drives
 TRAVEL_MODES = {"bike": "TWO_WHEELER"}
 
 
 async def compute_route(stops: list[dict], avoid_tolls: bool = False,
-                        optimize: bool = True, vehicle_type: str = "car") -> dict:
+                        optimize: bool = True, vehicle_type: str = "car",
+                        presequenced: bool = False) -> dict:
     """Compute a driving route through stops (first=origin, last=destination).
 
     optimize=True lets the Routes API reorder the intermediate stops;
     reroutes pass optimize=False to preserve the remaining stop order.
+
+    When any stop is a pickup, the Routes optimiser can't be used (no
+    precedence support). `presequenced=True` means the caller has already put
+    the stops in a valid visiting order (the planner agent + repair_precedence);
+    otherwise the deterministic nearest-neighbour heuristic is applied here.
     """
     if len(stops) < 2:
         raise RoutingError("Need at least an origin and a destination.")
 
-    # pickup stops carry a precedence constraint the Routes optimiser can't
-    # express — order them ourselves and pin the order.
     if any(s.get("kind") == "pickup" for s in stops):
-        stops = _order_with_precedence(stops)
+        if not presequenced:
+            stops = _order_with_precedence(stops)
         optimize = False
 
     origin, dest, intermediates = stops[0], stops[-1], stops[1:-1]
