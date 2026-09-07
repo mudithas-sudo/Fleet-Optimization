@@ -5,39 +5,17 @@ eligibility violations are stripped here, deterministically, before the admin
 ever sees the plan.
 """
 
-import uuid
-
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
-
+from ..agent_runtime import AgentRun
 from .. import db, delivery
 from .agent import dispatch_agent
 
-APP_NAME = "fleet-dispatch"
-USER_ID = "admin"
-
-_session_service = InMemorySessionService()
-_runner = Runner(app_name=APP_NAME, agent=dispatch_agent,
-                 session_service=_session_service)
+_run = AgentRun("fleet-dispatch", dispatch_agent)
 
 
 async def propose_dispatch(parcel_ids: list[str] | None = None) -> dict:
-    session_id = f"dispatch-{uuid.uuid4().hex[:8]}"
-    await _session_service.create_session(
-        app_name=APP_NAME, user_id=USER_ID, session_id=session_id,
-        state={"scope_parcel_ids": parcel_ids})
-
-    message = types.Content(role="user", parts=[types.Part(
-        text="Plan delivery runs for the current pending parcels.")])
-
-    async for _event in _runner.run_async(
-            user_id=USER_ID, session_id=session_id, new_message=message):
-        pass
-
-    session = await _session_service.get_session(
-        app_name=APP_NAME, user_id=USER_ID, session_id=session_id)
-    plan = session.state.get("dispatch_plan")
+    state = await _run("Plan delivery runs for the current pending parcels.",
+                       {"scope_parcel_ids": parcel_ids})
+    plan = state.get("dispatch_plan")
     if not isinstance(plan, dict):
         raise RuntimeError("The dispatch agent produced no plan.")
 

@@ -8,6 +8,7 @@ The proposal is validated server-side and only executed after admin approval.
 import os
 
 from google.adk import Agent
+from google.adk.planners import PlanReActPlanner
 from pydantic import BaseModel, Field
 
 from .tools import evaluate_route, list_fleet_availability, list_pending_parcels
@@ -59,7 +60,14 @@ dispatch_agent = Agent(
         "at most one batch in this plan. Rationales are 1-2 concrete "
         "sentences (mention area, deadlines, vehicle fit) - no filler."
     ),
+    # ReAct planning: reason about geography, deadlines and fleet before
+    # committing to batches. Tools run in the thought loop; DispatchPlan is
+    # enforced only on the final answer.
+    planner=PlanReActPlanner(),
     tools=[list_pending_parcels, list_fleet_availability, evaluate_route],
     output_schema=DispatchPlan,
     output_key="dispatch_plan",
 )
+
+# `adk run` / `adk web` / `adk eval` look for `root_agent`
+root_agent = dispatch_agent

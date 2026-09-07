@@ -3,6 +3,7 @@
 import os
 
 from google.adk import Agent
+from google.adk.planners import PlanReActPlanner
 from pydantic import BaseModel, Field
 
 from .tools import compute_routes
@@ -51,7 +52,15 @@ planner_agent = Agent(
         "vehicleType (rider for a bike, etc.). Do not invent numbers — use only "
         "the tool's values."
     ),
+    # ReAct planning: the model lays out a plan (which stops, in what order,
+    # why) before it calls compute_routes — helps the pickup→delivery
+    # sequencing hold together. Tools run in the thought loop; RoutePlan is
+    # enforced only on the final answer.
+    planner=PlanReActPlanner(),
     tools=[compute_routes],
     output_schema=RoutePlan,
     output_key="route_plan",
 )
+
+# `adk run` / `adk web` / `adk eval` look for `root_agent`
+root_agent = planner_agent

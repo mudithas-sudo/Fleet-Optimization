@@ -16,4 +16,6 @@ fleet.db-*
 design-system
 samples
 scratchpad
+tests
+eval
 run.sh

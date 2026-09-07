@@ -1,0 +1,92 @@
+{
+  "eval_set_id": "planner_pickup",
+  "name": "Planner — pickup & delivery",
+  "description": "The route planner must sequence each parcel's pickup before its delivery and narrate collections in the briefing. Runs with FAKE_ROUTES=1 (no Google) but needs GOOGLE_API_KEY for the agent + the response judge.",
+  "eval_cases": [
+    {
+      "eval_id": "collect_before_deliver",
+      "conversation": [
+        {
+          "invocation_id": "inv-collect-before-deliver",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "{\"stops\": [{\"lat\": 6.9271, \"lng\": 79.8612, \"label\": \"Colombo Central Depot\", \"kind\": \"depot\", \"depot\": true}, {\"lat\": 6.9553, \"lng\": 79.9219, \"label\": \"Kelaniya Warehouse\", \"parcelId\": \"p-mat\", \"kind\": \"pickup\", \"earliest\": null, \"latest\": null}, {\"lat\": 7.0102, \"lng\": 79.9430, \"label\": \"Queen mattress\", \"parcelId\": \"p-mat\", \"kind\": \"delivery\", \"deadline\": 9999999999}, {\"lat\": 6.9066, \"lng\": 79.8917, \"label\": \"Legal documents\", \"parcelId\": \"p-doc\", \"kind\": \"delivery\", \"deadline\": 9999999999}], \"avoidTolls\": false, \"vehicleType\": \"van\"}"
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hello driver. Start at Colombo Central Depot, collect the Queen mattress at Kelaniya Warehouse, then drop it at its destination, and deliver the Legal documents on the way. The whole run is about 20 km and roughly 40 minutes. No stops are at risk. Drive safe."
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "compute_routes" }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "fleet-plan",
+        "user_id": "system",
+        "state": {
+          "avoid_tolls": false,
+          "vehicle_type": "van",
+          "stops": [
+            {"lat": 6.9271, "lng": 79.8612, "label": "Colombo Central Depot", "kind": "depot", "depot": true},
+            {"lat": 6.9553, "lng": 79.9219, "label": "Kelaniya Warehouse", "parcelId": "p-mat", "kind": "pickup", "earliest": null, "latest": null},
+            {"lat": 7.0102, "lng": 79.9430, "label": "Queen mattress", "parcelId": "p-mat", "kind": "delivery", "deadline": 9999999999},
+            {"lat": 6.9066, "lng": 79.8917, "label": "Legal documents", "parcelId": "p-doc", "kind": "delivery", "deadline": 9999999999}
+          ]
+        }
+      }
+    },
+    {
+      "eval_id": "no_pickups_auto_optimise",
+      "conversation": [
+        {
+          "invocation_id": "inv-no-pickups",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "{\"stops\": [{\"lat\": 6.9271, \"lng\": 79.8612, \"label\": \"Colombo Central Depot\", \"kind\": \"depot\", \"depot\": true}, {\"lat\": 6.8905, \"lng\": 79.8565, \"label\": \"Router #4411\", \"parcelId\": \"p-r\", \"kind\": \"delivery\", \"deadline\": 9999999999}, {\"lat\": 6.8380, \"lng\": 79.8636, \"label\": \"Birthday cake\", \"parcelId\": \"p-c\", \"kind\": \"delivery\", \"deadline\": 9999999999}], \"avoidTolls\": false, \"vehicleType\": \"car\"}"
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hi driver. From Colombo Central Depot the optimised order drops the Router #4411 first, then the Birthday cake. About 12 km and 25 minutes, nothing at risk."
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "compute_routes" }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "fleet-plan",
+        "user_id": "system",
+        "state": {
+          "avoid_tolls": false,
+          "vehicle_type": "car",
+          "stops": [
+            {"lat": 6.9271, "lng": 79.8612, "label": "Colombo Central Depot", "kind": "depot", "depot": true},
+            {"lat": 6.8905, "lng": 79.8565, "label": "Router #4411", "parcelId": "p-r", "kind": "delivery", "deadline": 9999999999},
+            {"lat": 6.8380, "lng": 79.8636, "label": "Birthday cake", "parcelId": "p-c", "kind": "delivery", "deadline": 9999999999}
+          ]
+        }
+      }
+    }
+  ]
+}
