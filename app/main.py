@@ -625,6 +625,10 @@ def _maybe_reroute(trip: dict, runtime: dict, lat: float, lng: float, along: flo
         bounds.append(cum)
     remaining = [s for i, s in enumerate(trip["route"]["orderedStops"])
                  if i > 0 and bounds[i] > along + 100]
+    # if a pickup got dropped from `remaining` but its delivery is still there
+    # (progress estimate straddling coincident stops), repair keeps the reroute
+    # order valid — you can't deliver what you haven't collected
+    remaining = routing.repair_precedence(remaining)
     if not remaining:
         return
     runtime["rerouting"] = True

@@ -106,8 +106,8 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
     parcels = []
     for pid in json.loads(parcel_ids_json):
         p = db.load_entity("parcels", pid)
-        if not p or p["status"] != "pending":
-            return {"status": "error", "message": f"parcel {pid} not pending"}
+        if not p or p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+            return {"status": "error", "message": f"parcel {pid} not available"}
         parcels.append(p)
     if not parcels:
         return {"status": "error", "message": "empty batch"}

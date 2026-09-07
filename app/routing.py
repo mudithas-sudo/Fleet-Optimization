@@ -86,25 +86,34 @@ def _flatten_steps(legs: list[dict], ordered_stops: list[dict]) -> list[dict]:
     steps = []
     cum = 0.0
     for li, leg in enumerate(legs):
-        for st in leg.get("steps", []):
-            dist = st.get("distanceMeters", 0)
-            cum += dist
-            nav = st.get("navigationInstruction", {})
-            instruction = nav.get("instructions", "").split("\n")[0]
-            if not instruction:
-                continue
-            steps.append({
-                "maneuver": nav.get("maneuver", "STRAIGHT"),
-                "instruction": instruction,
-                "endDist": round(cum),
-            })
+        # a ~0 m leg is two coincident stops (e.g. parcels collected at one
+        # warehouse) — it has no real driving, so skip its turn-by-turn steps
+        if leg.get("distanceMeters", 0) > 5:
+            for st in leg.get("steps", []):
+                dist = st.get("distanceMeters", 0)
+                cum += dist
+                nav = st.get("navigationInstruction", {})
+                instruction = nav.get("instructions", "").split("\n")[0]
+                if not instruction:
+                    continue
+                steps.append({
+                    "maneuver": nav.get("maneuver", "STRAIGHT"),
+                    "instruction": instruction,
+                    "endDist": round(cum),
+                })
         stop = ordered_stops[li + 1] if li + 1 < len(ordered_stops) else {}
         label = stop.get("label", "destination")
         kind = stop.get("kind")
         verb = "Collect at" if kind == "pickup" else "Deliver to" if kind == "delivery" else "Arrive at"
+        instruction = f"{verb} {label}"
+        # coincident stops (e.g. several parcels collected at one warehouse)
+        # produce a 0 m leg and a repeat announcement — drop the duplicate
+        if (steps and steps[-1]["maneuver"] == "ARRIVE"
+                and steps[-1]["instruction"] == instruction):
+            continue
         steps.append({
             "maneuver": "ARRIVE",
-            "instruction": f"{verb} {label}",
+            "instruction": instruction,
             "endDist": round(cum),
         })
     return steps
