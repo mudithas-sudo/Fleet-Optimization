@@ -216,8 +216,8 @@ done.
 
 ## Phasing
 
-| Phase | Contents |
-|---|---|
-| **1** | Data model (`pickup` + window, `picked_up`, `awaiting_redelivery`) · `build_run_stops` + coincident-stop dedupe · deterministic precedence order · `_check_stop_progress` · abort → `awaiting_redelivery` · form / rows / markers / manifest / driver wording. Runs work end-to-end with pickups. |
-| **2** | Planner agent proposes the pickup→delivery order respecting windows; server validate + repair; pickup ETAs in `compute_planned_etas`; briefing describes collections and flags at-risk. |
-| **3** | Suggest-runs agent pickup-aware · reroute precedence guard · coincident-stop polish. |
+| Phase | Status | Contents |
+|---|---|---|
+| **1** | ✅ done | Data model (`pickup` + window, `picked_up`, `awaiting_redelivery`) · `build_run_stops` · deterministic precedence order · `_check_stop_progress` · abort → `awaiting_redelivery` · form / rows / markers / manifest / driver wording. Runs work end-to-end with pickups. |
+| **2** | ✅ done | Planner agent proposes the visiting order via `compute_routes(order_json=…)`; `routing.repair_precedence` guarantees pickup-before-delivery; the tool returns per-stop ETA + at-risk (window / deadline); `compute_route(presequenced=…)` keeps the agent's order; briefing narrates collections and flags at-risk. |
+| **3** | ✅ done | Dispatch agent prompt covers pickups (batch by pickup proximity, read `perStop`); `evaluate_route` accepts `awaiting_redelivery`. Reroute runs `repair_precedence` on the remaining stops so a straddled progress estimate can't produce an invalid order. Coincident stops: `_flatten_steps` drops the 0 m leg's driving steps and the duplicate arrival announcement (one "Collect at WH" instead of three); the data model stays one stop per parcel-action — full stop-merge (`parcelIds` lists everywhere) is not worth the precedence-logic risk for the demo. |

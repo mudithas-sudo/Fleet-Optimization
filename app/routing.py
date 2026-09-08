@@ -86,25 +86,75 @@ def _flatten_steps(legs: list[dict], ordered_stops: list[dict]) -> list[dict]:
     steps = []
     cum = 0.0
     for li, leg in enumerate(legs):
-        for st in leg.get("steps", []):
-            dist = st.get("distanceMeters", 0)
-            cum += dist
-            nav = st.get("navigationInstruction", {})
-            instruction = nav.get("instructions", "").split("\n")[0]
-            if not instruction:
-                continue
-            steps.append({
-                "maneuver": nav.get("maneuver", "STRAIGHT"),
-                "instruction": instruction,
-                "endDist": round(cum),
-            })
-        label = ordered_stops[li + 1]["label"] if li + 1 < len(ordered_stops) else "destination"
+        # a ~0 m leg is two coincident stops (e.g. parcels collected at one
+        # warehouse) — it has no real driving, so skip its turn-by-turn steps
+        if leg.get("distanceMeters", 0) > 5:
+            for st in leg.get("steps", []):
+                dist = st.get("distanceMeters", 0)
+                cum += dist
+                nav = st.get("navigationInstruction", {})
+                instruction = nav.get("instructions", "").split("\n")[0]
+                if not instruction:
+                    continue
+                steps.append({
+                    "maneuver": nav.get("maneuver", "STRAIGHT"),
+                    "instruction": instruction,
+                    "endDist": round(cum),
+                })
+        stop = ordered_stops[li + 1] if li + 1 < len(ordered_stops) else {}
+        label = stop.get("label", "destination")
+        kind = stop.get("kind")
+        verb = "Collect at" if kind == "pickup" else "Deliver to" if kind == "delivery" else "Arrive at"
+        instruction = f"{verb} {label}"
+        # coincident stops (e.g. several parcels collected at one warehouse)
+        # produce a 0 m leg and a repeat announcement — drop the duplicate
+        if (steps and steps[-1]["maneuver"] == "ARRIVE"
+                and steps[-1]["instruction"] == instruction):
+            continue
         steps.append({
             "maneuver": "ARRIVE",
-            "instruction": f"Arrive at {label}",
+            "instruction": instruction,
             "endDist": round(cum),
         })
     return steps
+
+
+def _order_with_precedence(stops: list[dict]) -> list[dict]:
+    """Nearest-neighbour order from the depot with one hard rule: a parcel's
+    delivery stop is never visited before its pickup stop. Used instead of the
+    Routes API's waypoint optimisation, which has no notion of precedence."""
+    depot, rest, ordered = stops[0], list(stops[1:]), []
+    cur = depot
+    while rest:
+        blocked = {s["parcelId"] for s in rest if s.get("kind") == "pickup"}
+        cands = [s for s in rest
+                 if not (s.get("kind") == "delivery" and s.get("parcelId") in blocked)]
+        nxt = min(cands, key=lambda s: _haversine_m(cur, s))
+        ordered.append(nxt)
+        rest.remove(nxt)
+        cur = nxt
+    return [depot] + ordered
+
+
+def repair_precedence(rest: list[dict]) -> list[dict]:
+    """Take a proposed visiting order (depot excluded) and make it
+    precedence-valid: a delivery whose pickup hasn't been visited yet is held
+    aside and re-inserted right after its pickup. A stable no-op when the order
+    is already valid. The planner agent proposes an order; this is the guard."""
+    has_pickup = {s["parcelId"] for s in rest if s.get("kind") == "pickup"}
+    result, held, collected = [], {}, set()
+    for s in rest:
+        pid = s.get("parcelId")
+        if (s.get("kind") == "delivery" and pid in has_pickup and pid not in collected):
+            held[pid] = s
+            continue
+        result.append(s)
+        if s.get("kind") == "pickup":
+            collected.add(pid)
+            if pid in held:
+                result.append(held.pop(pid))
+    result.extend(held.values())   # pickup never appeared (shouldn't happen)
+    return result
 
 
 # bikes get true two-wheeler routing; every other fleet type drives
@@ -112,14 +162,25 @@ TRAVEL_MODES = {"bike": "TWO_WHEELER"}
 
 
 async def compute_route(stops: list[dict], avoid_tolls: bool = False,
-                        optimize: bool = True, vehicle_type: str = "car") -> dict:
+                        optimize: bool = True, vehicle_type: str = "car",
+                        presequenced: bool = False) -> dict:
     """Compute a driving route through stops (first=origin, last=destination).
 
     optimize=True lets the Routes API reorder the intermediate stops;
     reroutes pass optimize=False to preserve the remaining stop order.
+
+    When any stop is a pickup, the Routes optimiser can't be used (no
+    precedence support). `presequenced=True` means the caller has already put
+    the stops in a valid visiting order (the planner agent + repair_precedence);
+    otherwise the deterministic nearest-neighbour heuristic is applied here.
     """
     if len(stops) < 2:
         raise RoutingError("Need at least an origin and a destination.")
+
+    if any(s.get("kind") == "pickup" for s in stops):
+        if not presequenced:
+            stops = _order_with_precedence(stops)
+        optimize = False
 
     origin, dest, intermediates = stops[0], stops[-1], stops[1:-1]
 

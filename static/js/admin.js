@@ -33,6 +33,9 @@ let trafficLines = [];
 let pfSize = "small";
 let pfDest = null;         // {lat, lng, label}
 let pfMarker = null;
+let pfPickup = null;       // {lat, lng, label}
+let pfPickupMarker = null;
+let pfMapTarget = "dest";  // which field a map click fills: "dest" | "pickup"
 let depotEditing = false;
 
 // picker state
@@ -87,6 +90,10 @@ async function init() {
     };
   });
   setupDestSearch();
+  setupPickupSearch();
+  $("pf-has-pickup").onchange = onPickupToggle;
+  $("pf-dest").addEventListener("focus", () => { pfMapTarget = "dest"; });
+  $("pf-pickup").addEventListener("focus", () => { pfMapTarget = "pickup"; });
   $("depot-chip").onclick = toggleDepotEdit;
   $("btn-plan-run").onclick = openPicker;
   $("btn-auto").onclick = autoAssign;
@@ -153,9 +160,11 @@ function onMapClick(lat, lng) {
     return;
   }
   if (activeTab === "parcels" && $("parcel-form").style.display !== "none") {
-    setPfDest({ lat, lng, label: "Dropped pin" });
+    const set = (pfMapTarget === "pickup" && $("pf-has-pickup").checked)
+      ? setPfPickup : setPfDest;
+    set({ lat, lng, label: "Dropped pin" });
     api(`/api/revgeocode?lat=${lat}&lng=${lng}`)
-      .then(r => { if (r.label) setPfDest({ lat, lng, label: r.label }); })
+      .then(r => { if (r.label) set({ lat, lng, label: r.label }); })
       .catch(() => {});
   }
 }
@@ -216,14 +225,16 @@ function fmtDeadline(p) {
   return { text: d.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }), cls: "" };
 }
 
-// Parcels are shown in status groups so only pending ones can be selected for
-// a run — assigned/in-transit parcels are already committed to a driver and
-// delivered ones are history.
+// Parcels are shown in status groups so only plannable ones can be selected for
+// a run — assigned/in-transit/picked-up parcels are already committed to a
+// driver and delivered ones are history. awaiting_redelivery (collected then
+// the run was aborted) is plannable again.
+const PLANNABLE = ["pending", "awaiting_redelivery"];
 const PARCEL_GROUPS = [
   { key: "pending",  label: "Pending",          dot: "g-planned",
-    match: s => s === "pending" },
+    match: s => PLANNABLE.includes(s) },
   { key: "transit",  label: "Out for delivery", dot: "g-active",
-    match: s => s === "assigned" || s === "in_transit" },
+    match: s => ["assigned", "in_transit", "picked_up"].includes(s) },
   { key: "done",     label: "Delivered",        dot: "",
     match: s => s === "delivered" },
 ];
@@ -240,18 +251,26 @@ function parcelRow(p) {
   const row = document.createElement("div");
   row.className = "parcel-row";
   const dl = fmtDeadline(p);
-  const lateTag = p.status === "delivered" && p.deadlineMissed
-    ? `<span class="late-tag">late</span>` : "";
+  const plannable = PLANNABLE.includes(p.status);
+  const statusText = p.status.replace(/_/g, " ");
+  const chips = [
+    p.status === "delivered" && p.deadlineMissed ? `<span class="late-tag">late</span>` : "",
+    p.pickup && p.status !== "awaiting_redelivery" ? `<span class="p-chip" title="Collect at ${p.pickup.label}">P</span>` : "",
+    p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the depot">redeliv</span>` : "",
+  ].join(" ");
+  const where = p.pickup && p.status !== "awaiting_redelivery"
+    ? `Collect · ${p.pickup.label} → ${p.destination.label}`
+    : p.destination.label;
   row.innerHTML = `
-    ${p.status === "pending"
+    ${plannable
       ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
-      : `<span class="p-dot ${p.status}" title="${p.status.replace("_", " ")}"></span>`}
+      : `<span class="p-dot ${p.status}" title="${statusText}"></span>`}
     <div class="info">
-      <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${lateTag}</div>
-      <div class="meta">${p.destination.label} · ${p.type} · ${p.status.replace("_", " ")}</div>
+      <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${chips}</div>
+      <div class="meta">${where} · ${p.type} · ${statusText}</div>
     </div>
     <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
-    ${p.status === "pending" ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
+    ${plannable ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
   const cb = row.querySelector("input[type=checkbox]");
   if (cb) cb.onchange = () => {
     cb.checked ? selectedParcels.add(p.id) : selectedParcels.delete(p.id);
@@ -303,46 +322,83 @@ async function clearDelivered() {
 
 function updateRunFooter() {
   selectedParcels.forEach(id => {
-    if (!parcels[id] || parcels[id].status !== "pending") selectedParcels.delete(id);
+    if (!parcels[id] || !PLANNABLE.includes(parcels[id].status)) selectedParcels.delete(id);
   });
   const n = selectedParcels.size;
   $("run-footer").style.display = activeTab === "parcels" && n ? "block" : "none";
   $("btn-plan-run").textContent = `Plan delivery run (${n})`;
 }
 
+function updatePfSave() {
+  const ok = pfDest && $("pf-name").value.trim() &&
+    (!$("pf-has-pickup").checked || pfPickup);
+  $("pf-save").disabled = !ok;
+}
+
 function toggleParcelForm(show) {
   $("parcel-form").style.display = show ? "flex" : "none";
   if (!show) {
-    pfDest = null;
+    pfDest = pfPickup = null;
+    pfMapTarget = "dest";
     if (pfMarker) { pfMarker.setMap(null); pfMarker = null; }
+    if (pfPickupMarker) { pfPickupMarker.setMap(null); pfPickupMarker = null; }
     $("pf-name").value = ""; $("pf-type").value = ""; $("pf-dest").value = "";
     $("pf-dest-label").textContent = "No destination set";
+    $("pf-has-pickup").checked = false;
+    $("pf-pickup-fields").hidden = true;
+    $("pf-pickup").value = ""; $("pf-pickup-from").value = ""; $("pf-pickup-until").value = "";
+    $("pf-pickup-label").textContent = "No pickup set";
     $("pf-save").disabled = true;
   }
 }
 
-function setPfDest(dest) {
-  pfDest = dest;
-  $("pf-dest-label").innerHTML = "";
-  $("pf-dest-label").append(
+function onPickupToggle() {
+  const on = $("pf-has-pickup").checked;
+  $("pf-pickup-fields").hidden = !on;
+  if (on) {
+    pfMapTarget = "pickup";
+  } else {
+    pfPickup = null;
+    if (pfPickupMarker) { pfPickupMarker.setMap(null); pfPickupMarker = null; }
+    $("pf-pickup").value = "";
+    $("pf-pickup-label").textContent = "No pickup set";
+  }
+  updatePfSave();
+}
+
+function _pinLabel(el, text) {
+  el.innerHTML = "";
+  el.append(
     Object.assign(document.createElement("span"), {
       innerHTML: iconSvg("pin"), style: "vertical-align:-2px;margin-right:4px",
     }),
-    document.createTextNode(dest.label));
-  if (pfMarker) pfMarker.setMap(null);
-  pfMarker = stopMarker(map, dest, 1, 3);
-  $("pf-save").disabled = !$("pf-name").value.trim();
+    document.createTextNode(text));
 }
 
-function setupDestSearch() {
-  $("pf-name").oninput = () => { $("pf-save").disabled = !(pfDest && $("pf-name").value.trim()); };
-  $("pf-dest").addEventListener("keydown", async e => {
-    if (e.key !== "Enter" || !$("pf-dest").value.trim()) return;
-    const input = $("pf-dest");
+function setPfDest(dest) {
+  pfDest = dest;
+  _pinLabel($("pf-dest-label"), dest.label);
+  if (pfMarker) pfMarker.setMap(null);
+  pfMarker = stopMarker(map, dest, 1, 3, "delivery");
+  updatePfSave();
+}
+
+function setPfPickup(dest) {
+  pfPickup = dest;
+  _pinLabel($("pf-pickup-label"), dest.label);
+  if (pfPickupMarker) pfPickupMarker.setMap(null);
+  pfPickupMarker = stopMarker(map, dest, 1, 3, "pickup");
+  updatePfSave();
+}
+
+function _wireSearch(inputId, setter) {
+  $(inputId).addEventListener("keydown", async e => {
+    if (e.key !== "Enter" || !$(inputId).value.trim()) return;
+    const input = $(inputId);
     input.classList.add("busy");
     try {
       const r = await api(`/api/geocode?q=${encodeURIComponent(input.value.trim())}`);
-      setPfDest(r);
+      setter(r);
       map.panTo({ lat: r.lat, lng: r.lng });
       input.value = "";
     } catch (_) {
@@ -354,10 +410,26 @@ function setupDestSearch() {
   });
 }
 
+function setupDestSearch() {
+  $("pf-name").oninput = updatePfSave;
+  _wireSearch("pf-dest", setPfDest);
+}
+
+function setupPickupSearch() {
+  _wireSearch("pf-pickup", setPfPickup);
+}
+
 async function saveParcel() {
-  const deadlineStr = $("pf-deadline").value;
-  const deadline = deadlineStr ? new Date(deadlineStr).getTime() / 1000
-                               : Date.now() / 1000 + 4 * 3600;
+  const toEpoch = v => (v ? new Date(v).getTime() / 1000 : null);
+  const deadline = toEpoch($("pf-deadline").value) || Date.now() / 1000 + 4 * 3600;
+  let pickup = null;
+  if ($("pf-has-pickup").checked && pfPickup) {
+    pickup = {
+      lat: pfPickup.lat, lng: pfPickup.lng, label: pfPickup.label,
+      earliest: toEpoch($("pf-pickup-from").value),
+      latest: toEpoch($("pf-pickup-until").value),
+    };
+  }
   try {
     await api("/api/parcels", {
       method: "POST",
@@ -366,6 +438,7 @@ async function saveParcel() {
         type: $("pf-type").value.trim() || "general",
         size: pfSize,
         destination: pfDest,
+        pickup,
         deadline,
       }),
     });
@@ -873,24 +946,29 @@ function renderDetail() {
 }
 
 function renderManifest() {
-  const etas = Object.fromEntries(
-    (detail.plannedEtaPerStop || []).map(e => [e.parcelId, e]));
-  const rows = detail.route.orderedStops
-    .filter(s => s.parcelId)
-    .map(s => {
-      const p = parcels[s.parcelId];
-      const e = etas[s.parcelId];
-      const delivered = p && p.status === "delivered";
-      const status = delivered
-        ? `<span class="done-tag">${iconSvg("check")} ${p.deadlineMissed ? "late" : "done"}</span>`
-        : (e && e.atRisk ? `<span class="risk-tag">at risk</span>` : "");
-      const eta = e ? new Date(e.eta * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
-      return `<tr>
-        <td class="leg-route">${s.label}<small>${p ? p.destination.label : ""}</small></td>
-        <td class="num">${eta}</td>
-        <td class="num">${status}</td>
-      </tr>`;
-    });
+  const etas = {};
+  (detail.plannedEtaPerStop || []).forEach(e => { etas[e.stopIndex] = e; });
+  const rows = detail.route.orderedStops.map((s, i) => {
+    if (i === 0 || !s.parcelId) return "";
+    const kind = s.kind || "delivery";
+    const isPickup = kind === "pickup";
+    const p = parcels[s.parcelId];
+    const e = etas[i];
+    const done = p && (isPickup
+      ? ["picked_up", "delivered"].includes(p.status)
+      : p.status === "delivered");
+    const status = done
+      ? `<span class="done-tag">${iconSvg("check")} ${isPickup ? "collected" : (p.deadlineMissed ? "late" : "done")}</span>`
+      : (e && e.atRisk ? `<span class="risk-tag">at risk</span>` : "");
+    const eta = e ? new Date(e.eta * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
+    const sub = isPickup ? (p && p.pickup ? p.pickup.label : s.label)
+                         : (p ? p.destination.label : "");
+    return `<tr>
+      <td class="leg-route">${isPickup ? "Collect" : "Deliver"} — ${p ? p.name : s.label}<small>${sub}</small></td>
+      <td class="num">${eta}</td>
+      <td class="num">${status}</td>
+    </tr>`;
+  }).filter(Boolean);
   $("manifest").innerHTML = rows.join("") ||
     `<tr><td class="leg-route">No parcels on this trip</td></tr>`;
 }
@@ -903,7 +981,7 @@ function drawSelectedRoute() {
   routeLine = drawRoute(map, path);
   trafficLines = drawTraffic(map, path, detail.route.traffic);
   selStopMarkers = detail.route.orderedStops.map((s, i) =>
-    stopMarker(map, s, i, detail.route.orderedStops.length));
+    stopMarker(map, s, i, detail.route.orderedStops.length, s.kind));
   const bounds = new google.maps.LatLngBounds();
   path.forEach(p => bounds.extend(p));
   map.fitBounds(bounds, { top: 80, bottom: 60, left: 60, right: 410 });
@@ -1036,9 +1114,12 @@ function openStream() {
     const t = trips[a.tripId];
     if (t && a.type === "deviation") { t.deviations = (t.deviations || 0) + 1; renderTripList(); }
     if (t && a.type === "delivered") { t.deliveredCount = (t.deliveredCount || 0) + 1; renderTripList(); }
+    if (t && a.type === "collected") { t.collectedCount = (t.collectedCount || 0) + 1; }
     if (a.tripId === selectedId && detail) {
       detail.alerts.push(a);
       if (a.type === "delivered") detail.deliveredCount = (detail.deliveredCount || 0) + 1;
+      if (a.type === "collected") detail.collectedCount = (detail.collectedCount || 0) + 1;
+      if (a.type === "delivered" || a.type === "collected") renderManifest();
       addAlertRow(a, true);
       $("kpi-devs").textContent = detail.alerts.filter(x => x.type === "deviation").length;
     }
@@ -1061,7 +1142,7 @@ function openStream() {
 }
 
 const ALERT_STYLE = {
-  back_on_route: "ok", completed: "ok", delivered: "ok",
+  back_on_route: "ok", completed: "ok", delivered: "ok", collected: "ok",
   reroute: "info", started: "info", ended: "info",
 };
 

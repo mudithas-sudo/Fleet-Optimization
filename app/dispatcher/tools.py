@@ -27,10 +27,11 @@ def list_pending_parcels(tool_context: ToolContext) -> dict:
     now = time.time()
     rows = []
     for p in delivery.flag_overdue(db.all_entities("parcels")):
-        if p["status"] != "pending":
+        if p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
             continue
         if scope and p["id"] not in scope:
             continue
+        pk = p.get("pickup") if p["status"] != "awaiting_redelivery" else None
         rows.append({
             "id": p["id"],
             "name": p["name"],
@@ -39,6 +40,9 @@ def list_pending_parcels(tool_context: ToolContext) -> dict:
             "lat": round(p["destination"]["lat"], 4),
             "lng": round(p["destination"]["lng"], 4),
             "deadlineInMinutes": round((p["deadline"] - now) / 60),
+            "pickup": ({"label": pk["label"],
+                        "lat": round(pk["lat"], 4), "lng": round(pk["lng"], 4)}
+                       if pk else None),
         })
     rows.sort(key=lambda r: r["deadlineInMinutes"])
     return {"parcels": rows[:MAX_PARCELS], "count": len(rows[:MAX_PARCELS])}
@@ -88,9 +92,9 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
 
     Returns:
         {status:"ineligible", reason} if the vehicle can't take the batch;
-        else {status:"ok", totalKm, totalMinutes, perParcel:[{parcelId,
-        etaInMinutes, deadlineInMinutes, atRisk}]} — these ETAs are the only
-        valid timing source.
+        else {status:"ok", totalKm, totalMinutes, perStop:[{parcelId, kind,
+        etaInMinutes, dueInMinutes, atRisk}]} — one row per collect/deliver
+        stop; these ETAs are the only valid timing source.
     """
     driver = db.load_entity("drivers", driver_id)
     if not driver:
@@ -102,8 +106,8 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
     parcels = []
     for pid in json.loads(parcel_ids_json):
         p = db.load_entity("parcels", pid)
-        if not p or p["status"] != "pending":
-            return {"status": "error", "message": f"parcel {pid} not pending"}
+        if not p or p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+            return {"status": "error", "message": f"parcel {pid} not available"}
         parcels.append(p)
     if not parcels:
         return {"status": "error", "message": "empty batch"}
@@ -124,10 +128,13 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
         "status": "ok",
         "totalKm": round(route["totalDistanceMeters"] / 1000, 1),
         "totalMinutes": round(route["totalDurationSeconds"] / 60),
-        "perParcel": [{
+        "perStop": [{
             "parcelId": e["parcelId"],
+            "kind": e.get("kind", "delivery"),
             "etaInMinutes": round((e["eta"] - now) / 60),
-            "deadlineInMinutes": round((e["deadline"] - now) / 60),
+            "dueInMinutes": (round((e["deadline"] - now) / 60) if e.get("deadline")
+                             else round((e["latest"] - now) / 60) if e.get("latest")
+                             else None),
             "atRisk": e["atRisk"],
         } for e in etas],
     }

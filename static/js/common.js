@@ -113,10 +113,12 @@ function fmtClock(ts) {
 }
 
 // Numbered stop marker (classic Marker with inline SVG icon).
-function stopMarker(map, position, index, total) {
+// kind: "depot" | "pickup" | "delivery" (optional) — pickups are amber "P".
+function stopMarker(map, position, index, total, kind) {
   const isEnd = index === total - 1;
-  const fill = index === 0 ? "#0f7a43" : isEnd ? "#ea580c" : "#2563eb";
-  const label = index === 0 ? "S" : isEnd ? "E" : String(index);
+  const isPickup = kind === "pickup";
+  const fill = index === 0 ? "#0f7a43" : isPickup ? "#8a5200" : isEnd ? "#ea580c" : "#2563eb";
+  const label = index === 0 ? "S" : isPickup ? "P" : isEnd ? "E" : String(index);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
     <path d="M17 0C7.6 0 0 7.6 0 17c0 12.8 17 27 17 27s17-14.2 17-27C34 7.6 26.4 0 17 0z" fill="${fill}"/>
     <circle cx="17" cy="16" r="10" fill="#ffffff"/>

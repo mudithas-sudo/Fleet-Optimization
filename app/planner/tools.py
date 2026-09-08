@@ -7,43 +7,102 @@ through the LLM.
 """
 
 import json
+import time
 
 from google.adk.tools import ToolContext
 
 from .. import routing
 
 
-async def compute_routes(stops_json: str, tool_context: ToolContext) -> dict:
-    """Compute the optimized driving route through a list of stops.
+def _stop_key(s: dict) -> str:
+    return f"{s.get('parcelId')}:{s.get('kind')}"
+
+
+def _apply_order(stops: list[dict], order: list) -> list[dict]:
+    """Reorder the authoritative stops (depot first) by the model's proposed
+    order of "<parcelId>:<kind>" keys, appending anything it left out, then
+    repairing precedence."""
+    depot, rest = stops[0], stops[1:]
+    by_key = {_stop_key(s): s for s in rest}
+    seen, seq = set(), []
+    for key in order:
+        s = by_key.get(str(key).strip())
+        if s and id(s) not in seen:
+            seq.append(s)
+            seen.add(id(s))
+    for s in rest:                      # anything the model omitted
+        if id(s) not in seen:
+            seq.append(s)
+    return [depot] + routing.repair_precedence(seq)
+
+
+async def compute_routes(stops_json: str, tool_context: ToolContext,
+                         order_json: str = "") -> dict:
+    """Compute the driving route through the run's stops.
 
     Args:
-        stops_json: JSON array of stops [{"lat", "lng", "label"}, ...]. The first
-            element is the origin, the last is the destination, and everything in
-            between is an intermediate stop whose visiting order may be optimized.
+        stops_json: the stops as JSON (informational — the authoritative list
+            comes from session state so parcel/kind metadata can't be dropped).
+        order_json: REQUIRED when the stops include pickups. A JSON array of
+            "<parcelId>:<kind>" strings (kind is "pickup" or "delivery"), depot
+            excluded, listing every non-depot stop once, in your chosen visiting
+            order. A parcel's pickup must come before its delivery, and each
+            pickup should land within its [earliest, latest] window if given.
+            Pass "" (empty) when there are no pickups — the route is optimised
+            automatically then.
 
     Returns:
-        dict with status, the optimized order of the intermediate stops, per-leg
-        distance/duration summaries, and route totals.
+        dict with status, the final stop order, per-stop ETA + at-risk flags,
+        per-leg summaries and route totals.
     """
-    # The authoritative stops come from session state, placed there by the
-    # service — extra keys (parcelId, depot) must survive into the route, and
-    # the LLM's re-serialization of stops_json can silently drop them.
     stops = tool_context.state.get("stops") or json.loads(stops_json)
+    has_pickup = any(s.get("kind") == "pickup" for s in stops)
+
+    route_stops, presequenced = stops, False
+    if has_pickup and order_json.strip():
+        try:
+            order = json.loads(order_json)
+            if isinstance(order, list) and order:
+                route_stops = _apply_order(stops, order)
+                presequenced = True
+        except (ValueError, TypeError):
+            pass   # fall back to the deterministic heuristic below
+
     try:
         route = await routing.compute_route(
-            stops,
+            route_stops,
             avoid_tolls=bool(tool_context.state.get("avoid_tolls")),
-            vehicle_type=tool_context.state.get("vehicle_type", "car"))
+            vehicle_type=tool_context.state.get("vehicle_type", "car"),
+            presequenced=presequenced)
     except routing.RoutingError as e:
         return {"status": "error", "message": str(e)}
 
     tool_context.state["routes_api_raw"] = route
+
+    # per-stop ETA from now + window/deadline risk, so the briefing can flag it
+    now, elapsed, stop_rows = time.time(), 0.0, []
+    for i, s in enumerate(route["orderedStops"]):
+        if i > 0 and i - 1 < len(route["legs"]):
+            elapsed += route["legs"][i - 1]["durationSeconds"]
+        if not s.get("parcelId"):
+            continue
+        eta = now + elapsed
+        latest, earliest, deadline = s.get("latest"), s.get("earliest"), s.get("deadline")
+        at_risk = ((latest is not None and eta > latest)
+                   or (earliest is not None and eta < earliest)
+                   or (deadline is not None and eta > deadline))
+        stop_rows.append({
+            "label": s["label"], "kind": s.get("kind"),
+            "etaInMinutes": round(elapsed / 60),
+            "atRisk": at_risk,
+        })
 
     traffic_delay_min = round(
         (route["totalDurationSeconds"] - route["staticDurationSeconds"]) / 60)
     return {
         "status": "success",
         "ordered_stop_labels": [s["label"] for s in route["orderedStops"]],
+        "stops": stop_rows,
         "legs": route["legs"],
         "total_distance_meters": route["totalDistanceMeters"],
         "total_duration_seconds": route["totalDurationSeconds"],

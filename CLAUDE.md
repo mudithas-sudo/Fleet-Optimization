@@ -15,7 +15,7 @@ cp .env.example .env                                                   # fill in
 rm fleet.db*                      # reset all demo data (trips, position log)
 ```
 
-There is no test suite, linter, or frontend build step. Verification is done by exercising the running app: `curl` against the API (plan a trip, POST positions, watch for alerts/reroute) and Playwright driving the real pages headless (import it from a sibling project, e.g. `/hms/apps/test-automation/node_modules/playwright/index.mjs`; `google-chrome --headless=new --screenshot` works for single screenshots). Restart the server after backend edits — `run.sh` does not auto-reload.
+Tests (added with the pickup & delivery feature): `venv/bin/python tests/test_pickup_delivery.py` — deterministic routing/progress checks, no keys (uses `FAKE_ROUTES`). `eval/` holds ADK `AgentEvaluator` eval sets for the LLM agents (`eval/run.py`, needs a Gemini key — see `eval/README.md`). No linter or frontend build step. Broader verification is by exercising the running app: `curl` against the API and Playwright driving the real pages headless (import from a sibling project, e.g. `/hms/apps/test-automation/node_modules/playwright/index.mjs`; `google-chrome --headless=new --screenshot` for single shots). Restart the server after backend edits — `run.sh` does not auto-reload.
 
 ## Environment / keys
 
@@ -30,7 +30,7 @@ Single FastAPI app (`app/main.py`) serves the REST API, SSE streams, and the sta
 
 **Route planning is agent-mediated; rerouting is not.** `app/routing.py` owns the actual Routes API v2 call (field mask, waypoint optimization, traffic/toll extras, FAKE_ROUTES fallback) and returns the canonical route dict (`orderedStops/polyline/path/legs/steps/traffic/tollPrice/totals`). Two callers:
 
-- Planning: `app/planner/service.py` runs the ADK `Agent` (module-level `Runner` + `InMemorySessionService`, fresh session per request, plain `await` — never `asyncio.run()` in handlers). The agent calls the `compute_routes` tool (`planner/tools.py`), which wraps `routing.compute_route`.
+- Planning: `app/planner/service.py` runs the ADK `Agent` via `AgentRun` (`app/agent_runtime.py` — the shared `Runner` + `InMemorySessionService` wrapper both agents use; fresh session per request, plain `await`, never `asyncio.run()` in handlers). The agent calls the `compute_routes` tool (`planner/tools.py`), which wraps `routing.compute_route`. Prefer ADK components over hand-rolled equivalents: both agents use `PlanReActPlanner` (reason before acting), `output_schema` (Pydantic structured output) + `output_key`, and expose `root_agent` for `adk run`/`web`/`eval`.
 - Auto-reroute (`_do_reroute` in `main.py`): calls `routing.compute_route` directly with `optimize=False` — deterministic, no LLM in the loop.
 
 **Trusted data never round-trips through the LLM.** The tool stashes the full route in `tool_context.state["routes_api_raw"]` and returns only a small summary dict to the model (no polylines — token waste). The service reads geometry from session state and takes only the validated `output_schema` result (stop order + briefing) from the model; a bad generation can break the briefing, never the map. Deterministic inputs like avoid-tolls flow through session `state=` at `create_session`, not through the prompt.

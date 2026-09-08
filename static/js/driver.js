@@ -184,7 +184,7 @@ function buildRouteGeometry() {
 function drawStops() {
   stopMarkers.forEach(m => m.setMap(null));
   stopMarkers = trip.route.orderedStops.map((s, i) =>
-    stopMarker(map, s, i, trip.route.orderedStops.length));
+    stopMarker(map, s, i, trip.route.orderedStops.length, s.kind));
 }
 
 // The server rerouted (deviation): reload the new route and keep driving
