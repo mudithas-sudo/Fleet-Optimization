@@ -155,6 +155,24 @@ def test_runtime_progress_and_abort():
     asyncio.run(run())
 
 
+def test_new_parcel_optional_fields():
+    p = delivery.new_parcel({
+        "name": "Vase", "size": "small", "deadline": 9e12,
+        "destination": {"lat": 6.9, "lng": 79.86, "label": "Dest"},
+        "weightKg": 2.5, "fragile": True,
+        "recipientPhone": "+94 77 000 1111", "notes": "  ",
+    })
+    assert p["weightKg"] == 2.5 and p["fragile"] is True
+    assert p["recipientPhone"] == "+94 77 000 1111"
+    assert p["notes"] is None            # whitespace-only collapses to None
+
+    q = delivery.new_parcel({
+        "name": "Plain", "size": "small", "deadline": 9e12,
+        "destination": {"lat": 6.9, "lng": 79.86, "label": "Dest"},
+    })
+    assert q["weightKg"] is None and q["fragile"] is False
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

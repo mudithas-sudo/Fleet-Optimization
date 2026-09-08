@@ -133,6 +133,10 @@ class ParcelIn(BaseModel):
     destination: Stop
     pickup: Pickup | None = None
     deadline: float
+    weightKg: float | None = None       # optional — parcel weight in kilograms
+    fragile: bool = False               # optional — flag for careful handling
+    recipientPhone: str | None = None   # optional — contact at the destination
+    notes: str | None = None            # optional — delivery instructions
 
 
 class BulkParcels(BaseModel):
@@ -163,6 +167,8 @@ def _entity_or_404(table: str, entity_id: str) -> dict:
 def _validate_parcel(p: ParcelIn):
     if p.size not in delivery.SIZE_ORDER:
         raise HTTPException(400, f"size must be one of {delivery.SIZES}")
+    if p.weightKg is not None and (p.weightKg <= 0 or p.weightKg > 2000):
+        raise HTTPException(400, "weightKg must be between 0 and 2000")
 
 
 @app.get("/api/parcels")
