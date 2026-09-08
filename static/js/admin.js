@@ -36,6 +36,9 @@ let pfMarker = null;
 let pfPickup = null;       // {lat, lng, label}
 let pfPickupMarker = null;
 let pfMapTarget = "dest";  // which field a map click fills: "dest" | "pickup"
+
+// datetime-local string -> epoch seconds (or null)
+const toEpoch = v => (v ? new Date(v).getTime() / 1000 : null);
 let depotEditing = false;
 
 // picker state
@@ -92,8 +95,24 @@ async function init() {
   setupDestSearch();
   setupPickupSearch();
   $("pf-has-pickup").onchange = onPickupToggle;
-  $("pf-dest").addEventListener("focus", () => { pfMapTarget = "dest"; });
-  $("pf-pickup").addEventListener("focus", () => { pfMapTarget = "pickup"; });
+  $("pf-dest").addEventListener("focus", () => armMapTarget("dest"));
+  $("pf-pickup").addEventListener("focus", () => armMapTarget("pickup"));
+  $("pf-dest-pin").onclick = () => armMapTarget("dest", true);
+  $("pf-pickup-pin").onclick = () => armMapTarget("pickup", true);
+
+  // progressive disclosure for the optional details
+  $("pf-more-btn").onclick = () => {
+    const open = $("pf-more").hidden;
+    $("pf-more").hidden = !open;
+    $("pf-more-btn").setAttribute("aria-expanded", String(open));
+  };
+
+  // blur validation — only surface an error once the user has left a field
+  $("pf-name").addEventListener("blur", () => {
+    if (!$("pf-name").value.trim()) pfErr("pf-name-err", "Give the parcel a name.");
+  });
+  $("pf-weight").addEventListener("blur", validateWeightField);
+  $("pf-phone").addEventListener("blur", validatePhoneField);
   $("depot-chip").onclick = toggleDepotEdit;
   $("btn-plan-run").onclick = openPicker;
   $("btn-auto").onclick = autoAssign;
@@ -163,6 +182,7 @@ function onMapClick(lat, lng) {
     const set = (pfMapTarget === "pickup" && $("pf-has-pickup").checked)
       ? setPfPickup : setPfDest;
     set({ lat, lng, label: "Dropped pin" });
+    disarmMapTargets();
     api(`/api/revgeocode?lat=${lat}&lng=${lng}`)
       .then(r => { if (r.label) set({ lat, lng, label: r.label }); })
       .catch(() => {});
@@ -256,18 +276,23 @@ function parcelRow(p) {
   const chips = [
     p.status === "delivered" && p.deadlineMissed ? `<span class="late-tag">late</span>` : "",
     p.pickup && p.status !== "awaiting_redelivery" ? `<span class="p-chip" title="Collect at ${p.pickup.label}">P</span>` : "",
+    p.fragile ? `<span class="p-chip fragile" title="Fragile — handle with care">fragile</span>` : "",
     p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the depot">redeliv</span>` : "",
   ].join(" ");
   const where = p.pickup && p.status !== "awaiting_redelivery"
     ? `Collect · ${p.pickup.label} → ${p.destination.label}`
     : p.destination.label;
+  const extra = [
+    p.weightKg ? `${(+p.weightKg).toLocaleString()} kg` : "",
+    p.recipientPhone || "",
+  ].filter(Boolean).join(" · ");
   row.innerHTML = `
     ${plannable
       ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
       : `<span class="p-dot ${p.status}" title="${statusText}"></span>`}
     <div class="info">
       <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${chips}</div>
-      <div class="meta">${where} · ${p.type} · ${statusText}</div>
+      <div class="meta">${where} · ${p.type} · ${statusText}${extra ? " · " + extra : ""}</div>
     </div>
     <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
     ${plannable ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
@@ -329,41 +354,128 @@ function updateRunFooter() {
   $("btn-plan-run").textContent = `Plan delivery run (${n})`;
 }
 
-function updatePfSave() {
-  const ok = pfDest && $("pf-name").value.trim() &&
-    (!$("pf-has-pickup").checked || pfPickup);
-  $("pf-save").disabled = !ok;
+// ---- inline validation helpers ----
+
+function pfErr(id, msg) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = msg || "";
+  el.hidden = !msg;
+  const field = el.id.replace(/-err$|-win-err$/, "");
+  const input = $(field);
+  if (input && input.tagName !== "DIV") input.classList.toggle("invalid", !!msg);
 }
+
+const PF_ERR_IDS = ["pf-name-err", "pf-dest-err", "pf-weight-err", "pf-phone-err",
+  "pf-pickup-err", "pf-pickup-win-err", "pf-form-err"];
+
+function pfClearErrors() { PF_ERR_IDS.forEach(id => pfErr(id, "")); }
+
+function validateWeightField() {
+  const raw = $("pf-weight").value.trim();
+  if (!raw) { pfErr("pf-weight-err", ""); return true; }
+  const w = Number(raw);
+  if (!isFinite(w) || w <= 0) { pfErr("pf-weight-err", "Weight must be a positive number."); return false; }
+  if (w > 2000) { pfErr("pf-weight-err", "That looks too heavy — double-check the value."); return false; }
+  pfErr("pf-weight-err", "");
+  return true;
+}
+
+function validatePhoneField() {
+  const raw = $("pf-phone").value.trim();
+  if (!raw) { pfErr("pf-phone-err", ""); return true; }
+  if (raw.replace(/\D/g, "").length < 7) { pfErr("pf-phone-err", "Enter a valid phone number."); return false; }
+  pfErr("pf-phone-err", "");
+  return true;
+}
+
+function validateParcelForm() {
+  pfClearErrors();
+  let ok = true;
+  if (!$("pf-name").value.trim()) { pfErr("pf-name-err", "Give the parcel a name."); ok = false; }
+  if (!pfDest) { pfErr("pf-dest-err", "Search a place or use “Pin on map”."); ok = false; }
+  if (!validateWeightField()) ok = false;
+  if (!validatePhoneField()) ok = false;
+  if ($("pf-has-pickup").checked) {
+    if (!pfPickup) { pfErr("pf-pickup-err", "Set the pickup location, or turn this off."); ok = false; }
+    const from = toEpoch($("pf-pickup-from").value), until = toEpoch($("pf-pickup-until").value);
+    if (from && until && from > until) {
+      pfErr("pf-pickup-win-err", "“Collect from” is later than “Collect until”."); ok = false;
+    }
+  }
+  const dl = toEpoch($("pf-deadline").value);
+  if (dl && dl < Date.now() / 1000) { pfErr("pf-form-err", "The delivery deadline is in the past."); ok = false; }
+  return ok;
+}
+
+// ---- "Pin on map" arming ----
+
+function armMapTarget(which, focusHint) {
+  if (which === "pickup" && !$("pf-has-pickup").checked) which = "dest";
+  pfMapTarget = which;
+  $("pf-dest-pin").setAttribute("aria-pressed", String(which === "dest" && !!focusHint));
+  $("pf-pickup-pin").setAttribute("aria-pressed", String(which === "pickup" && !!focusHint));
+  if (focusHint) {
+    const hint = which === "pickup" ? $("pf-pickup-label") : $("pf-dest-label");
+    if (hint && !(which === "pickup" ? pfPickup : pfDest)) {
+      hint.textContent = "Click the location on the map";
+    }
+  }
+}
+
+function disarmMapTargets() {
+  $("pf-dest-pin").setAttribute("aria-pressed", "false");
+  $("pf-pickup-pin").setAttribute("aria-pressed", "false");
+}
+
+// ---- form open/close ----
 
 function toggleParcelForm(show) {
   $("parcel-form").style.display = show ? "flex" : "none";
-  if (!show) {
-    pfDest = pfPickup = null;
-    pfMapTarget = "dest";
-    if (pfMarker) { pfMarker.setMap(null); pfMarker = null; }
-    if (pfPickupMarker) { pfPickupMarker.setMap(null); pfPickupMarker = null; }
-    $("pf-name").value = ""; $("pf-type").value = ""; $("pf-dest").value = "";
-    $("pf-dest-label").textContent = "No destination set";
-    $("pf-has-pickup").checked = false;
-    $("pf-pickup-fields").hidden = true;
-    $("pf-pickup").value = ""; $("pf-pickup-from").value = ""; $("pf-pickup-until").value = "";
-    $("pf-pickup-label").textContent = "No pickup set";
-    $("pf-save").disabled = true;
+  if (show) {
+    pfClearErrors();
+    return;
   }
+  pfDest = pfPickup = null;
+  pfMapTarget = "dest";
+  pfSize = "small";
+  if (pfMarker) { pfMarker.setMap(null); pfMarker = null; }
+  if (pfPickupMarker) { pfPickupMarker.setMap(null); pfPickupMarker = null; }
+  document.querySelectorAll("#pf-size button").forEach(b => {
+    const on = b.dataset.s === "small";
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  ["pf-name", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
+    "pf-deadline", "pf-pickup", "pf-pickup-from", "pf-pickup-until"].forEach(id => { $(id).value = ""; });
+  $("pf-fragile").checked = false;
+  $("pf-dest-label").textContent = "No destination set";
+  $("pf-pickup-label").textContent = "No pickup set";
+  $("pf-has-pickup").checked = false;
+  $("pf-pickup-fields").hidden = true;
+  $("pf-more").hidden = true;
+  $("pf-more-btn").setAttribute("aria-expanded", "false");
+  disarmMapTargets();
+  pfClearErrors();
+  const save = $("pf-save");
+  save.disabled = false;
+  save.textContent = "Add parcel";
 }
 
 function onPickupToggle() {
   const on = $("pf-has-pickup").checked;
   $("pf-pickup-fields").hidden = !on;
   if (on) {
-    pfMapTarget = "pickup";
+    armMapTarget("pickup", true);
   } else {
+    pfMapTarget = "dest";
     pfPickup = null;
     if (pfPickupMarker) { pfPickupMarker.setMap(null); pfPickupMarker = null; }
     $("pf-pickup").value = "";
     $("pf-pickup-label").textContent = "No pickup set";
+    pfErr("pf-pickup-err", "");
+    pfErr("pf-pickup-win-err", "");
   }
-  updatePfSave();
 }
 
 function _pinLabel(el, text) {
@@ -375,35 +487,46 @@ function _pinLabel(el, text) {
     document.createTextNode(text));
 }
 
+// A broken Maps JS instance must never block location capture: set state and
+// clear the error FIRST, then attempt the (throwable) marker + pan.
 function setPfDest(dest) {
   pfDest = dest;
   _pinLabel($("pf-dest-label"), dest.label);
-  if (pfMarker) pfMarker.setMap(null);
-  pfMarker = stopMarker(map, dest, 1, 3, "delivery");
-  updatePfSave();
+  pfErr("pf-dest-err", "");
+  disarmMapTargets();
+  try {
+    if (pfMarker) pfMarker.setMap(null);
+    pfMarker = stopMarker(map, dest, 1, 3, "delivery");
+  } catch (e) { console.warn("dest marker failed", e); }
 }
 
 function setPfPickup(dest) {
   pfPickup = dest;
   _pinLabel($("pf-pickup-label"), dest.label);
-  if (pfPickupMarker) pfPickupMarker.setMap(null);
-  pfPickupMarker = stopMarker(map, dest, 1, 3, "pickup");
-  updatePfSave();
+  pfErr("pf-pickup-err", "");
+  disarmMapTargets();
+  try {
+    if (pfPickupMarker) pfPickupMarker.setMap(null);
+    pfPickupMarker = stopMarker(map, dest, 1, 3, "pickup");
+  } catch (e) { console.warn("pickup marker failed", e); }
 }
 
-function _wireSearch(inputId, setter) {
+function _wireSearch(inputId, setter, errId) {
   $(inputId).addEventListener("keydown", async e => {
-    if (e.key !== "Enter" || !$(inputId).value.trim()) return;
+    if (e.key !== "Enter") return;
+    e.preventDefault();
     const input = $(inputId);
+    const q = input.value.trim();
+    if (!q) return;
     input.classList.add("busy");
+    pfErr(errId, "");
     try {
-      const r = await api(`/api/geocode?q=${encodeURIComponent(input.value.trim())}`);
+      const r = await api(`/api/geocode?q=${encodeURIComponent(q)}`);
       setter(r);
-      map.panTo({ lat: r.lat, lng: r.lng });
+      try { map.panTo({ lat: r.lat, lng: r.lng }); } catch (_) {}
       input.value = "";
     } catch (_) {
-      input.placeholder = "Not found — try again…";
-      input.value = "";
+      pfErr(errId, `Couldn’t find “${q}”. Try a more specific name.`);
     } finally {
       input.classList.remove("busy");
     }
@@ -411,16 +534,27 @@ function _wireSearch(inputId, setter) {
 }
 
 function setupDestSearch() {
-  $("pf-name").oninput = updatePfSave;
-  _wireSearch("pf-dest", setPfDest);
+  $("pf-name").addEventListener("input", () => {
+    if ($("pf-name").value.trim()) pfErr("pf-name-err", "");
+  });
+  _wireSearch("pf-dest", setPfDest, "pf-dest-err");
 }
 
 function setupPickupSearch() {
-  _wireSearch("pf-pickup", setPfPickup);
+  _wireSearch("pf-pickup", setPfPickup, "pf-pickup-err");
 }
 
 async function saveParcel() {
-  const toEpoch = v => (v ? new Date(v).getTime() / 1000 : null);
+  if (!validateParcelForm()) {
+    const bad = $("parcel-form").querySelector(".field-err:not([hidden])");
+    if (bad) bad.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return;
+  }
+  const save = $("pf-save");
+  const label = save.textContent;
+  save.disabled = true;
+  save.textContent = "Adding…";
+
   const deadline = toEpoch($("pf-deadline").value) || Date.now() / 1000 + 4 * 3600;
   let pickup = null;
   if ($("pf-has-pickup").checked && pfPickup) {
@@ -430,8 +564,10 @@ async function saveParcel() {
       latest: toEpoch($("pf-pickup-until").value),
     };
   }
+  const weight = $("pf-weight").value.trim();
+
   try {
-    await api("/api/parcels", {
+    const parcel = await api("/api/parcels", {
       method: "POST",
       body: JSON.stringify({
         name: $("pf-name").value.trim(),
@@ -440,11 +576,19 @@ async function saveParcel() {
         destination: pfDest,
         pickup,
         deadline,
+        weightKg: weight ? Number(weight) : null,
+        fragile: $("pf-fragile").checked,
+        recipientPhone: $("pf-phone").value.trim() || null,
+        notes: $("pf-notes").value.trim() || null,
       }),
     });
+    parcels[parcel.id] = parcel;   // reflect immediately; don't wait on SSE
+    renderParcels();
     toggleParcelForm(false);
   } catch (err) {
-    alert(err.message);
+    pfErr("pf-form-err", err.message || "Could not add the parcel. Please try again.");
+    save.disabled = false;
+    save.textContent = label;
   }
 }
 

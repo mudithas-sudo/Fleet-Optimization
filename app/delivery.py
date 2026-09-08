@@ -46,6 +46,10 @@ def new_parcel(data: dict) -> dict:
         "pickup": data.get("pickup"),      # {lat,lng,label,earliest?,latest?} or None
         "pickedUpAt": None,
         "deadline": data["deadline"],
+        "weightKg": data.get("weightKg"),        # optional — kg, or None
+        "fragile": bool(data.get("fragile")),
+        "recipientPhone": (data.get("recipientPhone") or "").strip() or None,
+        "notes": (data.get("notes") or "").strip() or None,
         "status": "pending",
         "deadlineMissed": False,
         "tripId": None,

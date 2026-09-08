@@ -68,6 +68,9 @@
     --dur: .18s;
     --ease: cubic-bezier(.2, 0, 0, 1);
 
+    /* inline validation glyph (circled !) */
+    --err-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v6M12 17h.01'/%3E%3C/svg%3E");
+
     /* legacy aliases (referenced from *.js inline styles / helpers) */
     --panel: var(--surface);
     --panel-2: var(--surface-2);
@@ -315,6 +318,74 @@
   /* grid tracks must be allowed to shrink or wide inputs (datetime-local)
      overflow and clip */
   .form-grid > * { min-width: 0; }
+  /* inline display:flex on a collapsible would otherwise beat the `hidden` attr */
+  #parcel-form [hidden] { display: none !important; }
+
+  .form-card textarea {
+    padding: 10px 12px; background: var(--surface); border: 1.5px solid transparent;
+    border-radius: var(--radius-sm); color: var(--text); font-family: inherit;
+    font-size: var(--fs-base); font-weight: 600; outline: none; width: 100%;
+    resize: vertical; min-height: 42px;
+    transition: border-color var(--dur), background var(--dur), box-shadow var(--dur);
+  }
+  .form-card textarea:focus { border-color: var(--primary); box-shadow: var(--focus-ring); }
+
+  /* required / optional field markers */
+  .field label .req, .field label .opt, .toggle-row .opt, .disclosure .opt {
+    font-weight: 700; letter-spacing: .02em; text-transform: none;
+  }
+  .field label .req { color: var(--primary); }
+  .field label .opt, .toggle-row .opt, .disclosure .opt { color: var(--text-subtle); }
+
+  /* inline validation message */
+  .field-err {
+    font-size: var(--fs-sm); font-weight: 600; color: var(--danger);
+    display: flex; align-items: flex-start; gap: 5px; margin-top: 2px;
+  }
+  .field-err::before {
+    content: ""; flex: 0 0 auto; width: 14px; height: 14px; margin-top: 1px;
+    background: currentColor;
+    -webkit-mask: var(--err-icon) center/contain no-repeat;
+    mask: var(--err-icon) center/contain no-repeat;
+  }
+  .form-err { padding: 9px 11px; background: var(--danger-soft); border-radius: var(--radius-sm); }
+  .search-input.invalid, .field input.invalid, .form-card textarea.invalid { border-color: var(--danger); }
+
+  /* location field + "Pin on map" button */
+  .loc-field { display: flex; gap: 7px; align-items: stretch; }
+  .loc-field .search-input { flex: 1; }
+  .pin-btn {
+    flex: 0 0 auto; font-family: inherit; font-size: var(--fs-xs); font-weight: 700;
+    display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+    padding: 0 11px; border-radius: var(--radius-sm); cursor: pointer;
+    background: var(--surface); border: 1.5px solid var(--border); color: var(--text-muted);
+    transition: color var(--dur), border-color var(--dur), background var(--dur);
+  }
+  .pin-btn .i { width: 14px; height: 14px; }
+  .pin-btn:hover { color: var(--text); border-color: var(--border-strong); }
+  .pin-btn[aria-pressed="true"] {
+    background: var(--primary-soft); border-color: var(--primary); color: var(--primary);
+  }
+
+  /* progressive-disclosure toggle */
+  .disclosure {
+    align-self: flex-start; font-family: inherit; font-size: var(--fs-sm); font-weight: 800;
+    letter-spacing: .02em; color: var(--text-muted); background: none; border: none;
+    cursor: pointer; padding: 3px 0; display: inline-flex; align-items: center; gap: 6px;
+    transition: color var(--dur);
+  }
+  .disclosure:hover { color: var(--text); }
+  .disclosure .chev {
+    width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.5;
+    stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur) var(--ease);
+  }
+  .disclosure[aria-expanded="true"] .chev { transform: rotate(90deg); }
+
+  .check-row {
+    display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none;
+    font-size: var(--fs-base); font-weight: 600; color: var(--text);
+  }
+  .check-row input { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--primary); cursor: pointer; }
 
   .seg { display: flex; gap: 6px; }
   .seg button {
@@ -408,6 +479,7 @@
     padding: 1px 6px; border-radius: 5px; text-transform: uppercase;
   }
   .p-chip { background: var(--warning-soft); color: var(--warning); }
+  .p-chip.fragile { background: var(--danger-soft); color: var(--danger); }
   .redeliv-chip { background: var(--primary-soft); color: var(--primary); }
   .p-dot {
     width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--primary);
@@ -799,38 +871,90 @@
       </div>
 
       <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">
-        <div class="field"><label for="pf-name">Parcel name</label><input id="pf-name" placeholder="e.g. Router #4411"></div>
-        <div class="form-grid">
-          <div class="field"><label for="pf-type">Type</label><input id="pf-type" placeholder="electronics"></div>
-          <div class="field"><label for="pf-deadline">Deadline</label><input id="pf-deadline" type="datetime-local"></div>
+        <div class="field">
+          <label for="pf-name">Parcel name <span class="req">(required)</span></label>
+          <input id="pf-name" class="search-input" style="margin:0" placeholder="e.g. Router #4411"
+                 autocomplete="off" aria-describedby="pf-name-err">
+          <div class="field-err" id="pf-name-err" role="alert" hidden></div>
         </div>
-        <div class="field"><label id="pf-size-label">Size</label>
+
+        <div class="field">
+          <label for="pf-dest">Destination <span class="req">(required)</span></label>
+          <div class="loc-field">
+            <input id="pf-dest" class="search-input" style="margin:0" placeholder="Search a place, press Enter"
+                   autocomplete="off" aria-describedby="pf-dest-label pf-dest-err">
+            <button type="button" class="pin-btn" id="pf-dest-pin" aria-pressed="false" title="Then click the map">
+              <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 21s-6-5.7-6-10a6 6 0 0 1 12 0c0 4.3-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>
+              Pin on map
+            </button>
+          </div>
+          <div class="hint" id="pf-dest-label" style="margin-top:4px">No destination set</div>
+          <div class="field-err" id="pf-dest-err" role="alert" hidden></div>
+        </div>
+
+        <div class="field"><label id="pf-size-label">Size <span class="req">(required)</span></label>
           <div class="seg" id="pf-size" role="group" aria-labelledby="pf-size-label">
             <button type="button" data-s="small" class="active" aria-pressed="true">Small</button>
             <button type="button" data-s="medium" aria-pressed="false">Medium</button>
             <button type="button" data-s="large" aria-pressed="false">Large</button>
           </div>
         </div>
-        <div class="field"><label for="pf-dest">Destination — search or click the map</label>
-          <input id="pf-dest" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
-          <div class="hint" id="pf-dest-label" style="margin-top:4px">No destination set</div>
+
+        <button type="button" class="disclosure" id="pf-more-btn" aria-expanded="false" aria-controls="pf-more">
+          <svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          Add details <span class="opt">(optional)</span>
+        </button>
+        <div id="pf-more" hidden style="display:flex;flex-direction:column;gap:var(--space-3)">
+          <div class="form-grid">
+            <div class="field"><label for="pf-type">Type <span class="opt">(optional)</span></label>
+              <input id="pf-type" placeholder="electronics" autocomplete="off"></div>
+            <div class="field"><label for="pf-weight">Weight · kg <span class="opt">(optional)</span></label>
+              <input id="pf-weight" type="number" min="0" step="0.1" inputmode="decimal"
+                     placeholder="0.0" aria-describedby="pf-weight-err"></div>
+          </div>
+          <div class="field-err" id="pf-weight-err" role="alert" hidden></div>
+          <div class="field"><label for="pf-phone">Recipient phone <span class="opt">(optional)</span></label>
+            <input id="pf-phone" type="tel" placeholder="+94 77 123 4567" autocomplete="off"
+                   aria-describedby="pf-phone-err">
+            <div class="field-err" id="pf-phone-err" role="alert" hidden></div>
+          </div>
+          <div class="field"><label for="pf-deadline">Deliver by <span class="opt">(optional)</span></label>
+            <input id="pf-deadline" type="datetime-local"></div>
+          <label class="check-row">
+            <input type="checkbox" id="pf-fragile">
+            <span>Fragile — handle with care</span>
+          </label>
+          <div class="field"><label for="pf-notes">Delivery notes <span class="opt">(optional)</span></label>
+            <textarea id="pf-notes" rows="2" placeholder="Gate code, floor, leave with neighbour…"></textarea></div>
         </div>
+
         <label class="toggle-row" style="padding:10px 12px">
-          <span>Collect from a pickup location</span>
+          <span>Collect from a pickup location <span class="opt">(optional)</span></span>
           <input type="checkbox" id="pf-has-pickup">
           <span class="switch" aria-hidden="true"></span>
         </label>
         <div id="pf-pickup-fields" hidden style="display:flex;flex-direction:column;gap:11px">
-          <div class="field"><label for="pf-pickup">Pickup — search or click the map</label>
-            <input id="pf-pickup" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
+          <div class="field"><label for="pf-pickup">Pickup location <span class="req">(required)</span></label>
+            <div class="loc-field">
+              <input id="pf-pickup" class="search-input" style="margin:0" placeholder="Search a place, press Enter"
+                     autocomplete="off" aria-describedby="pf-pickup-label pf-pickup-err">
+              <button type="button" class="pin-btn" id="pf-pickup-pin" aria-pressed="false" title="Then click the map">
+                <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 21s-6-5.7-6-10a6 6 0 0 1 12 0c0 4.3-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>
+                Pin on map
+              </button>
+            </div>
             <div class="hint" id="pf-pickup-label" style="margin-top:4px">No pickup set</div>
+            <div class="field-err" id="pf-pickup-err" role="alert" hidden></div>
           </div>
-          <div class="field"><label for="pf-pickup-from">Collect from</label><input id="pf-pickup-from" type="datetime-local"></div>
-          <div class="field"><label for="pf-pickup-until">Collect until</label><input id="pf-pickup-until" type="datetime-local"></div>
+          <div class="field"><label for="pf-pickup-from">Collect from <span class="opt">(optional)</span></label><input id="pf-pickup-from" type="datetime-local"></div>
+          <div class="field"><label for="pf-pickup-until">Collect until <span class="opt">(optional)</span></label><input id="pf-pickup-until" type="datetime-local"></div>
+          <div class="field-err" id="pf-pickup-win-err" role="alert" hidden></div>
         </div>
+
+        <div class="field-err form-err" id="pf-form-err" role="alert" hidden></div>
         <div class="row">
           <button class="btn btn-ghost" id="pf-cancel" type="button">Cancel</button>
-          <button class="btn btn-primary" id="pf-save" type="button" disabled>Add parcel</button>
+          <button class="btn btn-primary" id="pf-save" type="button">Add parcel</button>
         </div>
       </div>
 
