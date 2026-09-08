@@ -312,6 +312,9 @@
   }
   .form-card .field input, .form-card .field select { background: var(--surface); }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  /* grid tracks must be allowed to shrink or wide inputs (datetime-local)
+     overflow and clip */
+  .form-grid > * { min-width: 0; }
 
   .seg { display: flex; gap: 6px; }
   .seg button {
@@ -822,10 +825,8 @@
             <input id="pf-pickup" class="search-input" placeholder="Search a place, press Enter" autocomplete="off" style="margin:0">
             <div class="hint" id="pf-pickup-label" style="margin-top:4px">No pickup set</div>
           </div>
-          <div class="form-grid">
-            <div class="field"><label for="pf-pickup-from">Collect from</label><input id="pf-pickup-from" type="datetime-local"></div>
-            <div class="field"><label for="pf-pickup-until">Collect until</label><input id="pf-pickup-until" type="datetime-local"></div>
-          </div>
+          <div class="field"><label for="pf-pickup-from">Collect from</label><input id="pf-pickup-from" type="datetime-local"></div>
+          <div class="field"><label for="pf-pickup-until">Collect until</label><input id="pf-pickup-until" type="datetime-local"></div>
         </div>
         <div class="row">
           <button class="btn btn-ghost" id="pf-cancel" type="button">Cancel</button>
