@@ -213,16 +213,77 @@ def test_pickup_risk_and_stall_alerts():
         main._check_pickup_risk(trip, rt)                    # fires once per parcel
         assert len(trip["alerts"]) == n
 
-        # no progress for > STALL_SECONDS, on route, not near a stop -> stalled
+        # a spot well clear of every stop, on-route, no progress for > STALL_SECONDS
+        bounds = main._leg_bounds(trip)
+        mid = (bounds[0] + bounds[1]) / 2
+        assert not main._at_a_stop(trip, mid)               # genuinely between stops
+        rt.update(along=mid, stall_along=mid, stall_since=now - 1000, stall_fired=False)
         trip["lastPosition"] = {"lat": 6.80, "lng": 79.70, "ts": now}
         main._check_stall(trip, rt)
         assert any(a["type"] == "stalled" for a in trip["alerts"])
         # progress resumes -> "moving again", and the stall can arm again later
-        rt["along"] = 5000.0
+        rt["along"] = mid + 5000.0
         main._check_stall(trip, rt)
         assert trip["alerts"][-1]["type"] == "moving_again" and rt["stall_fired"] is False
 
+        # paused right at a stop is NOT flagged
+        trip["alerts"].clear()
+        rt.update(along=bounds[1], stall_along=bounds[1], stall_since=now - 1000,
+                  stall_fired=False)
+        main._check_stall(trip, rt)
+        assert not any(a["type"] == "stalled" for a in trip["alerts"])
+
     asyncio.run(run())
+
+
+def test_stall_alert_reaches_the_position_endpoint():
+    """A stationary position POSTed through the real handler produces a
+    persisted + broadcast `stalled` alert (and later `moving_again`)."""
+    from fastapi.testclient import TestClient
+    from app import db, store
+    import app.main as main
+    import app.planner.service as svc
+
+    async def fake_plan(stops, avoid_tolls=False, vehicle_type="car"):
+        return await routing.compute_route(stops, vehicle_type=vehicle_type)
+    svc.plan_route = fake_plan
+
+    async def setup():
+        db.set_setting("depot", DEPOT)
+        veh = delivery.new_vehicle({"name": "V", "type": "van"})
+        drv = delivery.new_driver({"name": "D", "vehicleId": veh["id"]})
+        pcl = delivery.new_parcel({"name": "Box", "size": "small", "deadline": time.time() + 9e3,
+                                   "destination": {"lat": 6.86, "lng": 79.90, "label": "Dest"}})
+        return await delivery.create_run([pcl["id"]], drv["id"])
+
+    trip = asyncio.run(setup())
+    tid = trip["id"]
+    got = []
+    orig_bcast = store.broadcast
+    store.broadcast = lambda t, ev, d: (got.append((ev, d)), orig_bcast(t, ev, d))[1]
+    at_stop, in_traffic = main._at_a_stop, main._in_traffic
+    main._at_a_stop = lambda *a: False
+    main._in_traffic = lambda *a: False
+    stall_s = main.STALL_SECONDS
+    main.STALL_SECONDS = 0.0
+    try:
+        c = TestClient(main.app)
+        c.post(f"/api/trips/{tid}/start")
+        pts = trip["route"]["path"]
+        for p in pts[:3]:                                  # drive a little
+            c.post(f"/api/trips/{tid}/position", json={"lat": p[0], "lng": p[1]})
+        here = pts[2]
+        c.post(f"/api/trips/{tid}/position", json={"lat": here[0], "lng": here[1]})
+        c.post(f"/api/trips/{tid}/position", json={"lat": here[0], "lng": here[1]})
+        assert any(ev == "alert" and d.get("type") == "stalled" for ev, d in got)
+        assert any(a["type"] == "stalled" for a in db.load_trip(tid)["alerts"])
+        # roll forward along the route → moving_again
+        c.post(f"/api/trips/{tid}/position", json={"lat": pts[-2][0], "lng": pts[-2][1]})
+        assert any(ev == "alert" and d.get("type") == "moving_again" for ev, d in got)
+    finally:
+        store.broadcast = orig_bcast
+        main._at_a_stop, main._in_traffic = at_stop, in_traffic
+        main.STALL_SECONDS = stall_s
 
 
 def test_new_parcel_optional_fields():

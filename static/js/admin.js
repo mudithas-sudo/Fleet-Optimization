@@ -951,6 +951,16 @@ function runLabel(stops) {
   return `${origin} → ${last.place || last.label || "destination"}`;
 }
 
+// last unresolved stall / pickup-risk in the alert log → a short badge label
+function riskFromAlerts(alerts) {
+  for (const a of [...(alerts || [])].reverse()) {
+    if (a.type === "moving_again" || a.type === "collected") return null;
+    if (a.type === "stalled") return "stopped";
+    if (a.type === "pickup_risk") return "pickup at risk";
+  }
+  return null;
+}
+
 function summarize(trip) {
   const s = trip.route.orderedStops;
   return {
@@ -970,6 +980,8 @@ function summarize(trip) {
     driverName: (driversReg.find(d => d.id === trip.driverId) || {}).name,
     parcelCount: (trip.parcelIds || []).length,
     deliveredCount: trip.deliveredCount || 0,
+    // live risk marker — kept if already set, else derived from the alert log
+    risk: (trips[trip.id] || {}).risk ?? riskFromAlerts(trip.alerts),
   };
 }
 
@@ -1006,6 +1018,7 @@ function tripRow(t) {
       <div class="label">${t.label}</div>
       <div class="meta">${t.id}${drv} · ${fmtKm(t.totalDistanceMeters)}${del}</div>
     </div>
+    ${t.risk ? `<span class="dev-badge risk">${iconSvg("alert")} ${t.risk}</span>` : ""}
     ${t.deviations ? `<span class="dev-badge">${iconSvg("alert")} ${t.deviations}</span>` : ""}`;
   row.onclick = () => selectTrip(t.id);
   return row;
@@ -1265,6 +1278,10 @@ function openStream() {
     if (t && a.type === "deviation") { t.deviations = (t.deviations || 0) + 1; renderTripList(); }
     if (t && a.type === "delivered") { t.deliveredCount = (t.deliveredCount || 0) + 1; renderTripList(); }
     if (t && a.type === "collected") { t.collectedCount = (t.collectedCount || 0) + 1; }
+    // persistent per-trip risk marker (survives the banner fade)
+    if (t && a.type === "stalled") { t.risk = "stopped"; renderTripList(); }
+    if (t && a.type === "pickup_risk") { t.risk = "pickup at risk"; renderTripList(); }
+    if (t && (a.type === "moving_again" || a.type === "collected")) { t.risk = null; renderTripList(); }
     if (a.tripId === selectedId && detail) {
       detail.alerts.push(a);
       if (a.type === "delivered") detail.deliveredCount = (detail.deliveredCount || 0) + 1;
@@ -1274,7 +1291,10 @@ function openStream() {
       $("kpi-devs").textContent = detail.alerts.filter(x => x.type === "deviation").length;
     }
     if (["deviation", "pickup_risk", "stalled"].includes(a.type)) {
-      flashBanner(`${t ? t.label : a.tripId} — ${a.message}`);
+      flashBanner(`${t ? t.label : a.tripId} — ${a.message}`, a.type !== "deviation", a.tripId);
+    }
+    if (a.type === "moving_again" && $("alert-banner").dataset.trip === a.tripId) {
+      $("alert-banner").style.display = "none";
     }
   });
 
@@ -1308,13 +1328,21 @@ function addAlertRow(a, prepend = false) {
   prepend ? $("alerts").prepend(row) : $("alerts").append(row);
 }
 
-function flashBanner(msg) {
+// sticky: stays until dismissed (click) or the caller hides it — used for
+// pickup-risk / stalled, which don't clear on their own like a deviation does
+function flashBanner(msg, sticky = false, tripId = "") {
   const b = $("alert-banner");
-  b.innerHTML = iconSvg("alert", "i-lg") + "<span></span>";
+  b.innerHTML = iconSvg("alert", "i-lg") + "<span></span>" +
+    (sticky ? `<button class="banner-x" type="button" aria-label="Dismiss">${iconSvg("x")}</button>` : "");
   b.querySelector("span").textContent = msg;
+  b.dataset.trip = tripId;
   b.style.display = "flex";
   clearTimeout(b._t);
-  b._t = setTimeout(() => { b.style.display = "none"; }, 6000);
+  if (sticky) {
+    b.querySelector(".banner-x").onclick = () => { b.style.display = "none"; };
+  } else {
+    b._t = setTimeout(() => { b.style.display = "none"; }, 6000);
+  }
 }
 
 function setHeaderStatus(status) {

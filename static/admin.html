@@ -579,6 +579,7 @@
     background: var(--danger-soft); color: var(--danger); font-size: var(--fs-xs); font-weight: 800;
   }
   .trip-row .dev-badge .i { width: 11px; height: 11px; }
+  .trip-row .dev-badge.risk { background: var(--warning-soft); color: var(--warning); text-transform: none; letter-spacing: 0; }
 
   .empty {
     color: var(--text-muted); text-align: center; padding: var(--space-6) var(--space-4);
@@ -799,6 +800,13 @@
     align-items: center; gap: 9px;
   }
   #alert-banner .i { width: 18px; height: 18px; }
+  #alert-banner .banner-x {
+    background: rgba(255,255,255,.22); border: none; color: inherit; cursor: pointer;
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    margin-left: 4px; flex: 0 0 auto;
+  }
+  #alert-banner .banner-x .i { width: 13px; height: 13px; }
+  #alert-banner .banner-x:hover { background: rgba(255,255,255,.38); }
   @keyframes slam { from { transform: translateX(-50%) translateY(-16px); opacity: 0; } }
 
   /* ---------- responsive ---------- */
