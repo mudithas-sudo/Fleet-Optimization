@@ -452,7 +452,9 @@ async function tick() {
       method: "POST",
       body: JSON.stringify({ lat: lastPos.lat, lng: lastPos.lng, ts: Date.now() / 1000 }),
     });
-    if (res.alert) setOffroute(res.alert.type === "deviation");
+    // a self-initiated stop is never an "off route" — ignore any deviation
+    // the backend might still emit from a stale progress window
+    if (res.alert && !stopped) setOffroute(res.alert.type === "deviation");
     if (res.routeVersion && res.routeVersion !== trip.routeVersion) {
       await reloadRoute();
     }
@@ -479,7 +481,8 @@ function tripCancelled() {
 }
 
 function updateBanner() {
-  if (stopped && !offroute) {
+  if (stopped) {
+    $("banner").classList.remove("offroute");
     $("maneuver-icon").innerHTML =
       `<svg viewBox="0 0 24 24" fill="#fff"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>`;
     $("maneuver-dist").textContent = "Stopped";
@@ -534,6 +537,7 @@ function toggleStop() {
   stopped = !stopped;
   $("btn-stop").classList.toggle("on", stopped);
   $("btn-stop").setAttribute("aria-pressed", String(stopped));
+  if (!stopped) setOffroute(false);   // resync from the server on the next tick
   updateBanner();
 }
 

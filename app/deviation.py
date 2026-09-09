@@ -9,6 +9,17 @@ EARTH_R = 6371000.0
 
 THRESHOLD_M = float(os.environ.get("DEVIATION_THRESHOLD_M", "80"))
 CONSECUTIVE = int(os.environ.get("DEVIATION_CONSECUTIVE", "3"))
+# below this much movement between ticks the vehicle is treated as stopped —
+# a parked vehicle can't be "taking a wrong turn", and its frozen position
+# must not trip the progress-windowed matcher into a phantom deviation
+STATIONARY_M = float(os.environ.get("STATIONARY_M", "6"))
+
+
+def _haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
+    lat1, lng1, lat2, lng2 = map(math.radians, (*a, *b))
+    h = (math.sin((lat2 - lat1) / 2) ** 2
+         + math.cos(lat1) * math.cos(lat2) * math.sin((lng2 - lng1) / 2) ** 2)
+    return 2 * EARTH_R * math.asin(math.sqrt(h))
 
 
 def _to_xy(lat: float, lng: float, ref_lat: float) -> tuple[float, float]:
@@ -79,15 +90,34 @@ def check_position(trip: dict, runtime: dict, lat: float, lng: float) -> tuple[d
     on-route point) — the latter feeds auto-reroute.
     """
     prev_along = runtime.get("along", 0.0)
+
+    prev_pos = runtime.get("last_pos")
+    runtime["last_pos"] = (lat, lng)
+    if prev_pos is not None and _haversine_m(prev_pos, (lat, lng)) < STATIONARY_M:
+        # not moving ⇒ not deviating. Hold the counter and the progress value;
+        # `_check_stall` is what handles a stopped vehicle.
+        runtime["consecutive"] = 0
+        return None, prev_along
+
+    path = trip["route"]["path"]
     dist, along = project_to_route(
-        lat, lng, trip["route"]["path"],
-        prev_along - WINDOW_BACK_M, prev_along + WINDOW_AHEAD_M)
+        lat, lng, path, prev_along - WINDOW_BACK_M, prev_along + WINDOW_AHEAD_M)
+
+    if dist > THRESHOLD_M:
+        # a poor windowed match can just mean our progress estimate drifted
+        # ahead (loops / doubled-back routes). Re-check against the whole route;
+        # if THAT lands on-route, trust it and re-sync `along` (even backward).
+        full_dist, full_along = project_to_route(lat, lng, path)
+        if full_dist <= THRESHOLD_M:
+            dist, along = full_dist, full_along
+            runtime["along"] = along
+
     if dist <= THRESHOLD_M:
         # progress only counts while on the route, and never moves backward:
         # where a route crosses or doubles back on itself, the projection can
         # tie with an EARLIER passage of the same spot — a vehicle drives
         # forward, so keep the furthest confirmed progress
-        runtime["along"] = max(prev_along, along)
+        runtime["along"] = max(runtime.get("along", prev_along), along)
 
     alert = None
     if dist > THRESHOLD_M:

@@ -236,6 +236,27 @@ def test_pickup_risk_and_stall_alerts():
     asyncio.run(run())
 
 
+def test_stationary_vehicle_never_deviates():
+    """A parked vehicle whose progress estimate has drifted must not be flagged
+    as off-route (this is what made the stall demo throw phantom deviations)."""
+    from app import deviation
+    DEPOT_S = {"lat": 6.93, "lng": 79.84, "label": "D"}
+    stops = [dict(DEPOT_S, kind="depot"),
+             {"lat": 6.90, "lng": 79.90, "label": "A", "parcelId": "pA", "kind": "delivery"}]
+    route = asyncio.run(routing.compute_route(stops, presequenced=True))
+    trip = {"id": "t", "route": route}
+    rt = {"along": 0.0, "consecutive": 0, "alerting": False}
+
+    here = (6.915, 79.87)                     # a point roughly on the straight fake route
+    # deliberately corrupt the progress window so the *windowed* match would miss
+    rt["along"] = route["totalDistanceMeters"] - 10
+    rt["last_pos"] = here
+    for _ in range(5):                        # many stationary ticks
+        alert, _ = deviation.check_position(trip, rt, *here)
+        assert alert is None
+    assert rt["consecutive"] == 0
+
+
 def test_stall_alert_reaches_the_position_endpoint():
     """A stationary position POSTed through the real handler produces a
     persisted + broadcast `stalled` alert (and later `moving_again`)."""
