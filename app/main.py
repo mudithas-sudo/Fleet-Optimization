@@ -598,7 +598,6 @@ async def post_position(trip_id: str, pos: Position):
 
 
 _BLOCK_LABEL = {"deviating": "you're off the route",
-                "traffic": "in a known traffic jam",
                 "at-a-stop": "parked at a stop"}
 
 
@@ -771,9 +770,10 @@ def _at_a_stop(trip: dict, along: float, pos: dict | None = None) -> bool:
 
 
 def _check_stall(trip: dict, runtime: dict):
-    """Warn when the vehicle stops making progress for a non-traffic reason —
-    it's on the route (not a deviation), not paused at a stop, and not inside a
-    known congested stretch."""
+    """Warn the dispatcher when a moving vehicle stops making progress and it
+    isn't parked at one of its stops. A genuinely stationary vehicle is the
+    signal — heavy traffic is noted in the message, not used to suppress it
+    (plan-time traffic data is stale within minutes anyway)."""
     if trip["status"] != "active":            # deviations own the "deviating" state
         return
     now = time.time()
@@ -794,13 +794,8 @@ def _check_stall(trip: dict, runtime: dict):
 
     idle = now - runtime["stall_since"]
     blocked = ("deviating" if runtime.get("alerting")
-               else "traffic" if _in_traffic(trip, along)
                else "at-a-stop" if _at_a_stop(trip, along, trip.get("lastPosition"))
                else None)
-    # no traffic jam keeps a vehicle *fully* stationary for minutes — after a
-    # long enough hold, alert even if it sits inside a congested stretch
-    if blocked == "traffic" and idle >= max(STALL_SECONDS * 3, 150):
-        blocked = None
     runtime["stall_blocked"] = blocked
 
     # once the vehicle has sat for a few seconds, log the state every ~5 s so
@@ -816,10 +811,12 @@ def _check_stall(trip: dict, runtime: dict):
 
     runtime["stall_fired"] = True
     span = f"~{round(idle / 60)} min" if idle >= 90 else f"~{round(idle)}s"
+    tail = ("this stretch had heavy traffic when the route was planned"
+            if _in_traffic(trip, along)
+            else "it isn't traffic — the driver may be stopped")
     log.info("trip %s STALLED — idle %.0fs, along=%.0f m", trip["id"], idle, along)
     _emit(trip, "stalled",
-          f"Vehicle has not moved for {span} and it isn't traffic — "
-          f"the driver may be stopped. Check in with them.")
+          f"Vehicle has not moved for {span}; {tail}. Check in with them.")
 
 
 def _maybe_reroute(trip: dict, runtime: dict, lat: float, lng: float, along: float):

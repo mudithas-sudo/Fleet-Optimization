@@ -262,23 +262,24 @@ def test_stationary_vehicle_never_deviates():
     assert rt["consecutive"] == 0
 
 
-def test_stall_traffic_suppression_is_jam_only_and_times_out():
+def test_stall_fires_in_traffic_but_notes_it():
+    """Heavy traffic never *suppresses* the stall (stale plan-time data) — it
+    only changes the wording."""
     import app.main as main
     route = {"path": [[6.93, 79.84], [6.90, 79.88], [6.87, 79.92]],
-             "traffic": [[0, 2, "SLOW"]]}
-    trip = {"route": route}
-    assert main._in_traffic(trip, 100.0) is False           # SLOW doesn't block
+             "traffic": [[0, 2, "SLOW"]], "legs": [{"distanceMeters": 500}],
+             "orderedStops": [{"lat": 6.93, "lng": 79.84}, {"lat": 6.87, "lng": 79.92}]}
+    assert main._in_traffic({"route": route}, 100.0) is False    # SLOW isn't a jam
     route["traffic"] = [[0, 2, "TRAFFIC_JAM"]]
-    assert main._in_traffic(trip, 100.0) is True             # a real jam does
+    assert main._in_traffic({"route": route}, 100.0) is True
 
-    # …but a long enough hold alerts even inside a jam
-    rt = {"along": 100.0, "stall_along": 100.0, "stall_since": time.time() - 9999,
+    rt = {"along": 250.0, "stall_along": 250.0, "stall_since": time.time() - 999,
           "stall_fired": False, "alerting": False}
-    fake = {"id": "t", "status": "active", "alerts": [],
-            "route": {**route, "legs": [{"distanceMeters": 500}], "orderedStops": [{}, {}]},
-            "lastPosition": None}
-    main._check_stall(fake, rt)
-    assert any(a["type"] == "stalled" for a in fake["alerts"])
+    trip = {"id": "t", "status": "active", "alerts": [], "route": route,
+            "lastPosition": {"lat": 6.905, "lng": 79.885}}
+    main._check_stall(trip, rt)
+    stalled = [a for a in trip["alerts"] if a["type"] == "stalled"]
+    assert stalled and "heavy traffic" in stalled[0]["message"]
 
 
 def test_stall_alert_reaches_the_position_endpoint():
