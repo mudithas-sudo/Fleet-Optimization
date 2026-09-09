@@ -1225,8 +1225,34 @@ function updateDetailButtons() {
 
 // ---------------- live stream ----------------
 
+let _es = null, _esRetry = 0;
+
+function setStreamDot(state) {          // "live" | "down" | ""
+  const d = $("stream-dot");
+  if (!d) return;
+  d.className = state;
+  d.title = state === "live" ? "Live updates: connected"
+    : state === "down" ? "Live updates: reconnecting…" : "Live updates: connecting…";
+}
+
+// EventSource retries on its own, but a server restart (or a proxy dropping an
+// idle stream) can leave it CLOSED for good — so watch it and rebuild.
 function openStream() {
-  const es = new EventSource("/api/stream");
+  if (_es) { _es.close(); _es = null; }
+  const reconnecting = _esRetry > 0;
+  const es = _es = new EventSource("/api/stream");
+  es.onopen = () => {
+    _esRetry = 0;
+    setStreamDot("live");
+    if (reconnecting) Promise.allSettled([loadParcels(), loadTrips()]);  // catch up
+  };
+  es.onerror = () => {
+    setStreamDot("down");
+    if (es.readyState === EventSource.CLOSED) {
+      const wait = Math.min(1000 * 2 ** _esRetry++, 15000);
+      setTimeout(() => { if (_es === es) openStream(); }, wait);
+    }
+  };
 
   es.addEventListener("parcel", e => {
     const { parcel, deleted } = JSON.parse(e.data);

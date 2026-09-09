@@ -190,6 +190,14 @@
   }
   .header-spacer { margin-left: auto; }
 
+  /* live-stream health dot */
+  #stream-dot {
+    width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+    background: var(--text-subtle); transition: background var(--dur);
+  }
+  #stream-dot.live { background: var(--success); }
+  #stream-dot.down { background: var(--danger); animation: pulse 1s infinite; }
+
   .icon-btn {
     width: 38px; height: 38px; flex: 0 0 auto;
     display: grid; place-items: center;
@@ -840,6 +848,7 @@
   </h1>
   <span class="tag">Delivery Console</span>
   <div class="header-spacer"></div>
+  <span id="stream-dot" title="Live updates: connecting…" aria-label="Live updates status"></span>
   <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
   <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
 </header>
