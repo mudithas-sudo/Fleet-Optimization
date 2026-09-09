@@ -1,6 +1,7 @@
 """Fleet Transportation Planning demo — FastAPI backend."""
 
 import asyncio
+import logging
 import os
 import time
 import uuid
@@ -20,6 +21,14 @@ from . import db, delivery, deviation, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
+
+log = logging.getLogger("fleetops.risk")
+if not log.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(asctime)s  RISK  %(message)s", "%H:%M:%S"))
+    log.addHandler(_h)
+    log.setLevel(logging.INFO)
+    log.propagate = False
 
 REROUTE_MIN_GAP_S = 10.0
 
@@ -640,11 +649,11 @@ def _emit(trip: dict, kind: str, message: str):
 # how late (vs the pickup window) the projection must run before we warn
 PICKUP_RISK_SLACK_S = float(os.environ.get("PICKUP_RISK_SLACK_S", "60"))
 # no on-route progress for this long, while not at a stop and not in a jam,
-# reads as the vehicle being stopped for a non-traffic reason. Lower it
-# (e.g. STALL_SECONDS=25) for a snappier live demo.
-STALL_SECONDS = float(os.environ.get("STALL_SECONDS", "60"))
+# reads as the vehicle being stopped for a non-traffic reason. Bump it up for
+# a less twitchy production feel (e.g. STALL_SECONDS=90).
+STALL_SECONDS = float(os.environ.get("STALL_SECONDS", "30"))
 STALL_ADVANCE_M = 12.0          # progress below this over the window = "not moving"
-STALL_STOP_RADIUS_M = 70.0      # legitimately parked this close to a stop
+STALL_STOP_RADIUS_M = 80.0      # legitimately paused this close (along the route) to a stop
 
 
 def _leg_bounds(trip: dict) -> list[float]:
@@ -718,37 +727,53 @@ def _in_traffic(trip: dict, along: float) -> bool:
     return any(lo - 2 <= idx <= hi + 2 for lo, hi, _speed in traffic)
 
 
+def _at_a_stop(trip: dict, along: float) -> bool:
+    """Is the vehicle's route progress within STALL_STOP_RADIUS_M of a stop —
+    i.e. plausibly paused there to load/unload? Uses distance *along the route*,
+    so a route that loops back near an earlier stop doesn't count."""
+    return any(abs(along - b) <= STALL_STOP_RADIUS_M for b in _leg_bounds(trip))
+
+
 def _check_stall(trip: dict, runtime: dict):
     """Warn when the vehicle stops making progress for a non-traffic reason —
-    it's on the route (not a deviation), not parked at a stop, and not inside a
+    it's on the route (not a deviation), not paused at a stop, and not inside a
     known congested stretch."""
     if trip["status"] != "active":            # deviations own the "deviating" state
         return
     now = time.time()
     along = runtime.get("along", 0.0)
+    if runtime.get("stall_since", 0.0) == 0.0:
+        runtime["stall_since"] = now
+        runtime["stall_along"] = along
+        return
+
     if along - runtime.get("stall_along", 0.0) >= STALL_ADVANCE_M:
         runtime["stall_along"] = along
         runtime["stall_since"] = now
         if runtime.get("stall_fired"):
             runtime["stall_fired"] = False
             _emit(trip, "moving_again", "Vehicle is moving again")
+            log.info("trip %s moving again (along=%.0f m)", trip["id"], along)
         return
-    if not runtime.get("stall_since"):
-        runtime["stall_since"] = now
+
+    idle = now - runtime["stall_since"]
+    if runtime.get("stall_fired") or idle < STALL_SECONDS:
         return
-    if runtime.get("stall_fired") or now - runtime["stall_since"] < STALL_SECONDS:
+
+    blocked = ("deviating" if runtime.get("alerting")
+               else "traffic" if _in_traffic(trip, along)
+               else "at-a-stop" if _at_a_stop(trip, along)
+               else None)
+    if blocked:
+        log.info("trip %s idle %.0fs at along=%.0f m — not alerting (%s)",
+                 trip["id"], idle, along, blocked)
         return
-    if runtime.get("alerting") or _in_traffic(trip, along):
-        return
-    pos = trip.get("lastPosition") or {}
-    near_stop = any(routing._haversine_m(pos, s) <= STALL_STOP_RADIUS_M
-                    for s in trip["route"]["orderedStops"]) if pos else False
-    if near_stop:
-        return
+
     runtime["stall_fired"] = True
-    mins = round((now - runtime["stall_since"]) / 60)
+    span = f"~{round(idle / 60)} min" if idle >= 90 else f"~{round(idle)}s"
+    log.info("trip %s STALLED — idle %.0fs, along=%.0f m", trip["id"], idle, along)
     _emit(trip, "stalled",
-          f"Vehicle has not moved for ~{mins} min and it isn't traffic — "
+          f"Vehicle has not moved for {span} and it isn't traffic — "
           f"the driver may be stopped. Check in with them.")
 
 

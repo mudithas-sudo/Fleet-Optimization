@@ -180,11 +180,21 @@ in the run's alert log. State lives in `store.runtime`.
   after `latest` (+60 s slack), warn once per parcel: *"At risk of missing the
   pickup window for 'X' at <place> — projected ~N min late"*.
 - **`stalled`** — `_check_stall`. Tracks on-route progress; if `along` gains
-  &lt; 12 m for `STALL_SECONDS` (90 s) while the vehicle is on-route (not a
-  deviation), not within 70 m of any stop, and not inside a known
+  &lt; 12 m for `STALL_SECONDS` (default 30 s — bump it for a calmer prod feel)
+  while the vehicle is on-route (not a deviation), not within
+  `STALL_STOP_RADIUS_M` **along the route** of a stop (`_at_a_stop`, so a loop
+  back past an earlier stop doesn't count), and not inside a known
   SLOW/TRAFFIC_JAM stretch (`route["traffic"]` vs the path index), warn: *"Vehicle
-  has not moved for ~N min and it isn't traffic"*. Clears with `moving_again`
+  has not moved for ~Ns and it isn't traffic"*. Clears with `moving_again`
   once progress resumes; re-arms afterwards. Reset on start and on reroute.
+  The `fleetops.risk` logger prints every fire and every held-back tick with
+  the reason, to the uvicorn console.
+
+The driver simulator has a **Stop** button (amber, above Deviate) that freezes
+forward progress while still posting position — that's how the stall is
+demonstrated. Admin surfaces both alerts as a red banner (sticky, with a
+dismiss ✕, for `stalled` / `pickup_risk`) plus a persistent "stopped" /
+"pickup at risk" badge on the run row until `moving_again`.
 
 ## Reroute (`_maybe_reroute` / `_do_reroute`)
 
