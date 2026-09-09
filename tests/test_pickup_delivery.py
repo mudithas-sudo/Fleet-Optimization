@@ -273,13 +273,18 @@ def test_stall_fires_in_traffic_but_notes_it():
     route["traffic"] = [[0, 2, "TRAFFIC_JAM"]]
     assert main._in_traffic({"route": route}, 100.0) is True
 
-    rt = {"along": 250.0, "stall_along": 250.0, "stall_since": time.time() - 999,
-          "stall_fired": False, "alerting": False}
+    base = dict(along=250.0, stall_along=250.0, stall_since=time.time() - 999,
+                stall_fired=False, alerting=False)
     trip = {"id": "t", "status": "active", "alerts": [], "route": route,
             "lastPosition": {"lat": 6.905, "lng": 79.885}}
-    main._check_stall(trip, rt)
-    stalled = [a for a in trip["alerts"] if a["type"] == "stalled"]
-    assert stalled and "heavy traffic" in stalled[0]["message"]
+
+    main._check_stall(trip, dict(base))
+    assert "heavy traffic" in trip["alerts"][-1]["message"]
+
+    # but a deliberate driver halt is unambiguous — "not traffic", even here
+    trip["alerts"].clear()
+    main._check_stall(trip, dict(base, driver_halted=True))
+    assert "not traffic" in trip["alerts"][-1]["message"]
 
 
 def test_stall_alert_reaches_the_position_endpoint():

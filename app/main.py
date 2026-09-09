@@ -49,6 +49,7 @@ class Position(BaseModel):
     lat: float
     lng: float
     ts: float | None = None
+    stopped: bool = False   # driver deliberately halted (sim Stop button) — not traffic
 
 
 class EndRequest(BaseModel):
@@ -577,6 +578,7 @@ async def post_position(trip_id: str, pos: Position):
     store.broadcast(trip_id, "position", point)
 
     runtime = store.runtime(trip_id)
+    runtime["driver_halted"] = pos.stopped
     alert, along = deviation.check_position(trip, runtime, pos.lat, pos.lng)
     _check_stop_progress(trip, runtime)
     _check_pickup_risk(trip, runtime)
@@ -811,12 +813,18 @@ def _check_stall(trip: dict, runtime: dict):
 
     runtime["stall_fired"] = True
     span = f"~{round(idle / 60)} min" if idle >= 90 else f"~{round(idle)}s"
-    tail = ("this stretch had heavy traffic when the route was planned"
-            if _in_traffic(trip, along)
-            else "it isn't traffic — the driver may be stopped")
-    log.info("trip %s STALLED — idle %.0fs, along=%.0f m", trip["id"], idle, along)
-    _emit(trip, "stalled",
-          f"Vehicle has not moved for {span}; {tail}. Check in with them.")
+    if runtime.get("driver_halted"):
+        msg = (f"The driver has stopped the vehicle for {span} — not traffic. "
+               f"Check in with them.")
+    elif _in_traffic(trip, along):
+        msg = (f"Vehicle has not moved for {span}. This stretch had heavy "
+               f"traffic when the route was planned — confirm it's just traffic.")
+    else:
+        msg = (f"Vehicle has not moved for {span} and it isn't traffic — "
+               f"the driver may be stopped. Check in with them.")
+    log.info("trip %s STALLED — idle %.0fs, along=%.0f m, driver_halted=%s",
+             trip["id"], idle, along, runtime.get("driver_halted"))
+    _emit(trip, "stalled", msg)
 
 
 def _maybe_reroute(trip: dict, runtime: dict, lat: float, lng: float, along: float):
