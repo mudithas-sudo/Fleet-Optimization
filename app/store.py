@@ -70,6 +70,7 @@ def runtime(trip_id: str) -> dict:
         # pickup-window risk + "vehicle not moving" detection
         "pickup_risk_fired": set(), "stall_along": 0.0,
         "stall_since": 0.0, "stall_fired": False, "stall_logged": 0.0,
+        "stall_blocked": None,
     })
 
 

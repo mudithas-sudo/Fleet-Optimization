@@ -93,11 +93,8 @@ def check_position(trip: dict, runtime: dict, lat: float, lng: float) -> tuple[d
 
     prev_pos = runtime.get("last_pos")
     runtime["last_pos"] = (lat, lng)
-    if prev_pos is not None and _haversine_m(prev_pos, (lat, lng)) < STATIONARY_M:
-        # not moving ⇒ not deviating. Hold the counter and the progress value;
-        # `_check_stall` is what handles a stopped vehicle.
-        runtime["consecutive"] = 0
-        return None, prev_along
+    stationary = (prev_pos is not None
+                  and _haversine_m(prev_pos, (lat, lng)) < STATIONARY_M)
 
     path = trip["route"]["path"]
     dist, along = project_to_route(
@@ -118,6 +115,17 @@ def check_position(trip: dict, runtime: dict, lat: float, lng: float) -> tuple[d
         # tie with an EARLIER passage of the same spot — a vehicle drives
         # forward, so keep the furthest confirmed progress
         runtime["along"] = max(runtime.get("along", prev_along), along)
+
+    if stationary:
+        # a parked vehicle isn't taking a wrong turn — never escalate. If it
+        # stopped back ON the route, clear any stale deviation state so the
+        # stall check isn't blocked by a "deviating" flag that will never lift.
+        runtime["consecutive"] = 0
+        if dist <= THRESHOLD_M and runtime.get("alerting"):
+            runtime["alerting"] = False
+            return _alert(trip, "back_on_route", dist, lat, lng,
+                          "Vehicle is back on the planned route"), along
+        return None, along
 
     alert = None
     if dist > THRESHOLD_M:

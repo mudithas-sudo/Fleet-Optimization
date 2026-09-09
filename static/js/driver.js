@@ -489,15 +489,15 @@ function updateBanner() {
     $("maneuver-icon").innerHTML =
       `<svg viewBox="0 0 24 24" fill="#fff"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>`;
     const s = stallStatus;
+    $("maneuver-dist").textContent = "Stopped";
     if (s && s.alerted) {
-      $("maneuver-dist").textContent = "Stopped";
       $("maneuver-text").textContent = "Dispatch has been alerted";
+    } else if (s && s.blocked) {
+      $("maneuver-text").textContent = `Dispatch not alerted — ${s.blocked}`;
     } else if (s) {
       const left = Math.max(0, Math.ceil(s.threshold - s.idleSeconds));
-      $("maneuver-dist").textContent = "Stopped";
       $("maneuver-text").textContent = `Dispatch alerted in ${left}s if you don't move`;
     } else {
-      $("maneuver-dist").textContent = "Stopped";
       $("maneuver-text").textContent = "Simulated stop — dispatch is alerted if it lasts";
     }
     return;
