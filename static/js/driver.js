@@ -451,7 +451,9 @@ async function tick() {
   try {
     const res = await api(`/api/trips/${trip.id}/position`, {
       method: "POST",
-      body: JSON.stringify({ lat: lastPos.lat, lng: lastPos.lng, ts: Date.now() / 1000 }),
+      body: JSON.stringify({
+        lat: lastPos.lat, lng: lastPos.lng, ts: Date.now() / 1000, stopped,
+      }),
     });
     // a self-initiated stop is never an "off route" — ignore any deviation
     // the backend might still emit from a stale progress window
