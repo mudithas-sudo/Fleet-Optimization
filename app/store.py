@@ -69,7 +69,7 @@ def runtime(trip_id: str) -> dict:
         "last_reroute": 0.0, "rerouting": False, "last_pos": None,
         # pickup-window risk + "vehicle not moving" detection
         "pickup_risk_fired": set(), "stall_along": 0.0,
-        "stall_since": 0.0, "stall_fired": False,
+        "stall_since": 0.0, "stall_fired": False, "stall_logged": 0.0,
     })
 
 

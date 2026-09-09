@@ -589,7 +589,22 @@ async def post_position(trip_id: str, pos: Position):
         if alert["type"] == "deviation":
             _maybe_reroute(trip, runtime, pos.lat, pos.lng, along)
     store.save_trip(trip)
-    return {"ok": True, "alert": alert, "routeVersion": trip["routeVersion"]}
+    return {
+        "ok": True, "alert": alert, "routeVersion": trip["routeVersion"],
+        # so the driver page can confirm a stop reached dispatch, without
+        # depending on the admin's SSE
+        "stall": _stall_status(trip, runtime),
+    }
+
+
+def _stall_status(trip: dict, runtime: dict) -> dict | None:
+    if trip["status"] != "active" or not runtime.get("stall_since"):
+        return None
+    idle = time.time() - runtime["stall_since"]
+    if idle < 3:                       # moving normally
+        return None
+    return {"idleSeconds": round(idle), "alerted": bool(runtime.get("stall_fired")),
+            "threshold": STALL_SECONDS}
 
 
 ARRIVE_RADIUS_M = 40
@@ -727,11 +742,23 @@ def _in_traffic(trip: dict, along: float) -> bool:
     return any(lo - 2 <= idx <= hi + 2 for lo, hi, _speed in traffic)
 
 
-def _at_a_stop(trip: dict, along: float) -> bool:
-    """Is the vehicle's route progress within STALL_STOP_RADIUS_M of a stop —
-    i.e. plausibly paused there to load/unload? Uses distance *along the route*,
-    so a route that loops back near an earlier stop doesn't count."""
-    return any(abs(along - b) <= STALL_STOP_RADIUS_M for b in _leg_bounds(trip))
+def _at_a_stop(trip: dict, along: float, pos: dict | None = None) -> bool:
+    """Plausibly paused at a delivery / pickup stop to load or unload?
+
+    Progress must be within STALL_STOP_RADIUS_M *along the route* of a stop
+    boundary — the depot origin (bounds[0]) excluded, since you don't "pause
+    at the depot" once you've driven off — and, when a position is given, the
+    vehicle must be physically near that stop too."""
+    bounds = _leg_bounds(trip)
+    stops = trip["route"]["orderedStops"]
+    for i in range(1, len(bounds)):
+        if abs(along - bounds[i]) > STALL_STOP_RADIUS_M:
+            continue
+        if pos is None or i >= len(stops):
+            return True
+        if routing._haversine_m(pos, stops[i]) <= STALL_STOP_RADIUS_M * 1.5:
+            return True
+    return False
 
 
 def _check_stall(trip: dict, runtime: dict):
@@ -757,16 +784,20 @@ def _check_stall(trip: dict, runtime: dict):
         return
 
     idle = now - runtime["stall_since"]
-    if runtime.get("stall_fired") or idle < STALL_SECONDS:
-        return
-
     blocked = ("deviating" if runtime.get("alerting")
                else "traffic" if _in_traffic(trip, along)
-               else "at-a-stop" if _at_a_stop(trip, along)
+               else "at-a-stop" if _at_a_stop(trip, along, trip.get("lastPosition"))
                else None)
-    if blocked:
-        log.info("trip %s idle %.0fs at along=%.0f m — not alerting (%s)",
-                 trip["id"], idle, along, blocked)
+
+    # once the vehicle has sat for a few seconds, log the state every ~5 s so
+    # "why no alert?" is answerable straight from the uvicorn console
+    if idle >= 3 and now - runtime.get("stall_logged", 0.0) >= 5:
+        runtime["stall_logged"] = now
+        log.info("trip %s idle %.0fs / %.0fs  along=%.0f m  fired=%s  blocked=%s",
+                 trip["id"], idle, STALL_SECONDS, along,
+                 runtime.get("stall_fired"), blocked or "-")
+
+    if runtime.get("stall_fired") or idle < STALL_SECONDS or blocked:
         return
 
     runtime["stall_fired"] = True

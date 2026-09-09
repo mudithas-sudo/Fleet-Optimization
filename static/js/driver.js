@@ -11,6 +11,7 @@ let vehicle = null, vehicleEl = null;
 let traveled = 0, timer = null, reloading = false;
 let deviating = false, offroute = false, offset = 0;
 let stopped = false;   // driver simulated a stop (not traffic) — freezes motion
+let stallStatus = null; // {idleSeconds, alerted, threshold} from the position response
 let speedKmh = 50;
 let camHeading = 0, follow = true;
 let stepIdx = 0;
@@ -455,6 +456,8 @@ async function tick() {
     // a self-initiated stop is never an "off route" — ignore any deviation
     // the backend might still emit from a stale progress window
     if (res.alert && !stopped) setOffroute(res.alert.type === "deviation");
+    stallStatus = res.stall || null;
+    if (stopped) updateBanner();
     if (res.routeVersion && res.routeVersion !== trip.routeVersion) {
       await reloadRoute();
     }
@@ -485,8 +488,18 @@ function updateBanner() {
     $("banner").classList.remove("offroute");
     $("maneuver-icon").innerHTML =
       `<svg viewBox="0 0 24 24" fill="#fff"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>`;
-    $("maneuver-dist").textContent = "Stopped";
-    $("maneuver-text").textContent = "Simulated stop — dispatch is alerted if it lasts";
+    const s = stallStatus;
+    if (s && s.alerted) {
+      $("maneuver-dist").textContent = "Stopped";
+      $("maneuver-text").textContent = "Dispatch has been alerted";
+    } else if (s) {
+      const left = Math.max(0, Math.ceil(s.threshold - s.idleSeconds));
+      $("maneuver-dist").textContent = "Stopped";
+      $("maneuver-text").textContent = `Dispatch alerted in ${left}s if you don't move`;
+    } else {
+      $("maneuver-dist").textContent = "Stopped";
+      $("maneuver-text").textContent = "Simulated stop — dispatch is alerted if it lasts";
+    }
     return;
   }
   if (offroute) {
@@ -537,7 +550,7 @@ function toggleStop() {
   stopped = !stopped;
   $("btn-stop").classList.toggle("on", stopped);
   $("btn-stop").setAttribute("aria-pressed", String(stopped));
-  if (!stopped) setOffroute(false);   // resync from the server on the next tick
+  if (!stopped) { setOffroute(false); stallStatus = null; }   // resync next tick
   updateBanner();
 }
 
