@@ -10,6 +10,7 @@ let routeLine = null, traveledLine = null, stopMarkers = [], trafficLines = [];
 let vehicle = null, vehicleEl = null;
 let traveled = 0, timer = null, reloading = false;
 let deviating = false, offroute = false, offset = 0;
+let stopped = false;   // driver simulated a stop (not traffic) — freezes motion
 let speedKmh = 50;
 let camHeading = 0, follow = true;
 let stepIdx = 0;
@@ -110,6 +111,7 @@ async function init() {
   };
   $("btn-start").onclick = startTrip;
   $("btn-deviate").onclick = toggleDeviate;
+  $("btn-stop").onclick = toggleStop;
   $("btn-end").onclick = () => endTrip(false);
   $("btn-overview").onclick = toggleOverview;
 
@@ -315,6 +317,7 @@ function beginDrive(fromTraveled) {
   $("sheet").classList.add("hidden");
   ["banner", "eta-bar", "speed-bubble"].forEach(id => $(id).classList.remove("hidden"));
   $("btn-deviate").classList.remove("hidden");
+  $("btn-stop").classList.remove("hidden");
   traveled = fromTraveled; stepIdx = 0; arrived = false;
   const [lo, hi] = segmentAt(traveled);
   const t = (traveled - cum[lo]) / (cum[hi] - cum[lo] || 1);
@@ -375,7 +378,9 @@ function lerpAngle(a, b, t) {
 // throttled) can still make progress from the server tick.
 function advanceSim(dt) {
   const total = cum[cum.length - 1];
-  traveled = Math.min(traveled + (speedKmh / 3.6) * dt, total);
+  // a simulated stop freezes forward progress — position keeps posting, so the
+  // backend sees no movement and (after STALL_SECONDS) alerts the dispatcher
+  if (!stopped) traveled = Math.min(traveled + (speedKmh / 3.6) * dt, total);
   offset = deviating
     ? Math.min(offset + OFFSET_RATE * dt, OFFSET_MAX)
     : Math.max(offset - OFFSET_RATE * dt, 0);
@@ -468,11 +473,19 @@ function tripCancelled() {
   $("maneuver-dist").textContent = "Cancelled";
   $("maneuver-text").textContent = "This trip was removed by dispatch";
   $("btn-deviate").classList.add("hidden");
+  $("btn-stop").classList.add("hidden");
   $("speed-bubble").classList.add("hidden");
   $("eta-sub").textContent = "Trip cancelled";
 }
 
 function updateBanner() {
+  if (stopped && !offroute) {
+    $("maneuver-icon").innerHTML =
+      `<svg viewBox="0 0 24 24" fill="#fff"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>`;
+    $("maneuver-dist").textContent = "Stopped";
+    $("maneuver-text").textContent = "Simulated stop — dispatch is alerted if it lasts";
+    return;
+  }
   if (offroute) {
     $("maneuver-icon").innerHTML =
       `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"
@@ -517,6 +530,13 @@ function toggleDeviate() {
   $("btn-deviate").setAttribute("aria-pressed", String(deviating));
 }
 
+function toggleStop() {
+  stopped = !stopped;
+  $("btn-stop").classList.toggle("on", stopped);
+  $("btn-stop").setAttribute("aria-pressed", String(stopped));
+  updateBanner();
+}
+
 function toggleOverview() {
   follow = !follow;
   if (!follow) {
@@ -539,6 +559,7 @@ async function endTrip(auto) {
   $("maneuver-text").textContent = auto
     ? `You have arrived at ${trip.route.orderedStops.at(-1).label}` : "Navigation ended";
   $("btn-deviate").classList.add("hidden");
+  $("btn-stop").classList.add("hidden");
   $("speed-bubble").classList.add("hidden");
   $("eta-sub").textContent = "Trip completed";
   setMapFlat();
