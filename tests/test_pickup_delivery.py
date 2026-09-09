@@ -214,11 +214,14 @@ def test_pickup_risk_and_stall_alerts():
         assert len(trip["alerts"]) == n
 
         # a spot well clear of every stop, on-route, no progress for > STALL_SECONDS
+        stops = trip["route"]["orderedStops"]
         bounds = main._leg_bounds(trip)
         mid = (bounds[0] + bounds[1]) / 2
         assert not main._at_a_stop(trip, mid)               # genuinely between stops
+        # the depot origin (bounds[0]) must NOT count once you've driven off
+        assert not main._at_a_stop(trip, bounds[0] + 40)
         rt.update(along=mid, stall_along=mid, stall_since=now - 1000, stall_fired=False)
-        trip["lastPosition"] = {"lat": 6.80, "lng": 79.70, "ts": now}
+        trip["lastPosition"] = {"lat": 6.90, "lng": 79.865, "ts": now}
         main._check_stall(trip, rt)
         assert any(a["type"] == "stalled" for a in trip["alerts"])
         # progress resumes -> "moving again", and the stall can arm again later
@@ -226,10 +229,12 @@ def test_pickup_risk_and_stall_alerts():
         main._check_stall(trip, rt)
         assert trip["alerts"][-1]["type"] == "moving_again" and rt["stall_fired"] is False
 
-        # paused right at a stop is NOT flagged
+        # parked AT a stop (progress + position both at it) is NOT flagged
         trip["alerts"].clear()
+        trip["lastPosition"] = dict(stops[1], ts=now)       # sitting on stop 1
         rt.update(along=bounds[1], stall_along=bounds[1], stall_since=now - 1000,
                   stall_fired=False)
+        assert main._at_a_stop(trip, bounds[1], trip["lastPosition"])
         main._check_stall(trip, rt)
         assert not any(a["type"] == "stalled" for a in trip["alerts"])
 
