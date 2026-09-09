@@ -262,6 +262,25 @@ def test_stationary_vehicle_never_deviates():
     assert rt["consecutive"] == 0
 
 
+def test_stall_traffic_suppression_is_jam_only_and_times_out():
+    import app.main as main
+    route = {"path": [[6.93, 79.84], [6.90, 79.88], [6.87, 79.92]],
+             "traffic": [[0, 2, "SLOW"]]}
+    trip = {"route": route}
+    assert main._in_traffic(trip, 100.0) is False           # SLOW doesn't block
+    route["traffic"] = [[0, 2, "TRAFFIC_JAM"]]
+    assert main._in_traffic(trip, 100.0) is True             # a real jam does
+
+    # …but a long enough hold alerts even inside a jam
+    rt = {"along": 100.0, "stall_along": 100.0, "stall_since": time.time() - 9999,
+          "stall_fired": False, "alerting": False}
+    fake = {"id": "t", "status": "active", "alerts": [],
+            "route": {**route, "legs": [{"distanceMeters": 500}], "orderedStops": [{}, {}]},
+            "lastPosition": None}
+    main._check_stall(fake, rt)
+    assert any(a["type"] == "stalled" for a in fake["alerts"])
+
+
 def test_stall_alert_reaches_the_position_endpoint():
     """A stationary position POSTed through the real handler produces a
     persisted + broadcast `stalled` alert (and later `moving_again`)."""

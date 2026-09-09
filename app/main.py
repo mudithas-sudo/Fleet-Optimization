@@ -597,14 +597,21 @@ async def post_position(trip_id: str, pos: Position):
     }
 
 
+_BLOCK_LABEL = {"deviating": "you're off the route",
+                "traffic": "in a known traffic jam",
+                "at-a-stop": "parked at a stop"}
+
+
 def _stall_status(trip: dict, runtime: dict) -> dict | None:
-    if trip["status"] != "active" or not runtime.get("stall_since"):
+    if trip["status"] not in ("active", "deviating") or not runtime.get("stall_since"):
         return None
     idle = time.time() - runtime["stall_since"]
     if idle < 3:                       # moving normally
         return None
+    blk = runtime.get("stall_blocked")
     return {"idleSeconds": round(idle), "alerted": bool(runtime.get("stall_fired")),
-            "threshold": STALL_SECONDS}
+            "threshold": STALL_SECONDS,
+            "blocked": _BLOCK_LABEL.get(blk) if not runtime.get("stall_fired") and idle >= STALL_SECONDS else None}
 
 
 ARRIVE_RADIUS_M = 40
@@ -726,10 +733,12 @@ def _check_pickup_risk(trip: dict, runtime: dict):
 
 
 def _in_traffic(trip: dict, along: float) -> bool:
-    """Does the current on-route position sit inside a SLOW / TRAFFIC_JAM stretch?"""
-    traffic = trip["route"].get("traffic") or []
+    """Does the current on-route position sit inside a full TRAFFIC_JAM stretch?
+    'SLOW' doesn't count — a merely slow road still means the vehicle is moving,
+    so a *stationary* one there is still worth flagging."""
+    jams = [t for t in (trip["route"].get("traffic") or []) if t[2] == "TRAFFIC_JAM"]
     path = trip["route"].get("path") or []
-    if not traffic or len(path) < 2:
+    if not jams or len(path) < 2:
         return False
     cum, idx = 0.0, len(path) - 1
     for i in range(1, len(path)):
@@ -739,7 +748,7 @@ def _in_traffic(trip: dict, along: float) -> bool:
             idx = i - 1
             break
         cum += seg
-    return any(lo - 2 <= idx <= hi + 2 for lo, hi, _speed in traffic)
+    return any(lo - 2 <= idx <= hi + 2 for lo, hi, _speed in jams)
 
 
 def _at_a_stop(trip: dict, along: float, pos: dict | None = None) -> bool:
@@ -788,6 +797,11 @@ def _check_stall(trip: dict, runtime: dict):
                else "traffic" if _in_traffic(trip, along)
                else "at-a-stop" if _at_a_stop(trip, along, trip.get("lastPosition"))
                else None)
+    # no traffic jam keeps a vehicle *fully* stationary for minutes — after a
+    # long enough hold, alert even if it sits inside a congested stretch
+    if blocked == "traffic" and idle >= max(STALL_SECONDS * 3, 150):
+        blocked = None
+    runtime["stall_blocked"] = blocked
 
     # once the vehicle has sat for a few seconds, log the state every ~5 s so
     # "why no alert?" is answerable straight from the uvicorn console
