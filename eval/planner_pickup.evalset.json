@@ -1,7 +1,7 @@
 {
   "eval_set_id": "planner_pickup",
   "name": "Planner — pickup & delivery",
-  "description": "The route planner must sequence each parcel's pickup before its delivery and narrate collections in the briefing. Runs with FAKE_ROUTES=1 (no Google) but needs GOOGLE_API_KEY for the agent + the response judge.",
+  "description": "The route planner must sequence each parcel's pickup before its delivery, narrate collections in the briefing, and never leak internal refs / ids / coordinates. Runs with FAKE_ROUTES=1 (no Google) but needs GOOGLE_API_KEY for the agent + the response judge.",
   "eval_cases": [
     {
       "eval_id": "collect_before_deliver",
@@ -12,7 +12,7 @@
             "role": "user",
             "parts": [
               {
-                "text": "{\"stops\": [{\"lat\": 6.9271, \"lng\": 79.8612, \"label\": \"Colombo Central Depot\", \"kind\": \"depot\", \"depot\": true}, {\"lat\": 6.9553, \"lng\": 79.9219, \"label\": \"Kelaniya Warehouse\", \"parcelId\": \"p-mat\", \"kind\": \"pickup\", \"earliest\": null, \"latest\": null}, {\"lat\": 7.0102, \"lng\": 79.9430, \"label\": \"Queen mattress\", \"parcelId\": \"p-mat\", \"kind\": \"delivery\", \"deadline\": 9999999999}, {\"lat\": 6.9066, \"lng\": 79.8917, \"label\": \"Legal documents\", \"parcelId\": \"p-doc\", \"kind\": \"delivery\", \"deadline\": 9999999999}], \"avoidTolls\": false, \"vehicleType\": \"van\"}"
+                "text": "{\"stops\": [{\"action\": \"start\", \"at\": \"Colombo Central Depot\"}, {\"ref\": \"p-mat:pickup\", \"action\": \"collect\", \"parcel\": \"Queen mattress\", \"at\": \"Kelaniya Warehouse\"}, {\"ref\": \"p-mat:delivery\", \"action\": \"drop off\", \"parcel\": \"Queen mattress\", \"at\": \"Kiribathgoda\"}, {\"ref\": \"p-doc:delivery\", \"action\": \"drop off\", \"parcel\": \"Legal documents\", \"at\": \"Malabe SLIIT\"}], \"avoidTolls\": false, \"vehicleType\": \"van\"}"
               }
             ]
           },
@@ -20,7 +20,7 @@
             "role": "model",
             "parts": [
               {
-                "text": "Hello driver. Start at Colombo Central Depot, collect the Queen mattress at Kelaniya Warehouse, then drop it at its destination, and deliver the Legal documents on the way. The whole run is about 20 km and roughly 40 minutes. No stops are at risk. Drive safe."
+                "text": "Hello driver. Start at Colombo Central Depot, collect the Queen mattress at Kelaniya Warehouse, then drop it off at Kiribathgoda, dropping the Legal documents at Malabe SLIIT along the way. The whole run is about 20 km and roughly 40 minutes. No stops are at risk. Drive safe."
               }
             ]
           },
@@ -39,9 +39,9 @@
           "vehicle_type": "van",
           "stops": [
             {"lat": 6.9271, "lng": 79.8612, "label": "Colombo Central Depot", "kind": "depot", "depot": true},
-            {"lat": 6.9553, "lng": 79.9219, "label": "Kelaniya Warehouse", "parcelId": "p-mat", "kind": "pickup", "earliest": null, "latest": null},
-            {"lat": 7.0102, "lng": 79.9430, "label": "Queen mattress", "parcelId": "p-mat", "kind": "delivery", "deadline": 9999999999},
-            {"lat": 6.9066, "lng": 79.8917, "label": "Legal documents", "parcelId": "p-doc", "kind": "delivery", "deadline": 9999999999}
+            {"lat": 6.9553, "lng": 79.9219, "label": "Kelaniya Warehouse", "place": "Kelaniya Warehouse", "parcelId": "p-mat", "parcelName": "Queen mattress", "kind": "pickup", "earliest": null, "latest": null},
+            {"lat": 7.0102, "lng": 79.9430, "label": "Kiribathgoda", "place": "Kiribathgoda", "parcelId": "p-mat", "parcelName": "Queen mattress", "kind": "delivery", "deadline": 9999999999},
+            {"lat": 6.9066, "lng": 79.8917, "label": "Malabe SLIIT", "place": "Malabe SLIIT", "parcelId": "p-doc", "parcelName": "Legal documents", "kind": "delivery", "deadline": 9999999999}
           ]
         }
       }
@@ -55,7 +55,7 @@
             "role": "user",
             "parts": [
               {
-                "text": "{\"stops\": [{\"lat\": 6.9271, \"lng\": 79.8612, \"label\": \"Colombo Central Depot\", \"kind\": \"depot\", \"depot\": true}, {\"lat\": 6.8905, \"lng\": 79.8565, \"label\": \"Router #4411\", \"parcelId\": \"p-r\", \"kind\": \"delivery\", \"deadline\": 9999999999}, {\"lat\": 6.8380, \"lng\": 79.8636, \"label\": \"Birthday cake\", \"parcelId\": \"p-c\", \"kind\": \"delivery\", \"deadline\": 9999999999}], \"avoidTolls\": false, \"vehicleType\": \"car\"}"
+                "text": "{\"stops\": [{\"action\": \"start\", \"at\": \"Colombo Central Depot\"}, {\"ref\": \"p-r:delivery\", \"action\": \"drop off\", \"parcel\": \"Router #4411\", \"at\": \"Dehiwala\"}, {\"ref\": \"p-c:delivery\", \"action\": \"drop off\", \"parcel\": \"Birthday cake\", \"at\": \"Mount Lavinia\"}], \"avoidTolls\": false, \"vehicleType\": \"car\"}"
               }
             ]
           },
@@ -63,7 +63,7 @@
             "role": "model",
             "parts": [
               {
-                "text": "Hi driver. From Colombo Central Depot the optimised order drops the Router #4411 first, then the Birthday cake. About 12 km and 25 minutes, nothing at risk."
+                "text": "Hi driver. From Colombo Central Depot the optimised order drops the Router #4411 at Dehiwala first, then the Birthday cake at Mount Lavinia. About 12 km and 25 minutes, nothing at risk."
               }
             ]
           },
@@ -82,8 +82,8 @@
           "vehicle_type": "car",
           "stops": [
             {"lat": 6.9271, "lng": 79.8612, "label": "Colombo Central Depot", "kind": "depot", "depot": true},
-            {"lat": 6.8905, "lng": 79.8565, "label": "Router #4411", "parcelId": "p-r", "kind": "delivery", "deadline": 9999999999},
-            {"lat": 6.8380, "lng": 79.8636, "label": "Birthday cake", "parcelId": "p-c", "kind": "delivery", "deadline": 9999999999}
+            {"lat": 6.8905, "lng": 79.8565, "label": "Dehiwala", "place": "Dehiwala", "parcelId": "p-r", "parcelName": "Router #4411", "kind": "delivery", "deadline": 9999999999},
+            {"lat": 6.8380, "lng": 79.8636, "label": "Mount Lavinia", "place": "Mount Lavinia", "parcelId": "p-c", "parcelName": "Birthday cake", "kind": "delivery", "deadline": 9999999999}
           ]
         }
       }

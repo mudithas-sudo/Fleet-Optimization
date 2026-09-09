@@ -6,6 +6,7 @@ import asyncio
 import os
 import sys
 import tempfile
+import time
 
 os.environ.setdefault("FAKE_ROUTES", "1")
 os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(), "t.db"))
@@ -151,6 +152,70 @@ def test_runtime_progress_and_abort():
         assert db.load_entity("parcels", p3["id"])["status"] == "awaiting_redelivery"
         t3 = await delivery.create_run([p3["id"]], drv["id"])
         assert "pickup" not in [s.get("kind") for s in t3["route"]["orderedStops"]]
+
+    asyncio.run(run())
+
+
+def test_run_label_and_agent_view():
+    import json
+    from app.main import _run_label
+    from app.planner.service import _agent_view
+    a = _parcel("p-abc123", "Glassware", (6.90, 79.86), deadline=1_900_000_000,
+                pickup={"lat": 6.95, "lng": 79.90, "label": "Malindu MN10 House",
+                        "latest": 1_800_000_000})
+    a["destination"]["label"] = "45 Marine Drive, Colombo 03"
+    stops = delivery.build_run_stops([a])
+    route = asyncio.run(routing.compute_route(stops, presequenced=True, vehicle_type="van"))
+
+    # trip label: depot origin, drop-off address as the end (never the parcel name)
+    assert _run_label(route["orderedStops"]) == "Depot → 45 Marine Drive, Colombo 03"
+    # legs read from the drop-off place, not "Glassware"
+    assert route["legs"][-1]["to"] == "45 Marine Drive, Colombo 03"
+
+    view = _agent_view(stops)
+    assert view[0]["action"] == "start"
+    prose = " ".join(f"{r.get('parcel','')} {r.get('at','')} {r.get('action','')}" for r in view)
+    assert "p-abc123" not in prose            # no parcel id in the words the model quotes
+    assert "Glassware" in prose and "45 Marine Drive, Colombo 03" in prose
+    assert all("ref" in r for r in view[1:])  # opaque ordering key kept for the tool
+
+
+def test_pickup_risk_and_stall_alerts():
+    from app import db, store
+    import app.main as main
+
+    async def run():
+        db.set_setting("depot", DEPOT)
+        veh = delivery.new_vehicle({"name": "Van", "type": "van"})
+        drv = delivery.new_driver({"name": "Sam", "vehicleId": veh["id"]})
+        now = time.time()
+        p = delivery.new_parcel({"name": "Kandy vase", "size": "small", "deadline": now + 9000,
+                                 "destination": {"lat": 6.88, "lng": 79.88, "label": "Drop Rd"},
+                                 "pickup": {"lat": 6.95, "lng": 79.9, "label": "Kandy WH",
+                                            "latest": now + 300}})  # collect within 5 min
+        trip = await delivery.create_run([p["id"]], drv["id"])
+        trip["status"] = "active"
+        delivery.set_parcel_status(db.load_entity("parcels", p["id"]), "in_transit",
+                                   trip_id=trip["id"])
+        rt = store.runtime(trip["id"])
+        rt.update(pickup_risk_fired=set(), stall_along=0.0, stall_since=now - 1000,
+                  stall_fired=False, along=0.0)
+
+        # barely moved, pickup window (5 min) can't be met on the planned drive time
+        main._check_pickup_risk(trip, rt)
+        assert any(a["type"] == "pickup_risk" for a in trip["alerts"])
+        n = len(trip["alerts"])
+        main._check_pickup_risk(trip, rt)                    # fires once per parcel
+        assert len(trip["alerts"]) == n
+
+        # no progress for > STALL_SECONDS, on route, not near a stop -> stalled
+        trip["lastPosition"] = {"lat": 6.80, "lng": 79.70, "ts": now}
+        main._check_stall(trip, rt)
+        assert any(a["type"] == "stalled" for a in trip["alerts"])
+        # progress resumes -> "moving again", and the stall can arm again later
+        rt["along"] = 5000.0
+        main._check_stall(trip, rt)
+        assert trip["alerts"][-1]["type"] == "moving_again" and rt["stall_fired"] is False
 
     asyncio.run(run())
 

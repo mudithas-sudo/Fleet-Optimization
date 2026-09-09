@@ -67,6 +67,9 @@ def runtime(trip_id: str) -> dict:
     return _RUNTIME.setdefault(trip_id, {
         "consecutive": 0, "alerting": False, "along": 0.0,
         "last_reroute": 0.0, "rerouting": False,
+        # pickup-window risk + "vehicle not moving" detection
+        "pickup_risk_fired": set(), "stall_along": 0.0,
+        "stall_since": 0.0, "stall_fired": False,
     })
 
 
