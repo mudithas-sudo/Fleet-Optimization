@@ -181,14 +181,17 @@ in the run's alert log. State lives in `store.runtime`.
   pickup window for 'X' at <place> — projected ~N min late"*.
 - **`stalled`** — `_check_stall`. Tracks on-route progress; if `along` gains
   &lt; 12 m for `STALL_SECONDS` (default 30 s — bump it for a calmer prod feel)
-  while the vehicle is on-route (not a deviation), not within
-  `STALL_STOP_RADIUS_M` **along the route** of a stop (`_at_a_stop`, so a loop
-  back past an earlier stop doesn't count), and not inside a known
-  SLOW/TRAFFIC_JAM stretch (`route["traffic"]` vs the path index), warn: *"Vehicle
-  has not moved for ~Ns and it isn't traffic"*. Clears with `moving_again`
-  once progress resumes; re-arms afterwards. Reset on start and on reroute.
-  The `fleetops.risk` logger prints every fire and every held-back tick with
-  the reason, to the uvicorn console.
+  while the trip is `active` (not deviating) and the vehicle isn't parked at
+  one of its stops (`_at_a_stop`: near a stop boundary **along the route** — the
+  depot origin excluded — *and* physically near that stop), warn: *"Vehicle has
+  not moved for ~Ns; it isn't traffic — the driver may be stopped"*. A genuine
+  standstill is the signal; a `TRAFFIC_JAM` on that stretch (`_in_traffic`,
+  plan-time data) only changes the wording, never suppresses — a frozen vehicle
+  is worth a look either way. Clears with `moving_again`; re-arms; reset on
+  start / reroute. The `fleetops.risk` logger prints every fire and every
+  held-back tick (`blocked=at-a-stop|deviating`) to the uvicorn console, and
+  `POST /position` echoes a `stall` block the driver page shows as a countdown
+  → "Dispatch has been alerted".
 
 The driver simulator has a **Stop** button (amber, above Deviate) that freezes
 forward progress while still posting position — that's how the stall is
