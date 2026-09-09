@@ -183,6 +183,11 @@ def test_run_label_and_agent_view():
 def test_pickup_risk_and_stall_alerts():
     from app import db, store
     import app.main as main
+    import app.planner.service as svc
+
+    async def fake_plan(stops, avoid_tolls=False, vehicle_type="car"):
+        return await routing.compute_route(stops, vehicle_type=vehicle_type)
+    svc.plan_route = fake_plan   # no Gemini in the deterministic suite
 
     async def run():
         db.set_setting("depot", DEPOT)

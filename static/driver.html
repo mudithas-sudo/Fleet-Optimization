@@ -214,6 +214,17 @@
   #btn-deviate.on { background: var(--danger); color: #fff; animation: pulse .8s infinite; }
   @keyframes pulse { 50% { opacity: .55; } }
 
+  /* ---- stop button (sits above the deviate button) ---- */
+  #btn-stop {
+    position: absolute; right: 14px; bottom: calc(178px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; border-radius: 50%; z-index: 5;
+    background: var(--surface); color: var(--warning); border: 3px solid var(--warning);
+    cursor: pointer; box-shadow: var(--shadow-lg);
+    display: grid; place-items: center; transform: translateZ(0);
+  }
+  #btn-stop .i { width: 24px; height: 24px; }
+  #btn-stop.on { background: var(--warning); color: #fff; animation: pulse .8s infinite; }
+
   /* ---- ETA bar ---- */
   #eta-bar {
     position: absolute; left: 12px; right: 12px;
@@ -334,6 +345,9 @@
 <div id="speed-bubble" class="hidden" role="button" tabindex="0" title="Tap to change simulated speed" aria-label="Simulated speed, tap to change">
   <b id="speed-cur">50</b><small>km/h</small>
 </div>
+<button id="btn-stop" class="hidden" type="button" aria-label="Simulate the vehicle stopping" aria-pressed="false" title="Simulate stopping (not traffic)">
+  <svg viewBox="0 0 24 24" class="i" aria-hidden="true" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+</button>
 <button id="btn-deviate" class="hidden" type="button" aria-label="Simulate going off-route" aria-pressed="false">
   <svg viewBox="0 0 24 24" class="i" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20Z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/></svg>
 </button>

@@ -640,8 +640,9 @@ def _emit(trip: dict, kind: str, message: str):
 # how late (vs the pickup window) the projection must run before we warn
 PICKUP_RISK_SLACK_S = float(os.environ.get("PICKUP_RISK_SLACK_S", "60"))
 # no on-route progress for this long, while not at a stop and not in a jam,
-# reads as the vehicle being stopped for a non-traffic reason
-STALL_SECONDS = float(os.environ.get("STALL_SECONDS", "90"))
+# reads as the vehicle being stopped for a non-traffic reason. Lower it
+# (e.g. STALL_SECONDS=25) for a snappier live demo.
+STALL_SECONDS = float(os.environ.get("STALL_SECONDS", "60"))
 STALL_ADVANCE_M = 12.0          # progress below this over the window = "not moving"
 STALL_STOP_RADIUS_M = 70.0      # legitimately parked this close to a stop
 
