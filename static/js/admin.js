@@ -945,12 +945,18 @@ async function saveDriver() {
 
 // ---------------- fleet (runs) ----------------
 
+function runLabel(stops) {
+  const first = stops[0], last = stops[stops.length - 1];
+  const origin = (first.depot || first.kind === "depot") ? "Depot" : (first.label || "Start");
+  return `${origin} → ${last.place || last.label || "destination"}`;
+}
+
 function summarize(trip) {
   const s = trip.route.orderedStops;
   return {
     id: trip.id,
     status: trip.status,
-    label: `${s[0].label} → ${s[s.length - 1].label}`,
+    label: runLabel(s),
     stopCount: s.length,
     createdAt: trip.createdAt,
     totalDistanceMeters: trip.route.totalDistanceMeters,
@@ -1267,7 +1273,7 @@ function openStream() {
       addAlertRow(a, true);
       $("kpi-devs").textContent = detail.alerts.filter(x => x.type === "deviation").length;
     }
-    if (a.type === "deviation") {
+    if (["deviation", "pickup_risk", "stalled"].includes(a.type)) {
       flashBanner(`${t ? t.label : a.tripId} — ${a.message}`);
     }
   });
@@ -1287,10 +1293,12 @@ function openStream() {
 
 const ALERT_STYLE = {
   back_on_route: "ok", completed: "ok", delivered: "ok", collected: "ok",
+  moving_again: "ok",
   reroute: "info", started: "info", ended: "info",
+  pickup_risk: "warn", stalled: "warn",
 };
 
-const ALERT_ICON = { ok: "check", info: "info" };
+const ALERT_ICON = { ok: "check", info: "info", warn: "alert" };
 
 function addAlertRow(a, prepend = false) {
   const row = document.createElement("div");

@@ -92,11 +92,17 @@ pickup hasn't been visited yet*. Always precedence-valid, good enough for a
 demo, no LLM in the ordering path.
 
 **v2 — agent-proposed order (the AI story):**
-the planner agent returns `ordered_stop_labels`; the service maps it back to
-stop indices and **validates** (every pickup index < its delivery index). If a
-parcel violates it, repair by moving that delivery to just after its pickup;
-if the whole ordering is unusable, fall back to the v1 heuristic. Then
+the planner agent passes `order_json` — an array of opaque `ref` strings
+(`"<parcelId>:<kind>"`, kept out of the prose) — and the tool maps it back to
+stops and **validates** (every pickup before its delivery). If a parcel
+violates it, repair by moving that delivery to just after its pickup; if the
+whole ordering is unusable, fall back to the v1 heuristic. Then
 `compute_route(ordered_stops, optimize=False)`.
+
+The message the agent sees is ID- and coordinate-free: each stop is
+`{action, parcel, at, ref, collectNoLaterThan?}`. Stop labels for delivery
+stops are the drop-off address (not the parcel name), so briefings, leg
+summaries and the trip label all read "… at <place>".
 
 `FAKE_ROUTES` path (`_fake_route`) already keeps identity order — it just
 receives the pre-ordered stops.
@@ -114,8 +120,9 @@ receives the pre-ordered stops.
   window (`earliest`/`latest`) so the agent can sequence around it.
 - `tools.py` `compute_routes`: no signature change. `compute_route` branches on
   `any(s.kind == "pickup")` to use precedence ordering instead of Google's
-  `optimizeWaypointOrder`.
-- Output schema unchanged. `ordered_stop_labels` stays descriptive.
+  `optimizeWaypointOrder`. The result carries `ordered_stops` as ready-made
+  "Collect / Drop off <parcel> at <place>" lines.
+- Output schema: `ordered_stops` (friendly strings) + `briefing`.
 
 ### Pickup time windows
 
@@ -160,6 +167,24 @@ stop (same leg-boundary + proximity confirmation as today):
     the driver. Re-dispatch treats it as a depot-origin delivery (skips the
     `pickup` stop); the original `pickup` stays on the record for history.
 - Trip summary gains `collectedCount` beside `deliveredCount`.
+
+### Live risk alerts (dispatcher-facing, `post_position`)
+
+Two checks run every position tick alongside `_check_stop_progress`; both emit
+a plain alert (no trip-status change) that flashes the admin banner and lands
+in the run's alert log. State lives in `store.runtime`.
+
+- **`pickup_risk`** — `_check_pickup_risk`. For each not-yet-collected pickup
+  stop with a `latest`, project the arrival from `runtime["along"]` using the
+  remaining legs' traffic-aware durations (`_eta_seconds_to_stop`). If it lands
+  after `latest` (+60 s slack), warn once per parcel: *"At risk of missing the
+  pickup window for 'X' at <place> — projected ~N min late"*.
+- **`stalled`** — `_check_stall`. Tracks on-route progress; if `along` gains
+  &lt; 12 m for `STALL_SECONDS` (90 s) while the vehicle is on-route (not a
+  deviation), not within 70 m of any stop, and not inside a known
+  SLOW/TRAFFIC_JAM stretch (`route["traffic"]` vs the path index), warn: *"Vehicle
+  has not moved for ~N min and it isn't traffic"*. Clears with `moving_again`
+  once progress resumes; re-arms afterwards. Reset on start and on reroute.
 
 ## Reroute (`_maybe_reroute` / `_do_reroute`)
 

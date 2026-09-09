@@ -92,7 +92,9 @@ async def compute_routes(stops_json: str, tool_context: ToolContext,
                    or (earliest is not None and eta < earliest)
                    or (deadline is not None and eta > deadline))
         stop_rows.append({
-            "label": s["label"], "kind": s.get("kind"),
+            "parcel": s.get("parcelName") or s["label"],
+            "place": s.get("place") or s["label"],
+            "kind": s.get("kind"),
             "etaInMinutes": round(elapsed / 60),
             "atRisk": at_risk,
         })
@@ -101,7 +103,13 @@ async def compute_routes(stops_json: str, tool_context: ToolContext,
         (route["totalDurationSeconds"] - route["staticDurationSeconds"]) / 60)
     return {
         "status": "success",
-        "ordered_stop_labels": [s["label"] for s in route["orderedStops"]],
+        "ordered_stops": [
+            ("Start at " + s["label"]) if i == 0 else
+            ("Collect " + (s.get("parcelName") or s["label"]) + " at " + (s.get("place") or s["label"]))
+            if s.get("kind") == "pickup" else
+            ("Drop off " + (s.get("parcelName") or s["label"]) + " at " + (s.get("place") or s["label"]))
+            for i, s in enumerate(route["orderedStops"])
+        ],
         "stops": stop_rows,
         "legs": route["legs"],
         "total_distance_meters": route["totalDistanceMeters"],

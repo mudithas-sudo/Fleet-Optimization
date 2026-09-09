@@ -371,12 +371,22 @@ def _trip_or_404(trip_id: str) -> dict:
     return trip
 
 
+def _run_label(stops: list[dict]) -> str:
+    """'<origin> → <final drop-off>'. Origin is 'Depot' for a delivery run;
+    the end is the last stop's place (a drop-off address), never a parcel name."""
+    first = stops[0]
+    origin = "Depot" if (first.get("depot") or first.get("kind") == "depot") \
+        else first.get("label", "Start")
+    end = stops[-1].get("place") or stops[-1].get("label", "destination")
+    return f"{origin} → {end}"
+
+
 def _summary(t: dict) -> dict:
     stops = t["route"]["orderedStops"]
     return {
         "id": t["id"],
         "status": t["status"],
-        "label": f"{stops[0]['label']} → {stops[-1]['label']}",
+        "label": _run_label(stops),
         "stopCount": len(stops),
         "createdAt": t["createdAt"],
         "totalDistanceMeters": t["route"]["totalDistanceMeters"],
@@ -501,7 +511,10 @@ async def start_trip(trip_id: str):
     trip = _trip_or_404(trip_id)
     trip["status"] = "active"
     trip["startedAt"] = time.time()
-    store.runtime(trip_id).update(consecutive=0, alerting=False, along=0.0)
+    store.runtime(trip_id).update(
+        consecutive=0, alerting=False, along=0.0,
+        pickup_risk_fired=set(), stall_along=0.0,
+        stall_since=time.time(), stall_fired=False)
     alert = _lifecycle_alert(trip_id, "started", "Driver started the trip")
     trip["alerts"].append(alert)
     for pid in trip.get("parcelIds") or []:
@@ -557,6 +570,8 @@ async def post_position(trip_id: str, pos: Position):
     runtime = store.runtime(trip_id)
     alert, along = deviation.check_position(trip, runtime, pos.lat, pos.lng)
     _check_stop_progress(trip, runtime)
+    _check_pickup_risk(trip, runtime)
+    _check_stall(trip, runtime)
     if alert:
         trip["alerts"].append(alert)
         trip["status"] = "deviating" if alert["type"] == "deviation" else "active"
@@ -620,6 +635,122 @@ def _emit(trip: dict, kind: str, message: str):
     store.broadcast(trip["id"], "alert", alert)
 
 
+# ---- live risk detection (dispatcher-facing alerts) ----
+
+# how late (vs the pickup window) the projection must run before we warn
+PICKUP_RISK_SLACK_S = float(os.environ.get("PICKUP_RISK_SLACK_S", "60"))
+# no on-route progress for this long, while not at a stop and not in a jam,
+# reads as the vehicle being stopped for a non-traffic reason
+STALL_SECONDS = float(os.environ.get("STALL_SECONDS", "90"))
+STALL_ADVANCE_M = 12.0          # progress below this over the window = "not moving"
+STALL_STOP_RADIUS_M = 70.0      # legitimately parked this close to a stop
+
+
+def _leg_bounds(trip: dict) -> list[float]:
+    bounds, cum = [0.0], 0.0
+    for leg in trip["route"]["legs"]:
+        cum += leg["distanceMeters"]
+        bounds.append(cum)
+    return bounds
+
+
+def _eta_seconds_to_stop(trip: dict, along: float, stop_index: int) -> float:
+    """Seconds from the current on-route progress to `stop_index`, scaling each
+    remaining leg's planned (traffic-aware) duration by the fraction of it still
+    to drive."""
+    legs, bounds = trip["route"]["legs"], _leg_bounds(trip)
+    if stop_index >= len(bounds) or along >= bounds[stop_index]:
+        return 0.0
+    total = 0.0
+    for k in range(stop_index):            # legs 0..stop_index-1 lead to it
+        lo, hi = bounds[k], bounds[k + 1]
+        if hi <= along or hi == lo:
+            continue
+        frac = (hi - max(along, lo)) / (hi - lo)
+        total += legs[k]["durationSeconds"] * max(0.0, min(1.0, frac))
+    return total
+
+
+def _check_pickup_risk(trip: dict, runtime: dict):
+    """Warn the dispatcher when the vehicle is projected to reach a not-yet-
+    collected parcel's pickup after its collection window closes."""
+    if trip["status"] not in ("active", "deviating") or not trip.get("parcelIds"):
+        return
+    now = time.time()
+    along = runtime.get("along", 0.0)
+    fired = runtime.setdefault("pickup_risk_fired", set())
+    for i, stop in enumerate(trip["route"]["orderedStops"]):
+        if i == 0 or delivery.stop_kind(stop) != "pickup":
+            continue
+        latest = stop.get("latest")
+        pid = stop.get("parcelId")
+        if not latest or not pid or pid in fired:
+            continue
+        p = db.load_entity("parcels", pid)
+        if not p or p["status"] in ("picked_up", "delivered"):
+            continue
+        eta = now + _eta_seconds_to_stop(trip, along, i)
+        if eta > latest + PICKUP_RISK_SLACK_S:
+            fired.add(pid)
+            mins = max(1, round((eta - latest) / 60))
+            place = stop.get("place") or stop.get("label", "the pickup")
+            _emit(trip, "pickup_risk",
+                  f"At risk of missing the pickup window for “{p['name']}” at "
+                  f"{place} — projected ~{mins} min late "
+                  f"(collect by {time.strftime('%I:%M %p', time.localtime(latest)).lstrip('0')})")
+
+
+def _in_traffic(trip: dict, along: float) -> bool:
+    """Does the current on-route position sit inside a SLOW / TRAFFIC_JAM stretch?"""
+    traffic = trip["route"].get("traffic") or []
+    path = trip["route"].get("path") or []
+    if not traffic or len(path) < 2:
+        return False
+    cum, idx = 0.0, len(path) - 1
+    for i in range(1, len(path)):
+        seg = routing._haversine_m({"lat": path[i - 1][0], "lng": path[i - 1][1]},
+                                   {"lat": path[i][0], "lng": path[i][1]})
+        if cum + seg >= along:
+            idx = i - 1
+            break
+        cum += seg
+    return any(lo - 2 <= idx <= hi + 2 for lo, hi, _speed in traffic)
+
+
+def _check_stall(trip: dict, runtime: dict):
+    """Warn when the vehicle stops making progress for a non-traffic reason —
+    it's on the route (not a deviation), not parked at a stop, and not inside a
+    known congested stretch."""
+    if trip["status"] != "active":            # deviations own the "deviating" state
+        return
+    now = time.time()
+    along = runtime.get("along", 0.0)
+    if along - runtime.get("stall_along", 0.0) >= STALL_ADVANCE_M:
+        runtime["stall_along"] = along
+        runtime["stall_since"] = now
+        if runtime.get("stall_fired"):
+            runtime["stall_fired"] = False
+            _emit(trip, "moving_again", "Vehicle is moving again")
+        return
+    if not runtime.get("stall_since"):
+        runtime["stall_since"] = now
+        return
+    if runtime.get("stall_fired") or now - runtime["stall_since"] < STALL_SECONDS:
+        return
+    if runtime.get("alerting") or _in_traffic(trip, along):
+        return
+    pos = trip.get("lastPosition") or {}
+    near_stop = any(routing._haversine_m(pos, s) <= STALL_STOP_RADIUS_M
+                    for s in trip["route"]["orderedStops"]) if pos else False
+    if near_stop:
+        return
+    runtime["stall_fired"] = True
+    mins = round((now - runtime["stall_since"]) / 60)
+    _emit(trip, "stalled",
+          f"Vehicle has not moved for ~{mins} min and it isn't traffic — "
+          f"the driver may be stopped. Check in with them.")
+
+
 def _maybe_reroute(trip: dict, runtime: dict, lat: float, lng: float, along: float):
     if runtime["rerouting"] or time.time() - runtime["last_reroute"] < REROUTE_MIN_GAP_S:
         return
@@ -663,7 +794,8 @@ async def _do_reroute(trip_id: str, lat: float, lng: float, remaining: list[dict
     trip["route"] = {**route, "briefing": briefing}
     trip["routeVersion"] += 1
     trip["status"] = "active"
-    runtime.update(consecutive=0, alerting=False, along=0.0)
+    runtime.update(consecutive=0, alerting=False, along=0.0,
+                   stall_along=0.0, stall_since=time.time(), stall_fired=False)
     alert = {
         "id": f"a-rr{trip['routeVersion']}",
         "tripId": trip_id,

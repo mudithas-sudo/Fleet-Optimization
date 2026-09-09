@@ -172,10 +172,15 @@ def build_run_stops(parcels: list[dict]) -> list[dict]:
         pk = p.get("pickup")
         if pk and p["status"] != "awaiting_redelivery":
             stops.append({"lat": pk["lat"], "lng": pk["lng"], "label": pk["label"],
-                          "parcelId": p["id"], "kind": "pickup",
+                          "parcelId": p["id"], "parcelName": p["name"], "kind": "pickup",
+                          "place": pk["label"],
                           "earliest": pk.get("earliest"), "latest": pk.get("latest")})
+        dest_label = (p["destination"].get("label") or "").strip() or p["name"]
         stops.append({"lat": p["destination"]["lat"], "lng": p["destination"]["lng"],
-                      "label": p["name"], "parcelId": p["id"], "kind": "delivery",
+                      # the stop label is the drop-off place, not the parcel name —
+                      # markers show a number, the manifest looks the parcel up by id
+                      "label": dest_label, "parcelId": p["id"], "parcelName": p["name"],
+                      "place": dest_label, "kind": "delivery",
                       "deadline": p["deadline"]})
     return stops
 
