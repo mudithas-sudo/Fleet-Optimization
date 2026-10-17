@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0f2e35">
+<title>Sign in — FleetOps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #eef1ec; --surface: #fbfcfa; --border: #cdd7d1; --border-strong: #a9b8b0;
+    --text: #0f2e35; --muted: #4b6268; --nav: #0f2e35; --primary: #0b7f86;
+    --accent: #f4b400; --on-accent: #17262a; --danger: #c0301d;
+    --focus: 0 0 0 3px rgba(11, 127, 134, .4);
+    --font: "Hanken Grotesk", system-ui, sans-serif; --display: "Bricolage Grotesque", var(--font);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; --bg: #0a1c21; --surface: #102a31; --border: #234650; --border-strong: #356572;
+      --text: #e8f2f0; --muted: #9fbdc2; --nav: #07151a; --primary: #43c6cc; --accent: #ffc933; --on-accent: #1a1403;
+      --danger: #ff7b68; --focus: 0 0 0 3px rgba(67, 198, 204, .5); }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 500 15px/1.5 var(--font); min-height: 100vh; display: grid; grid-template-rows: auto 1fr; -webkit-font-smoothing: antialiased; }
+  header { background: var(--nav); color: #f2f7f5; padding: 16px 20px; font: 700 22px var(--display); letter-spacing: -.03em; display: flex; align-items: center; gap: 10px; }
+  header .logo { width: 28px; height: 28px; border-radius: 3px; background: var(--accent); color: #17262a; display: grid; place-items: center; }
+  header .logo svg { width: 17px; height: 17px; }
+  header em { font-style: normal; color: var(--accent); }
+  main { display: grid; place-items: center; padding: 24px 16px; }
+  form { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font: 800 28px/1.1 var(--display); letter-spacing: -.03em; }
+  p.lead { color: var(--muted); margin-top: -8px; }
+  label { display: flex; flex-direction: column; gap: 5px; font-weight: 700; font-size: 13.5px; }
+  input { min-height: 46px; padding: 0 12px; border: 1.5px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: 600 16px var(--font); }
+  input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus); }
+  button { min-height: 48px; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); font: 700 16px var(--display); cursor: pointer; }
+  button:disabled { opacity: .55; cursor: progress; }
+  .err { color: var(--danger); font-weight: 700; font-size: 14px; min-height: 1.3em; }
+  .note { color: var(--muted); font-size: 13px; text-align: center; }
+  a { color: var(--primary); }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h13V6H3zM16 10h4l1 4v3h-5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg></span>
+  Fleet<em>Ops</em>
+</header>
+<main>
+  <form id="f">
+    <div><h1>Sign in</h1></div>
+    <p class="lead">Back-office console for dispatchers and supervisors.</p>
+    <label>Username <input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+    <label>Password <input id="p" name="password" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="err" role="alert"></div>
+    <button id="go" type="submit">Sign in</button>
+    <div class="note">Drivers don’t sign in here — use the link your dispatcher sent you.<br>Looking for a parcel? <a href="/static/track.html">Track it</a>.</div>
+  </form>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+// only ever go back to a page inside the app (no open redirects)
+function nextUrl() {
+  const n = new URLSearchParams(location.search).get("next") || "";
+  return /^\/static\/[A-Za-z0-9_.\/-]*(\?[^#]*)?$/.test(n) && !n.startsWith("//") ? n : "/static/admin.html";
+}
+fetch("/api/auth/me").then(r => r.ok ? r.json() : null).then(d => {
+  if (d && (!d.authEnabled || d.user)) location.replace(nextUrl());     // already signed in (or auth is off)
+}).catch(() => {});
+$("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("err").textContent = "";
+  $("go").disabled = true;
+  try {
+    const r = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("u").value, password: $("p").value }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || "Couldn’t sign in. Try again.");
+    location.replace(nextUrl());
+  } catch (err) {
+    $("err").textContent = err.message;
+    $("p").select();
+    $("go").disabled = false;
+  }
+});
+</script>
+</body>
+</html>

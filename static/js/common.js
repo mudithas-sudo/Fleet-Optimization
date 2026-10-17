@@ -87,11 +87,20 @@ const MAP_DARK_STYLE = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
+// A driver's link carries a secret key (?k=…); it rides along on every API call.
+const DRIVER_KEY = new URLSearchParams(location.search).get("k");
+const DRIVER_KEY_Q = DRIVER_KEY ? `&k=${encodeURIComponent(DRIVER_KEY)}` : "";
+
 async function api(path, options = {}) {
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(DRIVER_KEY ? { "X-Driver-Key": DRIVER_KEY } : {}) },
     ...options,
   });
+  // the back-office pages set REQUIRE_LOGIN; an expired session goes back to sign-in
+  if (res.status === 401 && window.REQUIRE_LOGIN && path !== "/api/auth/login") {
+    location.href = "/static/login.html?next=" + encodeURIComponent(location.pathname + location.search);
+    return new Promise(() => {});
+  }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try { msg = (await res.json()).detail || msg; } catch (_) {}

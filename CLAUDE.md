@@ -49,6 +49,16 @@ Conventions: light theme is default with dark as a toggle — all colors are CSS
 
 Design system: "Harbour chart" — chart-paper surfaces, harbour-ink header/turn banner (`--nav-bg`), channel-teal `--primary`, buoy-yellow `--accent` (actions only, ink text), Bricolage Grotesque (`--display`: headings, big numerals) + Hanken Grotesk (`--font`: UI). Borders carry structure, shadows are for floating layers only; run/queue rows use a left status rail; headings and labels are sentence case (no all-caps). `prefers-reduced-motion` honoured, WCAG-AA contrast. Tokens live in the `<style>` blocks of `admin.html`/`driver.html` (source of truth), followed by a "Harbour-chart refinements" override layer; legacy `--blue/--red/--muted/...` aliases exist so inline JS refs keep working. Map marker/route/dark-map colors in `common.js` follow the same palette. **No emoji in the chrome** — icons come from `ICONS`/`iconSvg()`/`vehIconSvg()` in `common.js` (Lucide-style stroke SVGs). The older `design-system/fleetops/` docs describe the previous "Swiss minimal" look.
 
+## Dispatcher features (added on the Delivery-Management branch)
+
+- `app/delivery.py` owns parcels/vehicles/drivers: eligibility (`check_eligibility`: count, size, dimensions, weight, volume, then driver availability/limits), parcel history (`add_event`, centralised in `set_parcel_status`), proof of delivery (images in the `pods` table, never in the parcel JSON) and failed attempts (3 strikes or a refusal -> `returned`).
+- `app/dispatcher/rules.py` is the deterministic, key-free "Suggest runs" (sweep + largest vehicle first, express first, skips drivers on leave/off shift). The Gemini agent is still available as `engine: "ai"`.
+- Runs with express/priority parcels or windows bypass the AI planner: `routing.sequence_stops` + `delivery.plan_with_priorities`. `app/replan.py` edits existing runs (add/remove/move/reassign) via `routing.compute_route`; a live run re-plans from `trip["lastPosition"]` and bumps `routeVersion`.
+- `app/notify.py` records customer messages and posts to `NOTIFY_WEBHOOK_URL` if set; public tracking is `GET /api/track/{no}` (rate limited, no PII beyond what the customer should see).
+- `app/auth.py`: opt-in (`AUTH_ENABLED=1`) cookie sessions + roles enforced in one middleware (`required_role`). Driver endpoints (`DRIVER_ROUTES`) accept the driver's `k` key instead of a session — keep new driver-app endpoints in that list. Never return `token` fields to roles below dispatcher.
+- `app/reports.py`: reporting + CSV (cells starting `= + - @` are neutralised).
+- Tests are plain scripts, no keys: `tests/test_{pickup_delivery,capacity_dispatch,pod_failures,priority_shifts,replan,tracking_notify,reports,auth}.py`. Each sets its own temp `DB_PATH`.
+
 ## Routes API gotchas (learned the hard way)
 
 - The `X-Goog-FieldMask` header is mandatory; omitting it is a 400.

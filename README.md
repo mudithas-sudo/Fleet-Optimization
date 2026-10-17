@@ -54,6 +54,30 @@ selects its model (gemini-3.5-flash recommended).
   delivery, collected, failed, rescheduled, proof recorded, delivered); open it
   by clicking a parcel in the admin list.
 
+- **Priorities and time windows** — parcels can be Standard, Priority or
+  Express and can have a "not before" delivery time. Runs that contain any of
+  these are sequenced deterministically (express first, windows respected, pickups
+  before their drops) and "Suggest runs" gives them vehicle space first.
+- **Driver shifts and limits** — shift hours, on-leave, max stops and max hours
+  per run (plus a break allowance). Enforced when suggesting runs, in the driver
+  picker and when a run is created.
+- **Dispatcher edits** — add parcels to a planned or in-progress run, take them
+  off, move a parcel between runs (or drag it onto a run), and hand a planned
+  run to another driver. Every edit re-routes without the AI planner; a run under
+  way is re-planned from the vehicle's current position.
+- **Customer tracking** — `static/track.html?no=<tracking number>` shows status,
+  ETA, stops before yours and history, without phone numbers, notes or driver
+  surnames. SMS/email messages (out for delivery, nearby, delivered, failed,
+  rescheduled, returned) are always recorded; set `NOTIFY_WEBHOOK_URL` to send
+  them through your provider.
+- **Reports** — header **Reports** button: on-time and first-attempt rates,
+  failures by reason, per-driver productivity, distance, cost per delivery
+  (editable per-km / per-hour rates) and CSV exports for parcels, runs, drivers.
+- **Users and roles** — set `AUTH_ENABLED=1` to require sign-in. Roles: viewer
+  (read), dispatcher (plan and change deliveries), supervisor (+ fleet, depot,
+  reports), admin (+ people). Driver links carry a secret key (`&k=…`), so the
+  driver app needs no login but guessed ids can't mark deliveries.
+
 Built on the fleet-tracking prototype demonstrating
 **Google ADK + Google Maps Platform**:
 

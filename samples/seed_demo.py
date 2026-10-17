@@ -29,6 +29,7 @@ DRIVERS = [
     ("Dilani Fernando", "+94 76 220 9914", "Car 01"),
     ("Ruwan Jayasinghe", "+94 70 441 7765", "Bike 01"),
 ]
+DRIVER_LIMITS = {"Ruwan Jayasinghe": {"maxStops": 3}}      # the bike rider takes at most 3 stops a run
 
 HARBOUR = {"lat": 6.9497, "lng": 79.8468, "label": "Colombo Harbour"}
 PETTAH_WH = {"lat": 6.9380, "lng": 79.8590, "label": "Pettah Warehouse"}
@@ -36,12 +37,12 @@ PETTAH_WH = {"lat": 6.9380, "lng": 79.8590, "label": "Pettah Warehouse"}
 # tracking, parcel, receiver, phone, address, lat, lng, size, (L, W, H) cm, kg, due in h, extras
 PARCELS = [
     ("FO-100001", "Router #4411", "A. Wijesinghe", "+94 77 310 4421", "Majestic City, Bambalapitiya", 6.8935, 79.8553, "small", (30, 22, 10), 1.2, 2, {}),
-    ("FO-100002", "SIM starter kits (x20)", "S. Fonseka", "+94 71 880 2210", "Nugegoda Junction", 6.8649, 79.8997, "small", (25, 18, 12), 0.8, 3, {}),
-    ("FO-100003", "Laptop, 14 inch", "R. de Mel", "+94 76 530 9012", "Rajagiriya Flyover", 6.9097, 79.8918, "small", (38, 28, 8), 2.1, 2, {"fragile": True}),
+    ("FO-100002", "SIM starter kits (x20)", "S. Fonseka", "+94 71 880 2210", "Nugegoda Junction", 6.8649, 79.8997, "small", (25, 18, 12), 0.8, 3, {"priority": "priority"}),
+    ("FO-100003", "Laptop, 14 inch", "R. de Mel", "+94 76 530 9012", "Rajagiriya Flyover", 6.9097, 79.8918, "small", (38, 28, 8), 2.1, 2, {"fragile": True, "priority": "express", "email": "rdemel@example.com"}),
     ("FO-100004", "Legal documents", "Attorney M. Gunawardena", "+94 11 267 4400", "Borella Junction", 6.9147, 79.8776, "small", (32, 24, 4), 0.4, 1.5, {"notes": "Hand to the receptionist, signature required."}),
     ("FO-100005", "Microwave oven", "N. Ratnayake", "+94 77 912 0345", "Maharagama Town", 6.8480, 79.9265, "medium", (55, 45, 35), 14, 5, {}),
     ("FO-100006", "Office chair", "SLIIT Malabe", "+94 11 754 4801", "SLIIT Campus, Malabe", 6.9061, 79.9694, "medium", (65, 60, 110), 12, 6, {"notes": "Gate 2, ask for the stores office."}),
-    ("FO-100007", "Ceramic dinner set", "P. Karunaratne", "+94 75 604 3318", "Dehiwala Junction", 6.8511, 79.8650, "medium", (50, 40, 30), 9, 4, {"fragile": True}),
+    ("FO-100007", "Ceramic dinner set", "P. Karunaratne", "+94 75 604 3318", "Dehiwala Junction", 6.8511, 79.8650, "medium", (50, 40, 30), 9, 4, {"fragile": True, "window_h": 1.5}),
     ("FO-100008", "Textbooks (box)", "Royal College Library", "+94 11 269 5301", "Reid Avenue, Colombo 07", 6.9066, 79.8628, "medium", (45, 35, 30), 18, 3, {}),
     ("FO-100009", "Standing desk", "J. Abeysekara", "+94 77 701 8844", "Battaramulla Junction", 6.8993, 79.9179, "large", (140, 70, 15), 28, 8, {}),
     ("FO-100010", "Refrigerator 190 L", "K. Mendis", "+94 71 220 6643", "Mount Lavinia", 6.8389, 79.8636, "large", (60, 62, 150), 45, 7, {"notes": "Second floor, no lift."}),
@@ -65,7 +66,8 @@ def main(reset: bool):
 
     vehicles = {v["name"]: delivery.new_vehicle(v) for v in VEHICLES}
     for name, phone, vehicle in DRIVERS:
-        delivery.new_driver({"name": name, "phone": phone, "vehicleId": vehicles[vehicle]["id"]})
+        delivery.new_driver({"name": name, "phone": phone, "vehicleId": vehicles[vehicle]["id"],
+                             **DRIVER_LIMITS.get(name, {})})
 
     now = time.time()
     for trk, name, receiver, phone, address, lat, lng, size, dims, kg, due_h, extra in PARCELS:
@@ -74,6 +76,8 @@ def main(reset: bool):
             "recipientPhone": phone, "size": size, "weightKg": kg,
             "dimensionsCm": dict(zip("lwh", dims)), "deadline": now + due_h * 3600,
             "fragile": extra.get("fragile", False), "notes": extra.get("notes"),
+            "priority": extra.get("priority", "standard"), "receiverEmail": extra.get("email"),
+            "windowStart": now + extra["window_h"] * 3600 if extra.get("window_h") else None,
             "pickup": extra.get("pickup"),
             "destination": {"lat": lat, "lng": lng, "label": address},
         })

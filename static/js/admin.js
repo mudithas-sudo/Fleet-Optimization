@@ -57,6 +57,7 @@ init();
 
 async function init() {
   initTheme();
+  await loadMe();            // signed in? (redirects to the sign-in page if not)
   await loadMaps();
   map = new google.maps.Map($("map"), {
     center: { lat: 6.9271, lng: 79.8612 }, zoom: 12,
@@ -147,6 +148,8 @@ async function init() {
   setupOverview();
   setupParcelDetail();
   setupReports();
+  setupPassword();
+  setupUsers();
 
   // fleet tab
   $("btn-clear-all").onclick = clearAllTrips;
@@ -176,7 +179,7 @@ async function init() {
   $("df-cancel").onclick = () => { $("driver-form").style.display = "none"; };
   $("df-save").onclick = saveDriver;
 
-  await Promise.all([loadDepot(), loadParcels(), loadRegistry(), loadTrips()]);
+  await Promise.all([loadDepot(), loadParcels(), loadRegistry(), loadTrips(), loadUsers()]);
   openStream();
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
@@ -1178,7 +1181,7 @@ function renderRegistry() {
     const v = vehiclesReg.find(x => x.id === d.vehicleId);
     const row = document.createElement("div");
     row.className = "reg-row";
-    const queueUrl = `${location.origin}/static/driver.html?driver=${d.id}`;
+    const queueUrl = `${location.origin}/static/driver.html?driver=${d.id}${d.token ? "&k=" + encodeURIComponent(d.token) : ""}`;
     row.innerHTML = `
       <span class="veh-ico">${v ? vehIconSvg(v.type) : iconSvg("user")}</span>
       <div class="info">
@@ -1429,8 +1432,9 @@ function renderDetail() {
   renderManifest();
   $("briefing").textContent = r.briefing;
 
+  const drv = driversReg.find(x => x.id === detail.driverId);
   const url = detail.driverId
-    ? `${location.origin}/static/driver.html?driver=${detail.driverId}`
+    ? `${location.origin}/static/driver.html?driver=${detail.driverId}${drv && drv.token ? "&k=" + encodeURIComponent(drv.token) : ""}`
     : `${location.origin}/static/driver.html?trip=${detail.id}`;
   $("btn-runsheet").href = `/static/runsheet.html?trip=${encodeURIComponent(detail.id)}`;
   const link = $("driver-url");

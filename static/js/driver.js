@@ -60,7 +60,7 @@ async function init() {
   if (!tripId) { $("briefing").textContent = "No trip id. Open this page via the link from the dispatch console."; return; }
   if (driverId) {
     $("btn-queue").classList.remove("hidden");
-    $("btn-queue").onclick = () => { location.search = `?driver=${driverId}`; };
+    $("btn-queue").onclick = () => { location.search = `?driver=${driverId}${DRIVER_KEY_Q}`; };
   }
 
   await loadMaps();
@@ -279,7 +279,7 @@ async function refreshQueue() {
       </div>
       ${done ? "" : `<button class="go ${live ? "live" : ""}">${live ? "Continue" : "Start"}</button>`}`;
     const go = row.querySelector(".go");
-    if (go) go.onclick = () => { location.search = `?trip=${r.id}&driver=${driverId}`; };
+    if (go) go.onclick = () => { location.search = `?trip=${r.id}&driver=${driverId}${DRIVER_KEY_Q}`; };
     wrap.append(row);
   });
 }

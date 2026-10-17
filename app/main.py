@@ -18,10 +18,13 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import db, delivery, deviation, notify, replan, reports, routing, store  # noqa: E402
+from . import auth, db, delivery, deviation, notify, replan, reports, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
+app.middleware("http")(auth.middleware)
+app.include_router(auth.router)
+auth.bootstrap_admin()
 
 log = logging.getLogger("fleetops.risk")
 if not log.handlers:
@@ -632,8 +635,16 @@ async def delete_vehicle(vehicle_id: str):
 
 
 @app.get("/api/drivers")
-async def list_drivers():
-    return db.all_entities("drivers")
+async def list_drivers(request: Request):
+    drivers = db.all_entities("drivers")
+    user = auth.current_user(request) if auth.enabled() else None
+    can_see_keys = not auth.enabled() or (user and auth.ROLES[user["role"]] >= auth.ROLES["dispatcher"])
+    for d in drivers:
+        if can_see_keys:
+            auth.driver_key(d)          # older drivers get a key the first time
+        else:
+            d.pop("token", None)
+    return drivers
 
 
 @app.post("/api/drivers")

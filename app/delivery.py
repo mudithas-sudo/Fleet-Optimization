@@ -5,6 +5,7 @@ dispatch agent can reuse it programmatically.
 """
 
 import os
+import secrets
 import time
 import uuid
 
@@ -154,6 +155,7 @@ def new_driver(data: dict) -> dict:
         "shiftStart": data.get("shiftStart") or None,    # "HH:MM", blank = always on
         "shiftEnd": data.get("shiftEnd") or None,
         "onLeave": bool(data.get("onLeave")),
+        "token": secrets.token_urlsafe(12),             # secret key in the driver's link
         "maxStops": data.get("maxStops") or None,
         "maxHours": data.get("maxHours") or None,
         "breakMinutes": data.get("breakMinutes") if data.get("breakMinutes") is not None else 30,

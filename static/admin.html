@@ -1041,6 +1041,28 @@
   .hdr-btn { height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 700 var(--fs-sm) var(--font); cursor: pointer; }
   .hdr-btn:hover { border-color: var(--border-strong); }
   @media (max-width: 760px) { .rp-grid { grid-template-columns: 1fr; } #reports { padding: var(--space-3); } }
+
+  /* ---------- who is signed in; role-based hiding ---------- */
+  #user-chip { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); }
+  #user-chip[hidden] { display: none; }
+  #user-chip .who { display: flex; flex-direction: column; line-height: 1.15; text-align: right; }
+  #user-chip .who b { font-weight: 700; }
+  #user-chip .who span { color: var(--text-muted); font-size: 11.5px; }
+  #user-chip button { height: 32px; padding: 0 10px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 600 var(--fs-xs) var(--font); cursor: pointer; }
+  #user-chip button:hover { border-color: var(--border-strong); }
+  body.role-viewer :is(#btn-add-parcel, #btn-import, #btn-auto, #btn-auto-ai, #btn-clear-delivered, #btn-clear-all,
+    #run-footer, #depot-chip, #depot-form, #btn-add-vehicle, #btn-add-driver, .edit-driver, .del, #btn-delete,
+    #btn-reassign, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports) { display: none !important; }
+  body.role-dispatcher :is(#btn-add-vehicle, #btn-add-driver, .edit-driver, .reg-row .del, #depot-chip, #depot-form,
+    #btn-clear-all, #btn-reports) { display: none !important; }
+  body.role-supervisor #users-section { display: none !important; }
+  #users-section[hidden] { display: none; }
+  #users-section .reg-row.off { opacity: .6; }
+  #users-section select { padding: 7px 8px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text); font: 600 var(--fs-xs) var(--font); }
+  #pw-modal { display: none; position: fixed; inset: 0; z-index: 40; background: var(--scrim); align-items: center; justify-content: center; padding: var(--space-4); }
+  #pw-modal .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(380px, 100%); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+  #pw-err { color: var(--danger); font-weight: 700; font-size: var(--fs-sm); min-height: 1.2em; }
+  @media (max-width: 900px) { #user-chip .who { display: none; } }
 </style>
 </head>
 <body>
@@ -1060,6 +1082,11 @@
     Reports
   </button>
   <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
+  <div id="user-chip" hidden>
+    <div class="who"><b id="user-name"></b><span id="user-role"></span></div>
+    <button id="btn-password" type="button">Password</button>
+    <button id="btn-logout" type="button">Sign out</button>
+  </div>
   <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
 </header>
 <main>
@@ -1354,6 +1381,34 @@
         </div>
       </div>
       <div class="reg-list" id="driver-list" style="margin-top:10px"></div>
+
+      <div id="users-section" hidden>
+        <h2 style="margin-top:18px">Team <span class="spacer"></span>
+          <button id="btn-add-user" class="link-action" type="button">
+            <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Add
+          </button>
+        </h2>
+        <div class="hint" id="role-help" style="margin-top:4px"></div>
+        <div id="user-form" class="form-card" style="display:none; margin-top:10px">
+          <div class="form-grid">
+            <div class="field"><label for="uf-username">Username</label><input id="uf-username" autocomplete="off" autocapitalize="none" placeholder="e.g. nuwan.p"></div>
+            <div class="field"><label for="uf-name">Name</label><input id="uf-name" autocomplete="off" placeholder="Full name"></div>
+          </div>
+          <div class="form-grid">
+            <div class="field"><label for="uf-role">Role</label>
+              <select id="uf-role"><option value="viewer">Viewer</option><option value="dispatcher" selected>Dispatcher</option>
+                <option value="supervisor">Supervisor</option><option value="admin">Admin</option></select></div>
+            <div class="field"><label for="uf-password">Starting password</label><input id="uf-password" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>
+          </div>
+          <div class="field-err form-err" id="uf-err" role="alert" hidden></div>
+          <div class="row">
+            <button class="btn btn-ghost" id="uf-cancel" type="button">Cancel</button>
+            <button class="btn btn-primary" id="uf-save" type="button">Add person</button>
+          </div>
+        </div>
+        <div class="reg-list" id="user-list" style="margin-top:10px"></div>
+      </div>
     </section>
 
     <div id="run-footer">
@@ -1499,6 +1554,19 @@
   </div>
 </div>
 
+<div id="pw-modal" role="dialog" aria-modal="true" aria-label="Change password">
+  <div class="modal-card">
+    <h2>Change password</h2>
+    <div class="field"><label for="pw-current">Current password</label><input id="pw-current" type="password" autocomplete="current-password"></div>
+    <div class="field"><label for="pw-new">New password</label><input id="pw-new" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>
+    <div id="pw-err" role="alert"></div>
+    <div class="row">
+      <button class="btn btn-ghost" id="pw-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="pw-save" type="button">Change password</button>
+    </div>
+  </div>
+</div>
+
 <div id="import-modal" role="dialog" aria-modal="true" aria-label="Import parcels">
   <div class="modal-card">
     <div class="panel-head">
@@ -1518,12 +1586,14 @@
   </div>
 </div>
 
+<script>window.REQUIRE_LOGIN = true;</script>
 <script src="/static/js/maps-loader.js"></script>
 <script src="/static/js/common.js"></script>
 <script src="/static/js/import.js"></script>
 <script src="/static/js/overview.js"></script>
 <script src="/static/js/parcel-detail.js"></script>
 <script src="/static/js/reports.js"></script>
+<script src="/static/js/users.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>
