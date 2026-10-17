@@ -884,9 +884,26 @@
         </button>
         <button id="btn-clear-delivered" class="link-danger" type="button">Clear delivered</button>
       </h2>
-      <div id="depot-chip" style="margin-top:10px" title="Depot — every delivery run starts here. Click to move it on the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
+      <div id="depot-chip" style="margin-top:10px" title="Depot — every delivery run starts here. Click to change it: search a place or click the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
         <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/></svg>
         <span id="depot-label">…</span><span id="depot-action"> · edit</span>
+      </div>
+      <div id="depot-form" class="form-card" style="display:none; margin-top:8px">
+        <div class="field">
+          <label for="df-depot-search">Start point (depot)</label>
+          <input id="df-depot-search" class="search-input" style="margin:0" placeholder="Search a place, e.g. Colombo Harbour, press Enter"
+                 autocomplete="off" aria-describedby="df-depot-err">
+          <div class="field-err" id="df-depot-err" role="alert" hidden></div>
+        </div>
+        <div class="field">
+          <label for="df-depot-name">Name shown on routes</label>
+          <input id="df-depot-name" class="search-input" style="margin:0" autocomplete="off" maxlength="80">
+        </div>
+        <div class="muted" id="df-depot-coords" style="font-size:var(--fs-sm)"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end">
+          <button type="button" id="df-depot-cancel" class="link-action">Cancel</button>
+          <button type="button" id="df-depot-save" class="dispatch-btn">Save start point</button>
+        </div>
       </div>
 
       <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">

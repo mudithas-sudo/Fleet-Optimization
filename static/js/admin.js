@@ -122,6 +122,7 @@ async function init() {
   $("btn-close-picker").onclick = () => { $("run-picker").style.display = "none"; };
   $("btn-create-run").onclick = createRun;
   setupImport();
+  setupDepotForm();
 
   // fleet tab
   $("btn-clear-all").onclick = clearAllTrips;
@@ -167,15 +168,10 @@ function switchTab(tab) {
 
 function onMapClick(lat, lng) {
   if (depotEditing) {
-    depotEditing = false;
-    $("depot-chip").setAttribute("aria-pressed", "false");
-    $("depot-label").textContent = "saving…";
-    $("depot-action").textContent = "";
-    depot = { lat, lng, label: depot?.label || "Depot" };
+    setDepotDraft({ lat, lng, label: $("df-depot-name").value.trim() || "Dropped pin" });
     api("/api/revgeocode?lat=" + lat + "&lng=" + lng).then(r => {
-      if (r.label) depot.label = r.label;
-      saveDepot();
-    }).catch(saveDepot);
+      if (r.label) setDepotDraft({ lat, lng, label: r.label });
+    }).catch(() => {});
     return;
   }
   if (activeTab === "parcels" && $("parcel-form").style.display !== "none") {
@@ -190,10 +186,36 @@ function onMapClick(lat, lng) {
 }
 
 // ---------------- depot ----------------
+// The admin-defined start point every delivery run begins from. Edits are a
+// draft (search / map click / name) until "Save start point".
+
+let depotMarker = null;
+let depotDraft = null;
 
 async function loadDepot() {
   depot = await api("/api/settings/depot");
   $("depot-label").textContent = depot.label;
+  drawDepotMarker(depot);
+}
+
+function drawDepotMarker(d) {
+  try {
+    if (depotMarker) depotMarker.setMap(null);
+    depotMarker = d ? stopMarker(map, d, 0, 1, "depot") : null;
+  } catch (e) { console.warn("depot marker failed", e); }
+}
+
+function setDepotDraft(d) {
+  depotDraft = d;
+  $("df-depot-name").value = d.label;
+  $("df-depot-coords").textContent = `${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`;
+  drawDepotMarker(d);
+}
+
+function depotErr(msg) {
+  const el = $("df-depot-err");
+  el.textContent = msg;
+  el.hidden = !msg;
 }
 
 function toggleDepotEdit() {
@@ -203,27 +225,65 @@ function toggleDepotEdit() {
 function startDepotEdit() {
   depotEditing = true;
   $("depot-chip").setAttribute("aria-pressed", "true");
-  $("depot-label").textContent = "click the map to move the depot";
   $("depot-action").textContent = " · cancel";
+  $("depot-form").style.display = "flex";
+  depotErr("");
+  setDepotDraft({ ...depot });
+  $("df-depot-search").focus();
+}
+
+function closeDepotForm() {
+  depotEditing = false;
+  depotDraft = null;
+  $("depot-chip").setAttribute("aria-pressed", "false");
+  $("depot-action").textContent = " · edit";
+  $("depot-form").style.display = "none";
+  $("depot-label").textContent = depot.label;
 }
 
 function cancelDepotEdit() {
-  depotEditing = false;
-  $("depot-chip").setAttribute("aria-pressed", "false");
-  $("depot-label").textContent = depot.label;
-  $("depot-action").textContent = " · edit";
+  closeDepotForm();
+  drawDepotMarker(depot);
 }
 
 async function saveDepot() {
-  depotEditing = false;
-  $("depot-chip").setAttribute("aria-pressed", "false");
+  const name = $("df-depot-name").value.trim();
+  if (!depotDraft) return;
+  if (!name) { depotErr("Give the start point a name."); return; }
+  const next = { lat: depotDraft.lat, lng: depotDraft.lng, label: name };
   try {
-    await api("/api/settings/depot", { method: "PUT", body: JSON.stringify(depot) });
+    await api("/api/settings/depot", { method: "PUT", body: JSON.stringify(next) });
   } catch (err) {
-    alert("Couldn't save the depot: " + err.message);
+    depotErr("Couldn’t save the start point: " + err.message);
+    return;
   }
-  $("depot-label").textContent = depot.label;
-  $("depot-action").textContent = " · edit";
+  depot = next;
+  closeDepotForm();
+  drawDepotMarker(depot);
+}
+
+function setupDepotForm() {
+  $("df-depot-save").onclick = saveDepot;
+  $("df-depot-cancel").onclick = cancelDepotEdit;
+  $("df-depot-search").addEventListener("keydown", async e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const input = $("df-depot-search");
+    const q = input.value.trim();
+    if (!q) return;
+    input.classList.add("busy");
+    depotErr("");
+    try {
+      const r = await api(`/api/geocode?q=${encodeURIComponent(q)}`);
+      setDepotDraft(r);
+      try { map.panTo({ lat: r.lat, lng: r.lng }); } catch (_) {}
+      input.value = "";
+    } catch (_) {
+      depotErr(`Couldn’t find “${q}”. Try a more specific name, or click the map.`);
+    } finally {
+      input.classList.remove("busy");
+    }
+  });
 }
 
 // ---------------- parcels ----------------
