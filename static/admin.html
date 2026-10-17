@@ -944,10 +944,11 @@
     <section id="tab-parcels" role="tabpanel" aria-labelledby="tab-btn-parcels">
       <h2>Parcels
         <span class="spacer"></span>
-        <button id="btn-auto" class="dispatch-btn" type="button" title="AI groups your pending (or selected) parcels into delivery runs and assigns a driver to each — you review before anything is created">
+        <button id="btn-auto" class="dispatch-btn" type="button" title="Packs your pending (or selected) parcels onto the fewest vehicles that can carry them and builds a run for each — you review before anything is created">
           <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 12h5M9 12c4 0 4-6 9-6M9 12c4 0 4 6 9 6M9 12h9"/><path d="M17 4l3 2-3 2M17 14l3 2-3 2"/></svg>
           Suggest runs
         </button>
+        <button id="btn-auto-ai" class="link-action" type="button" title="Ask the Gemini dispatch agent for a plan instead (needs a Gemini key)">AI plan</button>
         <button id="btn-import" class="link-action" type="button">
           <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
           Import
@@ -1002,6 +1003,13 @@
           <div class="field-err" id="pf-dest-err" role="alert" hidden></div>
         </div>
 
+        <div class="form-grid">
+          <div class="field"><label for="pf-tracking">Tracking number <span class="opt">(optional)</span></label>
+            <input id="pf-tracking" placeholder="Generated if blank" autocomplete="off" maxlength="40"></div>
+          <div class="field"><label for="pf-receiver">Receiver name <span class="opt">(optional)</span></label>
+            <input id="pf-receiver" placeholder="e.g. A. Perera" autocomplete="off" maxlength="80"></div>
+        </div>
+
         <div class="field"><label id="pf-size-label">Size <span class="req">(required)</span></label>
           <div class="seg" id="pf-size" role="group" aria-labelledby="pf-size-label">
             <button type="button" data-s="small" class="active" aria-pressed="true">Small</button>
@@ -1023,6 +1031,14 @@
                      placeholder="0.0" aria-describedby="pf-weight-err"></div>
           </div>
           <div class="field-err" id="pf-weight-err" role="alert" hidden></div>
+          <div class="field"><label id="pf-dim-label">Package size · cm <span class="opt">(optional)</span></label>
+            <div class="form-grid" style="grid-template-columns:repeat(3,1fr)" role="group" aria-labelledby="pf-dim-label">
+              <input id="pf-dim-l" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Length" aria-label="Length in cm">
+              <input id="pf-dim-w" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Width" aria-label="Width in cm">
+              <input id="pf-dim-h" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Height" aria-label="Height in cm">
+            </div>
+            <div class="field-err" id="pf-dim-err" role="alert" hidden></div>
+          </div>
           <div class="field"><label for="pf-phone">Recipient phone <span class="opt">(optional)</span></label>
             <input id="pf-phone" type="tel" placeholder="+94 77 123 4567" autocomplete="off"
                    aria-describedby="pf-phone-err">
@@ -1108,6 +1124,14 @@
             </select>
           </div>
         </div>
+        <div class="field"><label id="vf-cargo-label">Cargo space · cm (length, width, height)</label>
+          <div class="form-grid" style="grid-template-columns:repeat(3,1fr)" role="group" aria-labelledby="vf-cargo-label">
+            <input id="vf-cargo-l" type="number" min="1" inputmode="decimal" placeholder="Length" aria-label="Cargo length in cm">
+            <input id="vf-cargo-w" type="number" min="1" inputmode="decimal" placeholder="Width" aria-label="Cargo width in cm">
+            <input id="vf-cargo-h" type="number" min="1" inputmode="decimal" placeholder="Height" aria-label="Cargo height in cm">
+          </div>
+        </div>
+        <div class="field"><label for="vf-payload">Max payload · kg</label><input id="vf-payload" type="number" min="1" inputmode="decimal"></div>
         <div class="row">
           <button class="btn btn-ghost" id="vf-cancel" type="button">Cancel</button>
           <button class="btn btn-primary" id="vf-save" type="button">Add vehicle</button>
@@ -1168,6 +1192,7 @@
       <div id="briefing"></div>
       <div id="driver-link"><a id="driver-url" target="_blank" rel="noopener"></a><button id="btn-copy" type="button">Copy link</button></div>
       <div class="row">
+        <a id="btn-runsheet" class="btn btn-ghost" target="_blank" rel="noopener" style="text-decoration:none">Run sheet</a>
         <button id="btn-delete" class="btn btn-ghost danger" type="button">Delete run</button>
       </div>
       <h2>Alerts</h2>
@@ -1217,8 +1242,10 @@
         <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
-    <p class="hint">CSV or Excel with columns: <b>name, type, size, destination, deadline</b>.
-      Sizes: small/medium/large. Destination is free text (geocoded). Deadline: <b>YYYY-MM-DD HH:MM</b>.</p>
+    <p class="hint">CSV or Excel, one row per parcel. Needs a <b>destination</b> (address, geocoded) and a
+      <b>name</b> or <b>tracking number</b>. Optional: <b>tracking number, receiver, phone, size</b> (small/medium/large),
+      <b>weight kg, length, width, height</b> (cm), <b>fragile, type, notes, deadline</b> (YYYY-MM-DD HH:MM).
+      Size is worked out from the dimensions when left blank.</p>
     <input type="file" id="import-file" accept=".csv,.xlsx,.xls" aria-label="Choose a CSV or Excel file">
     <div id="import-progress" class="hint" aria-live="polite"></div>
     <div id="import-preview"></div>

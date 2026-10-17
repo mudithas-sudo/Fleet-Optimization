@@ -40,6 +40,11 @@ let pfMapTarget = "dest";  // which field a map click fills: "dest" | "pickup"
 // datetime-local string -> epoch seconds (or null)
 const toEpoch = v => (v ? new Date(v).getTime() / 1000 : null);
 let depotEditing = false;
+// cargo space L, W, H (cm) + payload (kg) per vehicle type — mirrors CARGO_DEFAULTS in delivery.py
+const CARGO_DEFAULTS = {
+  bike: [40, 30, 30, 10], car: [100, 50, 45, 200],
+  van: [300, 170, 130, 1000], truck: [500, 200, 200, 5000],
+};
 
 // picker state
 let pickerDriverId = null;
@@ -115,7 +120,8 @@ async function init() {
   $("pf-phone").addEventListener("blur", validatePhoneField);
   $("depot-chip").onclick = toggleDepotEdit;
   $("btn-plan-run").onclick = openPicker;
-  $("btn-auto").onclick = autoAssign;
+  $("btn-auto").onclick = () => autoAssign("rules");
+  $("btn-auto-ai").onclick = () => autoAssign("ai");
   $("btn-close-dispatch").onclick = closeDispatch;
   $("btn-dispatch-discard").onclick = closeDispatch;
   $("btn-dispatch-approve").onclick = approveDispatch;
@@ -143,6 +149,9 @@ async function init() {
       const d = { bike: ["small", 2], car: ["medium", 4], van: ["large", 8], truck: ["large", 20] }[b.dataset.t];
       $("vf-maxsize").value = d[0];
       $("vf-capacity").value = d[1];
+      const c = CARGO_DEFAULTS[b.dataset.t];
+      $("vf-cargo-l").value = c[0]; $("vf-cargo-w").value = c[1]; $("vf-cargo-h").value = c[2];
+      $("vf-payload").value = c[3];
     };
   });
   $("btn-add-driver").onclick = () => { renderDriverVehicleSelect(); $("driver-form").style.display = "flex"; };
@@ -342,7 +351,11 @@ function parcelRow(p) {
   const where = p.pickup && p.status !== "awaiting_redelivery"
     ? `Collect · ${p.pickup.label} → ${p.destination.label}`
     : p.destination.label;
+  const dims = p.dimensionsCm ? `${p.dimensionsCm.l}×${p.dimensionsCm.w}×${p.dimensionsCm.h} cm` : "";
   const extra = [
+    p.trackingNumber || "",
+    p.receiverName || "",
+    dims,
     p.weightKg ? `${(+p.weightKg).toLocaleString()} kg` : "",
     p.recipientPhone || "",
   ].filter(Boolean).join(" · ");
@@ -426,7 +439,7 @@ function pfErr(id, msg) {
   if (input && input.tagName !== "DIV") input.classList.toggle("invalid", !!msg);
 }
 
-const PF_ERR_IDS = ["pf-name-err", "pf-dest-err", "pf-weight-err", "pf-phone-err",
+const PF_ERR_IDS = ["pf-name-err", "pf-dest-err", "pf-weight-err", "pf-dim-err", "pf-phone-err",
   "pf-pickup-err", "pf-pickup-win-err", "pf-form-err"];
 
 function pfClearErrors() { PF_ERR_IDS.forEach(id => pfErr(id, "")); }
@@ -449,9 +462,23 @@ function validatePhoneField() {
   return true;
 }
 
+// package size: blank, or all three edges positive
+function readDimensions() {
+  const vals = ["l", "w", "h"].map(k => $(`pf-dim-${k}`).value.trim());
+  if (vals.every(v => !v)) return { dims: null, ok: true };
+  const nums = vals.map(Number);
+  if (vals.some(v => !v) || nums.some(n => !isFinite(n) || n <= 0 || n > 1000)) {
+    pfErr("pf-dim-err", "Give length, width and height (cm), or leave all three blank.");
+    return { dims: null, ok: false };
+  }
+  pfErr("pf-dim-err", "");
+  return { dims: { l: nums[0], w: nums[1], h: nums[2] }, ok: true };
+}
+
 function validateParcelForm() {
   pfClearErrors();
   let ok = true;
+  if (!readDimensions().ok) ok = false;
   if (!$("pf-name").value.trim()) { pfErr("pf-name-err", "Give the parcel a name."); ok = false; }
   if (!pfDest) { pfErr("pf-dest-err", "Search a place or use “Pin on map”."); ok = false; }
   if (!validateWeightField()) ok = false;
@@ -506,7 +533,8 @@ function toggleParcelForm(show) {
     b.classList.toggle("active", on);
     b.setAttribute("aria-pressed", String(on));
   });
-  ["pf-name", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
+  ["pf-name", "pf-tracking", "pf-receiver", "pf-dim-l", "pf-dim-w", "pf-dim-h",
+    "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
     "pf-deadline", "pf-pickup", "pf-pickup-from", "pf-pickup-until"].forEach(id => { $(id).value = ""; });
   $("pf-fragile").checked = false;
   $("pf-dest-label").textContent = "No destination set";
@@ -625,12 +653,16 @@ async function saveParcel() {
     };
   }
   const weight = $("pf-weight").value.trim();
+  const { dims } = readDimensions();
 
   try {
     const parcel = await api("/api/parcels", {
       method: "POST",
       body: JSON.stringify({
         name: $("pf-name").value.trim(),
+        trackingNumber: $("pf-tracking").value.trim() || null,
+        receiverName: $("pf-receiver").value.trim() || null,
+        dimensionsCm: dims,
         type: $("pf-type").value.trim() || "general",
         size: pfSize,
         destination: pfDest,
@@ -681,18 +713,32 @@ async function previewImport() {
   }
   importRows = [];
   const out = [];
+  const seenTracking = new Set();
   for (let i = 0; i < raw.length; i++) {
     const r = raw[i];
     $("import-progress").textContent = `Geocoding ${i + 1}/${raw.length}…`;
-    const row = { ...r, error: null, destinationResolved: null };
-    if (!r.name) row.error = "missing name";
-    else if (!SIZES_OK(r.size)) row.error = "size must be small/medium/large";
-    else if (parseDeadline(r.deadline) === null) row.error = "bad deadline";
+    const row = { ...r, error: null, destinationResolved: null, dims: null };
+    const edges = [r.length, r.width, r.height];
+    if (edges.some(Boolean)) {
+      const n = edges.map(Number);
+      if (n.every(x => x > 0 && x <= 1000)) row.dims = { l: n[0], w: n[1], h: n[2] };
+      else row.error = "dimensions need length, width and height (cm)";
+    }
+    row.sizeResolved = (r.size || "").toLowerCase() ||
+      (row.dims ? sizeFromDimensions(row.dims.l, row.dims.w, row.dims.h) : "");
+    const dupe = r.trackingNumber && seenTracking.has(r.trackingNumber.toLowerCase());
+    if (r.trackingNumber) seenTracking.add(r.trackingNumber.toLowerCase());
+    if (row.error) { /* dimension error above */ }
+    else if (!r.name && !r.trackingNumber) row.error = "needs a name or tracking number";
+    else if (dupe) row.error = "duplicate tracking number in this file";
+    else if (!r.destination) row.error = "missing destination address";
+    else if (!SIZES_OK(row.sizeResolved)) row.error = "size must be small/medium/large (or give dimensions)";
+    else if (r.deadline && parseDeadline(r.deadline) === null) row.error = "bad deadline";
     else {
       try {
         row.destinationResolved = await api(`/api/geocode?q=${encodeURIComponent(r.destination)}`);
       } catch (_) {
-        row.error = "destination not found";
+        row.error = "address not found";
       }
     }
     out.push(row);
@@ -702,11 +748,11 @@ async function previewImport() {
   $("import-progress").textContent =
     `${ok} of ${out.length} rows ready` + (ok < out.length ? " — rows with errors are skipped" : "");
   $("import-preview").innerHTML = `<table>
-    <tr><th>Name</th><th>Size</th><th>Destination</th><th>Deadline</th><th></th></tr>
+    <tr><th>Tracking no.</th><th>Parcel</th><th>Receiver</th><th>Size</th><th>Address</th><th></th></tr>
     ${out.map(r => `<tr>
-      <td>${r.name || "—"}</td><td>${r.size}</td>
+      <td>${r.trackingNumber || "auto"}</td><td>${r.name || "—"}</td><td>${r.receiverName || "—"}</td>
+      <td>${r.sizeResolved || "—"}${r.dims ? ` · ${r.dims.l}×${r.dims.w}×${r.dims.h}` : ""}${r.weightKg ? ` · ${r.weightKg} kg` : ""}</td>
       <td>${r.destinationResolved ? r.destinationResolved.label : r.destination}</td>
-      <td>${r.deadline}</td>
       <td class="${r.error ? "row-err" : "row-ok"}">${r.error || "ready"}</td>
     </tr>`).join("")}
   </table>`;
@@ -720,16 +766,24 @@ $("btn-do-import") && ($("btn-do-import").onclick = async () => {
   const good = importRows.filter(r => !r.error);
   const body = {
     parcels: good.map(r => ({
-      name: r.name,
+      name: r.name || r.trackingNumber,
+      trackingNumber: r.trackingNumber || null,
+      receiverName: r.receiverName || null,
+      recipientPhone: r.recipientPhone || null,
       type: r.type || "general",
-      size: r.size.toLowerCase(),
+      size: r.sizeResolved,
+      dimensionsCm: r.dims,
+      weightKg: r.weightKg && Number(r.weightKg) > 0 ? Number(r.weightKg) : null,
+      fragile: parseFlag(r.fragile),
+      notes: r.notes || null,
       destination: r.destinationResolved,
-      deadline: parseDeadline(r.deadline),
+      deadline: parseDeadline(r.deadline) ?? Date.now() / 1000 + 4 * 3600,
     })),
   };
   const res = await api("/api/parcels/bulk", { method: "POST", body: JSON.stringify(body) });
   $("import-modal").style.display = "none";
-  if (res.errors.length) alert(`${res.errors.length} rows were rejected by the server.`);
+  if (res.errors.length) alert(`${res.errors.length} rows were rejected by the server:\n` +
+    res.errors.slice(0, 5).map(e => `row ${e.index + 1}: ${e.message}`).join("\n"));
 });
 
 // ---------------- run creation ----------------
@@ -737,13 +791,25 @@ $("btn-do-import") && ($("btn-do-import").onclick = async () => {
 function openPicker() {
   pickerDriverId = null;
   $("picker-count").textContent = selectedParcels.size;
+  pickerReasons = {};
   renderPickerDrivers();
+  openPickerReasons();
   $("run-picker").style.display = "flex";
   $("trip-detail").style.display = "none";
 }
 
+let pickerReasons = {};   // driverId -> reason the vehicle can't take the selection (server-checked)
+
+async function openPickerReasons() {
+  try {
+    pickerReasons = await api("/api/runs/eligibility", {
+      method: "POST", body: JSON.stringify({ parcelIds: [...selectedParcels] }),
+    });
+  } catch (_) { pickerReasons = {}; }
+  renderPickerDrivers();
+}
+
 function renderPickerDrivers() {
-  const sel = [...selectedParcels].map(id => parcels[id]);
   const wrap = $("picker-drivers");
   wrap.innerHTML = "";
   if (!driversReg.length) {
@@ -752,14 +818,7 @@ function renderPickerDrivers() {
   }
   driversReg.forEach(d => {
     const v = vehiclesReg.find(x => x.id === d.vehicleId);
-    let reason = null;
-    if (!v) reason = "no vehicle assigned";
-    else {
-      if (sel.length > v.capacity) reason = `capacity ${v.capacity} < ${sel.length} parcels`;
-      const order = { small: 0, medium: 1, large: 2 };
-      const over = sel.find(p => order[p.size] > order[v.maxParcelSize]);
-      if (!reason && over) reason = `max size ${v.maxParcelSize} < ${over.size} (${over.name})`;
-    }
+    const reason = !v ? "no vehicle assigned" : (pickerReasons[d.id] || null);
     const busy = Object.values(trips).some(t => t.driverId === d.id && LIVE.includes(t.status));
     const card = document.createElement("button");
     card.type = "button";
@@ -770,7 +829,8 @@ function renderPickerDrivers() {
       <span class="veh-ico">${v ? vehIconSvg(v.type) : iconSvg("help")}</span>
       <div class="info">
         <div class="label">${d.name}</div>
-        <div class="meta">${v ? `${v.name} · ${v.plate} · cap ${v.capacity} · max ${v.maxParcelSize}` : "no vehicle"}</div>
+        <div class="meta">${v ? `${v.name} · ${v.plate} · cap ${v.capacity} · max ${v.maxParcelSize}${
+          v.maxPayloadKg ? ` · ${(+v.maxPayloadKg).toLocaleString()} kg` : ""}` : "no vehicle"}</div>
         ${reason ? `<div class="reason">${iconSvg("alert")} ${reason}</div>` : ""}
       </div>
       ${busy ? `<span class="busy-chip">en route</span>` : ""}`;
@@ -811,7 +871,7 @@ async function createRun() {
 
 let dispatchPlan = null;
 
-async function autoAssign() {
+async function autoAssign(engine = "rules") {
   const pending = Object.values(parcels).filter(p => p.status === "pending");
   if (!pending.length) return alert("No pending parcels to assign.");
   if (!driversReg.length) return alert("Add drivers in the Registry tab first.");
@@ -823,10 +883,11 @@ async function autoAssign() {
   $("dispatch-actions").style.display = "none";
   $("dispatch-body").innerHTML = `<div class="working"><span class="spinner"></span>
     <span>Grouping ${scope ? scope.length + " selected" : "your pending"} parcels into runs —
-    checking fleet eligibility, routes and deadlines. This can take up to a minute…</span></div>`;
+    ${engine === "ai" ? "checking fleet eligibility, routes and deadlines. This can take up to a minute…"
+                      : "fitting them onto as few vehicles as possible…"}</span></div>`;
   try {
     dispatchPlan = await api("/api/dispatch/propose", {
-      method: "POST", body: JSON.stringify({ parcelIds: scope }),
+      method: "POST", body: JSON.stringify({ parcelIds: scope, engine }),
     });
     renderDispatch();
   } catch (err) {
@@ -926,7 +987,9 @@ function renderRegistry() {
       <span class="veh-ico">${vehIconSvg(v.type)}</span>
       <div class="info">
         <div class="label">${v.name} · ${v.plate || "—"}</div>
-        <div class="meta">${v.type} · capacity ${v.capacity} · max size ${v.maxParcelSize}</div>
+        <div class="meta">${v.type} · ${v.capacity} parcels · max ${v.maxParcelSize}${
+          v.cargoCm ? ` · cargo ${v.cargoCm.l}×${v.cargoCm.w}×${v.cargoCm.h} cm` : ""}${
+          v.maxPayloadKg ? ` · ${(+v.maxPayloadKg).toLocaleString()} kg` : ""}</div>
       </div>
       <button class="del" type="button" aria-label="Delete vehicle ${v.name}">${iconSvg("trash")}</button>`;
     row.querySelector(".del").onclick = async () => {
@@ -964,6 +1027,8 @@ function renderRegistry() {
 
 async function saveVehicle() {
   const type = document.querySelector("#vf-type button.active").dataset.t;
+  const edges = ["l", "w", "h"].map(k => Number($(`vf-cargo-${k}`).value));
+  const cargo = edges.every(n => n > 0) ? { l: edges[0], w: edges[1], h: edges[2] } : null;
   try {
     await api("/api/vehicles", {
       method: "POST",
@@ -973,6 +1038,8 @@ async function saveVehicle() {
         type,
         capacity: Number($("vf-capacity").value) || null,
         maxParcelSize: $("vf-maxsize").value,
+        cargoCm: cargo,
+        maxPayloadKg: Number($("vf-payload").value) || null,
       }),
     });
     $("vehicle-form").style.display = "none";
@@ -1149,6 +1216,7 @@ function renderDetail() {
   const url = detail.driverId
     ? `${location.origin}/static/driver.html?driver=${detail.driverId}`
     : `${location.origin}/static/driver.html?trip=${detail.id}`;
+  $("btn-runsheet").href = `/static/runsheet.html?trip=${encodeURIComponent(detail.id)}`;
   const link = $("driver-url");
   link.href = url;
   link.textContent = url;

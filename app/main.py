@@ -136,8 +136,17 @@ class Pickup(BaseModel):
     latest: float | None = None     # epoch secs — collect no later than
 
 
+class Dims(BaseModel):
+    l: float     # cm
+    w: float
+    h: float
+
+
 class ParcelIn(BaseModel):
     name: str
+    trackingNumber: str | None = None   # blank → generated (FO-XXXXXXXX)
+    receiverName: str | None = None
+    dimensionsCm: Dims | None = None    # optional — package L×W×H in cm
     type: str = "general"
     size: str
     destination: Stop
@@ -159,6 +168,8 @@ class VehicleIn(BaseModel):
     type: str = "car"
     capacity: int | None = None
     maxParcelSize: str | None = None
+    cargoCm: Dims | None = None         # cargo space L×W×H in cm (type default if blank)
+    maxPayloadKg: float | None = None   # payload limit (type default if blank)
 
 
 class DriverIn(BaseModel):
@@ -174,11 +185,25 @@ def _entity_or_404(table: str, entity_id: str) -> dict:
     return obj
 
 
-def _validate_parcel(p: ParcelIn):
+def _validate_parcel(p: ParcelIn, exclude_id: str | None = None):
     if p.size not in delivery.SIZE_ORDER:
         raise HTTPException(400, f"size must be one of {delivery.SIZES}")
     if p.weightKg is not None and (p.weightKg <= 0 or p.weightKg > 2000):
         raise HTTPException(400, "weightKg must be between 0 and 2000")
+    if p.dimensionsCm and not all(0 < v <= 1000 for v in
+                                  (p.dimensionsCm.l, p.dimensionsCm.w, p.dimensionsCm.h)):
+        raise HTTPException(400, "Package dimensions must be between 0 and 1000 cm")
+    tn = (p.trackingNumber or "").strip()
+    if tn and any(x["trackingNumber"].lower() == tn.lower() and x["id"] != exclude_id
+                  for x in db.all_entities("parcels") if x.get("trackingNumber")):
+        raise HTTPException(409, f"Tracking number {tn} already exists")
+
+
+def _validate_vehicle(v: VehicleIn):
+    if v.cargoCm and not all(0 < x <= 2000 for x in (v.cargoCm.l, v.cargoCm.w, v.cargoCm.h)):
+        raise HTTPException(400, "Cargo dimensions must be between 0 and 2000 cm")
+    if v.maxPayloadKg is not None and v.maxPayloadKg <= 0:
+        raise HTTPException(400, "maxPayloadKg must be positive")
 
 
 @app.get("/api/parcels")
@@ -199,7 +224,7 @@ async def bulk_parcels(req: BulkParcels):
     created, errors = [], []
     for i, p in enumerate(req.parcels):
         try:
-            _validate_parcel(p)
+            _validate_parcel(p)   # also catches duplicates of earlier rows, which are saved first
             parcel = delivery.new_parcel(p.model_dump())
             store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
             created.append(parcel)
@@ -213,8 +238,11 @@ async def edit_parcel(parcel_id: str, p: ParcelIn):
     parcel = _entity_or_404("parcels", parcel_id)
     if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
         raise HTTPException(409, "This parcel is on a run — it can't be edited.")
-    _validate_parcel(p)
-    parcel.update(p.model_dump())
+    _validate_parcel(p, exclude_id=parcel_id)
+    data = p.model_dump()
+    if not (data.get("trackingNumber") or "").strip():
+        data["trackingNumber"] = parcel.get("trackingNumber")   # blank keeps the existing one
+    parcel.update(data)
     parcel["deadlineMissed"] = False
     db.save_entity("parcels", parcel)
     store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
@@ -238,6 +266,7 @@ async def list_vehicles():
 
 @app.post("/api/vehicles")
 async def add_vehicle(v: VehicleIn):
+    _validate_vehicle(v)
     return delivery.new_vehicle(v.model_dump())
 
 
@@ -246,6 +275,7 @@ async def edit_vehicle(vehicle_id: str, v: VehicleIn):
     vehicle = _entity_or_404("vehicles", vehicle_id)
     if delivery.entity_in_use("vehicles", vehicle_id):
         raise HTTPException(409, "Vehicle is on a delivery run — end it first.")
+    _validate_vehicle(v)
     vehicle.update({k: val for k, val in v.model_dump().items() if val is not None})
     db.save_entity("vehicles", vehicle)
     return vehicle
@@ -314,6 +344,11 @@ class RunRequest(BaseModel):
 
 class ProposeRequest(BaseModel):
     parcelIds: list[str] | None = None
+    engine: str = "rules"      # "rules" (deterministic, fewest vehicles) | "ai" (Gemini agent)
+
+
+class EligibilityRequest(BaseModel):
+    parcelIds: list[str]
 
 
 class ApproveBatch(BaseModel):
@@ -328,11 +363,28 @@ class ApproveRequest(BaseModel):
 
 @app.post("/api/dispatch/propose")
 async def dispatch_propose(req: ProposeRequest):
-    from .dispatcher.service import propose_dispatch
     try:
-        return await propose_dispatch(req.parcelIds or None)
+        if req.engine == "ai":
+            from .dispatcher.service import propose_dispatch
+            plan = await propose_dispatch(req.parcelIds or None)
+            plan["engine"] = "ai"
+            return plan
+        from .dispatcher.rules import propose_by_rules
+        return propose_by_rules(req.parcelIds or None)
     except RuntimeError as e:
-        raise HTTPException(502, str(e))
+        raise HTTPException(502 if req.engine == "ai" else 409, str(e))
+
+
+@app.post("/api/runs/eligibility")
+async def run_eligibility(req: EligibilityRequest):
+    """Per driver: can their vehicle take this parcel set? (reason if not)"""
+    parcels = [_entity_or_404("parcels", pid) for pid in req.parcelIds]
+    out = {}
+    for d in db.all_entities("drivers"):
+        v = db.load_entity("vehicles", d.get("vehicleId") or "")
+        out[d["id"]] = ("no vehicle assigned" if not v
+                        else delivery.check_eligibility(v, parcels))
+    return out
 
 
 @app.post("/api/dispatch/approve")

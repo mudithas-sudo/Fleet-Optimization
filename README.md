@@ -19,6 +19,26 @@ server-side (hallucinated ids, double assignments and eligibility violations
 are stripped) and executed only on admin approval. `DISPATCH_MODEL` env
 selects its model (gemini-3.5-flash recommended).
 
+### Daily-operations features
+
+- **Manifest import** — CSV/Excel with tracking number, receiver name/phone,
+  destination address (geocoded), size or package dimensions (cm), weight,
+  fragile, notes and deadline. Column headers are matched by common aliases;
+  duplicate tracking numbers are rejected; size is derived from dimensions when
+  blank. Blank tracking numbers on manual adds are generated (`FO-XXXXXXXX`).
+- **Capacity** — vehicles carry a cargo space (L×W×H cm) and payload (kg) on top
+  of parcel count and max size class; parcels carry optional dimensions and
+  weight. Eligibility checks fit (any orientation), total weight and total
+  volume (85% packing efficiency). Parcels no vehicle can carry are flagged
+  *unassigned* with the reason.
+- **Suggest runs** — deterministic and key-free: parcels are swept by bearing
+  around the hub and packed onto the largest free vehicles first, so the fewest
+  vehicles are used; each run is then routed from the hub. **AI plan** still
+  calls the Gemini dispatch agent (`engine: "ai"`).
+- **Run sheet** — `static/runsheet.html?trip=<id>` (linked from the run detail
+  card) is a printable back-office sheet: driver, vehicle, ordered stops with
+  tracking numbers, receivers, addresses, package details, ETAs and status.
+
 Built on the fleet-tracking prototype demonstrating
 **Google ADK + Google Maps Platform**:
 

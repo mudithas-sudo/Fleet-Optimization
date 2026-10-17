@@ -21,6 +21,16 @@ VEHICLE_DEFAULTS = {
     "truck": {"maxParcelSize": "large", "capacity": 20},
 }
 
+# cargo-space defaults per vehicle type: interior L×W×H in cm + payload in kg
+CARGO_DEFAULTS = {
+    "bike": {"cargoCm": {"l": 40, "w": 30, "h": 30}, "maxPayloadKg": 10},
+    "car": {"cargoCm": {"l": 100, "w": 50, "h": 45}, "maxPayloadKg": 200},
+    "van": {"cargoCm": {"l": 300, "w": 170, "h": 130}, "maxPayloadKg": 1000},
+    "truck": {"cargoCm": {"l": 500, "w": 200, "h": 200}, "maxPayloadKg": 5000},
+}
+# share of the cargo volume parcels can realistically fill (packing gaps)
+PACKING_EFFICIENCY = 0.85
+
 # a parcel committed to a run (can't be edited/deleted or picked for a new run)
 PARCEL_ACTIVE_STATUSES = ("assigned", "in_transit", "picked_up")
 # a parcel that can be selected for a (new) run
@@ -40,8 +50,12 @@ def new_parcel(data: dict) -> dict:
     parcel = {
         "id": _new_id("p"),
         "name": data["name"],
+        "trackingNumber": ((data.get("trackingNumber") or "").strip()
+                           or f"FO-{uuid.uuid4().hex[:8].upper()}"),
+        "receiverName": (data.get("receiverName") or "").strip() or None,
         "type": data.get("type", "general"),
         "size": data["size"],
+        "dimensionsCm": data.get("dimensionsCm"),   # {l,w,h} cm or None
         "destination": data["destination"],
         "pickup": data.get("pickup"),      # {lat,lng,label,earliest?,latest?} or None
         "pickedUpAt": None,
@@ -62,6 +76,7 @@ def new_parcel(data: dict) -> dict:
 
 def new_vehicle(data: dict) -> dict:
     defaults = VEHICLE_DEFAULTS.get(data.get("type", "car"), VEHICLE_DEFAULTS["car"])
+    cargo = CARGO_DEFAULTS.get(data.get("type", "car"), CARGO_DEFAULTS["car"])
     vehicle = {
         "id": _new_id("v"),
         "name": data["name"],
@@ -69,6 +84,8 @@ def new_vehicle(data: dict) -> dict:
         "type": data.get("type", "car"),
         "capacity": int(data.get("capacity") or defaults["capacity"]),
         "maxParcelSize": data.get("maxParcelSize") or defaults["maxParcelSize"],
+        "cargoCm": data.get("cargoCm") or dict(cargo["cargoCm"]),
+        "maxPayloadKg": data.get("maxPayloadKg") or cargo["maxPayloadKg"],
         "createdAt": time.time(),
     }
     db.save_entity("vehicles", vehicle)
@@ -87,16 +104,71 @@ def new_driver(data: dict) -> dict:
     return driver
 
 
+def _vehicle_cargo(vehicle: dict) -> tuple[dict, float]:
+    """Cargo box + payload, falling back to the type default for vehicles
+    registered before dimensions existed."""
+    d = CARGO_DEFAULTS.get(vehicle.get("type"), CARGO_DEFAULTS["car"])
+    return (vehicle.get("cargoCm") or d["cargoCm"],
+            vehicle.get("maxPayloadKg") or d["maxPayloadKg"])
+
+
+def _volume_cm3(dims: dict) -> float:
+    return dims["l"] * dims["w"] * dims["h"]
+
+
+def fits_in_cargo(dims: dict, cargo: dict) -> bool:
+    """Can a box fit the cargo space in some orientation? Sorting both sides'
+    edges and comparing pairwise is exact for axis-aligned boxes."""
+    return all(p <= c for p, c in zip(sorted((dims["l"], dims["w"], dims["h"])),
+                                      sorted((cargo["l"], cargo["w"], cargo["h"]))))
+
+
+def parcel_unfit_reason(vehicle: dict, parcel: dict) -> str | None:
+    """Why this single parcel can never go in this vehicle (size class,
+    dimensions or weight), or None."""
+    limit = SIZE_ORDER.get(vehicle.get("maxParcelSize", "large"), 2)
+    if SIZE_ORDER.get(parcel["size"], 0) > limit:
+        return (f"max parcel size {vehicle.get('maxParcelSize')} "
+                f"< {parcel['size']} ({parcel['name']})")
+    cargo, payload = _vehicle_cargo(vehicle)
+    dims = parcel.get("dimensionsCm")
+    if dims and not fits_in_cargo(dims, cargo):
+        return (f"{parcel['name']} ({dims['l']}×{dims['w']}×{dims['h']} cm) doesn't fit "
+                f"the {cargo['l']}×{cargo['w']}×{cargo['h']} cm cargo space")
+    if parcel.get("weightKg") and parcel["weightKg"] > payload:
+        return f"{parcel['name']} ({parcel['weightKg']:g} kg) exceeds the {payload:g} kg payload"
+    return None
+
+
 def check_eligibility(vehicle: dict, parcels: list[dict]) -> str | None:
-    """None if the vehicle can take the parcel set, else a human reason."""
+    """None if the vehicle can take the parcel set, else a human reason.
+    Checks count, size class, per-parcel dimensions, total weight and total
+    volume (parcels without dimensions are skipped for volume/fit)."""
     if len(parcels) > vehicle["capacity"]:
         return f"capacity {vehicle['capacity']} < {len(parcels)} parcels"
-    limit = SIZE_ORDER.get(vehicle.get("maxParcelSize", "large"), 2)
     for p in parcels:
-        if SIZE_ORDER.get(p["size"], 0) > limit:
-            return (f"max parcel size {vehicle.get('maxParcelSize')} "
-                    f"< {p['size']} ({p['name']})")
+        reason = parcel_unfit_reason(vehicle, p)
+        if reason:
+            return reason
+    cargo, payload = _vehicle_cargo(vehicle)
+    weight = sum(p.get("weightKg") or 0 for p in parcels)
+    if weight > payload:
+        return f"total weight {weight:g} kg exceeds the {payload:g} kg payload"
+    volume = sum(_volume_cm3(p["dimensionsCm"]) for p in parcels if p.get("dimensionsCm"))
+    usable = _volume_cm3(cargo) * PACKING_EFFICIENCY
+    if volume > usable:
+        return (f"parcels need {volume / 1e6:.2f} m³ but only "
+                f"{usable / 1e6:.2f} m³ is usable in the cargo space")
     return None
+
+
+def load_fraction(vehicle: dict, parcels: list[dict]) -> float:
+    """Fullest of the count / weight / volume limits, 0–1+ (for summaries)."""
+    cargo, payload = _vehicle_cargo(vehicle)
+    vol = sum(_volume_cm3(p["dimensionsCm"]) for p in parcels if p.get("dimensionsCm"))
+    return max(len(parcels) / vehicle["capacity"],
+               sum(p.get("weightKg") or 0 for p in parcels) / payload,
+               vol / (_volume_cm3(cargo) * PACKING_EFFICIENCY))
 
 
 def entity_in_use(kind: str, entity_id: str) -> bool:
