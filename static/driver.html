@@ -5,49 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FleetOps Driver</title>
 <link rel="manifest" href="/static/manifest.json">
-<meta name="theme-color" content="#2563eb">
+<meta name="theme-color" content="#0f2e35">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
-     FleetOps Driver — navigator PWA, Swiss-minimal design system
+     FleetOps Driver — navigator PWA, Harbour-chart design system
      ============================================================ */
   :root {
     color-scheme: light;
 
-    --bg: #f1f4f9;
-    --surface: #ffffff;
-    --surface-2: #eef2f7;
-    --surface-3: #e4eaf2;
-    --border: #d5dde8;
-    --border-strong: #b7c3d4;
-    --text: #0f1b2d;
-    --text-muted: #55647a;
-    --text-subtle: #5e6b80;
+    /* surfaces & text — chart paper and harbour ink */
+    --bg: #eef1ec;
+    --surface: #fbfcfa;
+    --surface-2: #e7ece8;
+    --surface-3: #dbe3de;
+    --border: #cdd7d1;
+    --border-strong: #a9b8b0;
+    --text: #0f2e35;
+    --text-muted: #4b6268;
+    --text-subtle: #566b70;
 
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
+    /* brand */
+    --primary: #0b7f86;
+    --primary-hover: #096a70;
     --on-primary: #ffffff;
-    --primary-soft: #e8f0fe;
-    --accent: #ea580c;
-    --accent-hover: #fb6a12;
-    --on-accent: #201203;
+    --primary-soft: #dcefef;
+    --accent: #f4b400;
+    --accent-hover: #ffc42e;
+    --on-accent: #17262a;
+    --accent-soft: #fcf0c8;
+    --nav-bg: #0f2e35;
+    --nav-text: #f2f7f5;
 
-    --success: #0f7a43;
-    --warning: #8a5200;
-    --danger: #c42a17;
+    /* status */
+    --success: #2a7a4d;
+    --success-soft: #dfeee5;
+    --warning: #8a5a00;
+    --warning-soft: #f7ebcc;
+    --danger: #c0301d;
+    --danger-soft: #f9e3df;
 
-    --nav-bg: #101a2c;
-    --nav-text: #ffffff;
+    /* effects — borders carry structure; shadow is for floating layers only */
+    --focus-ring: 0 0 0 3px rgba(11, 127, 134, .4);
+    --shadow-sm: 0 1px 0 rgba(15, 46, 53, .06);
+    --shadow-md: 0 6px 18px rgba(15, 46, 53, .12);
+    --shadow-lg: 0 16px 44px rgba(15, 46, 53, .2);
+    --scrim: rgba(10, 28, 33, .52);
 
-    --focus-ring: 0 0 0 3px rgba(37, 99, 235, .4);
-    --shadow-sm: 0 1px 2px rgba(15, 27, 45, .06), 0 2px 8px rgba(15, 27, 45, .06);
-    --shadow-md: 0 4px 14px rgba(15, 27, 45, .12);
-    --shadow-lg: 0 12px 34px rgba(15, 27, 45, .2);
-
-    --font: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --radius: 14px; --radius-sm: 8px; --radius-full: 999px;
+    --font: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --display: "Bricolage Grotesque", var(--font);
+    --radius: 10px; --radius-sm: 6px; --radius-full: 999px;
     --dur: .2s; --ease: cubic-bezier(.2, 0, 0, 1);
 
     /* legacy aliases for shared helpers */
@@ -55,39 +64,44 @@
     --muted: var(--text-muted); --primary-text: var(--on-primary);
     --blue: var(--primary); --blue-soft: var(--primary-soft);
     --green: var(--success); --red: var(--danger);
-    --display: var(--font); --ui: var(--font); --r: var(--radius);
+    --ui: var(--font); --r: var(--radius);
   }
   [data-theme="dark"] {
     color-scheme: dark;
 
-    --bg: #0a0e16;
-    --surface: #121926;
-    --surface-2: #1a2231;
-    --surface-3: #232e40;
-    --border: #2b3648;
-    --border-strong: #3d4b63;
-    --text: #e9eef6;
-    --text-muted: #9fb0c6;
-    --text-subtle: #8091a9;
+    --bg: #0a1c21;
+    --surface: #102a31;
+    --surface-2: #163740;
+    --surface-3: #1e4650;
+    --border: #234650;
+    --border-strong: #356572;
+    --text: #e8f2f0;
+    --text-muted: #9fbdc2;
+    --text-subtle: #86a4aa;
 
-    --primary: #5b9bff;
-    --primary-hover: #7db0ff;
-    --on-primary: #08111f;
-    --primary-soft: #172845;
-    --accent: #ff7f43;
-    --accent-hover: #ff9560;
-    --on-accent: #1c0f06;
+    --primary: #43c6cc;
+    --primary-hover: #6ad6db;
+    --on-primary: #062226;
+    --primary-soft: #12383f;
+    --accent: #ffc933;
+    --accent-hover: #ffd660;
+    --on-accent: #1a1403;
+    --accent-soft: #3a3010;
+    --nav-bg: #07151a;
+    --nav-text: #f2f7f5;
 
-    --success: #3dbd78;
-    --warning: #e0a33f;
-    --danger: #ff6f5e;
+    --success: #4fcb88;
+    --success-soft: #123425;
+    --warning: #e8b04a;
+    --warning-soft: #33290f;
+    --danger: #ff7b68;
+    --danger-soft: #3a1d1a;
 
-    --nav-bg: #1a2231;
-
-    --focus-ring: 0 0 0 3px rgba(91, 155, 255, .5);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+    --focus-ring: 0 0 0 3px rgba(67, 198, 204, .5);
+    --shadow-sm: 0 1px 0 rgba(0, 0, 0, .4);
     --shadow-md: 0 6px 20px rgba(0, 0, 0, .5);
-    --shadow-lg: 0 16px 42px rgba(0, 0, 0, .64);
+    --shadow-lg: 0 18px 46px rgba(0, 0, 0, .62);
+    --scrim: rgba(0, 0, 0, .62);
   }
 
   * { box-sizing: border-box; margin: 0; }
@@ -311,6 +325,38 @@
       transition-duration: .001ms !important;
     }
   }
+
+  /* ============================================================
+     Harbour-chart refinements (override layer)
+     ============================================================ */
+  button, input, select, textarea { font-family: var(--font); }
+  #eta-time, #maneuver-dist, #speed-bubble b { font-variant-numeric: tabular-nums; }
+
+  .brand { font-family: var(--display); font-weight: 700; letter-spacing: -.03em; }
+  .brand .logo { background: var(--accent); color: #17262a; border-radius: var(--radius-sm); }
+  .brand em { color: var(--primary); }
+  .q-hi { font-family: var(--display); font-weight: 700; letter-spacing: -.03em; }
+
+  /* turn banner: harbour ink, the distance is the one loud thing on screen */
+  #banner { background: var(--nav-bg); border-radius: var(--radius); }
+  #maneuver-dist { font-family: var(--display); font-size: 34px; font-weight: 800; color: var(--accent); letter-spacing: -.03em; }
+  #maneuver-text { font-size: 14px; font-weight: 600; opacity: .92; }
+
+  #eta-bar { border-radius: var(--radius); }
+  #eta-time { font-family: var(--display); font-size: 26px; font-weight: 700; }
+  .round-btn { border-radius: var(--radius-sm); }
+  #sheet { border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgba(10, 28, 33, .18); }
+
+  /* queue rows: a status rail, squarer corners */
+  .q-run { border-radius: var(--radius); border-left: 4px solid var(--primary); box-shadow: none; }
+  .q-run.done { border-left-color: var(--border-strong); }
+  .q-run .go, #btn-start { border-radius: var(--radius); font-family: var(--display); font-weight: 700; box-shadow: none; }
+  .q-run .go.live { background: var(--success); color: #fff; }
+  #theme-toggle, .icon-btn, #btn-queue { border-radius: var(--radius); }
+
+  /* sentence-case small labels */
+  .speed-row label { text-transform: none; letter-spacing: 0; font-size: 12px; }
+  #speed-bubble small { text-transform: none; letter-spacing: 0; font-size: 10px; }
 </style>
 </head>
 <body>

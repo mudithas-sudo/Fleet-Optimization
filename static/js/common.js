@@ -74,15 +74,15 @@ function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : 
 // routes are blue (the universal navigation convention) so the amber/red
 // traffic overlays and alert colors stay unambiguous — tracking blue from
 // the design system
-function routeColor() { return currentTheme() === "dark" ? "#5b9bff" : "#2563eb"; }
+function routeColor() { return currentTheme() === "dark" ? "#4fc3ea" : "#0b6f95"; }
 
 const MAP_DARK_STYLE = [
-  { elementType: "geometry", stylers: [{ color: "#1d2228" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#8b949e" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#14171c" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c333b" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3a4450" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#101418" }] },
+  { elementType: "geometry", stylers: [{ color: "#12262b" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8fb0b5" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0b181b" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#22393f" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2e4a51" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a1417" }] },
   { featureType: "poi", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
@@ -117,7 +117,7 @@ function fmtClock(ts) {
 function stopMarker(map, position, index, total, kind) {
   const isEnd = index === total - 1;
   const isPickup = kind === "pickup";
-  const fill = index === 0 ? "#0f7a43" : isPickup ? "#8a5200" : isEnd ? "#ea580c" : "#2563eb";
+  const fill = index === 0 ? "#2a7a4d" : isPickup ? "#8a5a00" : isEnd ? "#0f2e35" : "#0b7f86";
   const label = index === 0 ? "S" : isPickup ? "P" : isEnd ? "E" : String(index);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
     <path d="M17 0C7.6 0 0 7.6 0 17c0 12.8 17 27 17 27s17-14.2 17-27C34 7.6 26.4 0 17 0z" fill="${fill}"/>
@@ -137,8 +137,8 @@ function stopMarker(map, position, index, total, kind) {
 // Vehicle marker (pulsing dot).
 function vehicleMarker(map, position) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-    <circle cx="14" cy="14" r="13" fill="#2563eb" opacity="0.2"/>
-    <circle cx="14" cy="14" r="7.5" fill="#2563eb" stroke="#ffffff" stroke-width="2.5"/>
+    <circle cx="14" cy="14" r="13" fill="#0b7f86" opacity="0.2"/>
+    <circle cx="14" cy="14" r="7.5" fill="#0b7f86" stroke="#ffffff" stroke-width="2.5"/>
   </svg>`;
   return new google.maps.Marker({
     map, position, zIndex: 999,
