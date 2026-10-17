@@ -464,6 +464,9 @@ def _summary(t: dict) -> dict:
         "parcelCount": len(t.get("parcelIds") or []),
         "deliveredCount": t.get("deliveredCount", 0),
         "collectedCount": t.get("collectedCount", 0),
+        # delivery stops whose planned ETA is past the parcel deadline
+        "atRiskParcelIds": [e["parcelId"] for e in t.get("plannedEtaPerStop") or []
+                            if e.get("kind") == "delivery" and e.get("atRisk")],
     }
 
 

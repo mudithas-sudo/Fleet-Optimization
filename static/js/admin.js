@@ -65,7 +65,7 @@ async function init() {
 
   map.addListener("click", e => onMapClick(e.latLng.lat(), e.latLng.lng()));
 
-  ["parcels", "fleet", "registry"].forEach(t => {
+  ["parcels", "fleet", "attention", "registry"].forEach(t => {
     $(`tab-btn-${t}`).onclick = () => switchTab(t);
   });
 
@@ -129,6 +129,7 @@ async function init() {
   $("btn-create-run").onclick = createRun;
   setupImport();
   setupDepotForm();
+  setupOverview();
 
   // fleet tab
   $("btn-clear-all").onclick = clearAllTrips;
@@ -165,7 +166,7 @@ async function init() {
 
 function switchTab(tab) {
   activeTab = tab;
-  ["parcels", "fleet", "registry"].forEach(t => {
+  ["parcels", "fleet", "attention", "registry"].forEach(t => {
     const on = t === tab;
     const btn = $(`tab-btn-${t}`);
     btn.setAttribute("aria-selected", String(on));
@@ -384,15 +385,20 @@ function parcelRow(p) {
 }
 
 function renderParcels() {
-  const all = Object.values(parcels);
-  const overdue = all.filter(p => p.deadlineMissed && p.status !== "delivered").length;
+  refreshOverview();
+  const everything = Object.values(parcels);
+  const all = everything.filter(parcelMatchesFilters);
+  renderFilterNote(all.length, everything.length);
+  const overdue = everything.filter(p => p.deadlineMissed && p.status !== "delivered").length;
   $("parcel-badge").hidden = !overdue;
   $("parcel-badge").textContent = overdue;
 
   const wrap = $("parcel-list");
   wrap.innerHTML = "";
   if (!all.length) {
-    wrap.innerHTML = `<div class="empty">${iconSvg("depot", "i-lg")}
+    wrap.innerHTML = everything.length
+      ? `<div class="empty">${iconSvg("pin", "i-lg")}<b>No parcels match</b>Try a different search, or clear the filters.</div>`
+      : `<div class="empty">${iconSvg("depot", "i-lg")}
       <b>No parcels yet</b>Add one manually or import a spreadsheet to get started.</div>`;
     updateRunFooter();
     return;
@@ -1107,6 +1113,8 @@ function summarize(trip) {
     driverName: (driversReg.find(d => d.id === trip.driverId) || {}).name,
     parcelCount: (trip.parcelIds || []).length,
     deliveredCount: trip.deliveredCount || 0,
+    atRiskParcelIds: (trip.plannedEtaPerStop || [])
+      .filter(e => e.kind === "delivery" && e.atRisk).map(e => e.parcelId),
     // live risk marker — kept if already set, else derived from the alert log
     risk: (trips[trip.id] || {}).risk ?? riskFromAlerts(trip.alerts),
   };
@@ -1152,6 +1160,7 @@ function tripRow(t) {
 }
 
 function renderTripList() {
+  refreshOverview();
   const list = Object.values(trips).sort((a, b) => b.createdAt - a.createdAt);
   $("fleet-badge").textContent = list.length;
 

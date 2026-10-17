@@ -862,7 +862,7 @@
   #trip-status { border-radius: var(--radius-sm); }
 
   /* underline tabs */
-  .tabs { background: none; border-radius: 0; padding: 0; gap: var(--space-4); border-bottom: 1px solid var(--border); }
+  .tabs { background: none; border-radius: 0; padding: 0; gap: var(--space-3); border-bottom: 1px solid var(--border); }
   .tabs button {
     border-radius: 0; padding: 10px 2px; font-size: var(--fs-base);
     border-bottom: 3px solid transparent; margin-bottom: -1px;
@@ -909,6 +909,49 @@
   /* numbers read as the figures they are */
   .kpi { border: 1px solid var(--border); background: var(--surface); }
   .kpi b { font-family: var(--display); font-size: var(--fs-xl); font-weight: 700; }
+
+  /* ---------- today strip, filters, attention queue ---------- */
+  .today { flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+  .stat-tile {
+    font-family: inherit; text-align: left; color: var(--text); background: none;
+    border: 0; border-right: 1px solid var(--border); padding: 9px 9px 8px;
+    display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: pointer;
+    transition: background var(--dur);
+  }
+  .stat-tile:last-child { border-right: 0; }
+  .stat-tile.static { cursor: default; }
+  .stat-tile:hover:not(.static) { background: var(--surface-2); }
+  .stat-tile[aria-pressed="true"] { background: var(--primary-soft); box-shadow: inset 0 -3px 0 var(--primary); }
+  .stat-tile b { font: 700 var(--fs-xl)/1.1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stat-tile span { font-size: 11.5px; color: var(--text-muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-tile small { font-size: 11px; color: var(--text-subtle); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-tile.alert b { color: var(--danger); }
+
+  .filter-row { display: grid; grid-template-columns: 1fr; gap: var(--space-2); margin-top: var(--space-3); }
+  .filter-row .pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  .filter-row select {
+    padding: 9px 10px; background: var(--surface-2); border: 1.5px solid transparent; border-radius: var(--radius);
+    color: var(--text); font-family: inherit; font-size: var(--fs-sm); font-weight: 600; min-width: 0;
+  }
+  .filter-row select:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
+  #filter-note { margin-top: var(--space-2); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  #filter-note[hidden] { display: none; }
+
+  #attention-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+  .attn-item {
+    font-family: inherit; color: var(--text); text-align: left; cursor: pointer; width: 100%;
+    background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warning);
+    border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+    transition: background var(--dur), border-color var(--dur);
+  }
+  .attn-item.level-0 { border-left-color: var(--danger); }
+  .attn-item:hover { background: var(--surface-2); }
+  .attn-top { display: flex; align-items: center; gap: var(--space-2); }
+  .attn-tag { font-size: 11.5px; font-weight: 800; color: var(--warning); }
+  .attn-item.level-0 .attn-tag { color: var(--danger); }
+  .attn-kind { margin-left: auto; font-size: 11.5px; font-weight: 600; color: var(--text-subtle); }
+  .attn-title { font-weight: 700; }
+  .attn-where, .attn-detail { font-size: var(--fs-sm); color: var(--text-muted); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -928,12 +971,28 @@
 </header>
 <main>
   <aside>
+    <div id="today" class="today" role="group" aria-label="Today at a glance">
+      <button type="button" class="stat-tile" data-f="pending" aria-pressed="false" title="Parcels waiting to be put on a run">
+        <b id="st-pending">0</b><span>Pending</span><small>to assign</small></button>
+      <button type="button" class="stat-tile" data-f="out" aria-pressed="false" title="Parcels on a run that is planned or under way">
+        <b id="st-out">0</b><span>Out now</span><small id="st-out-sub">none live</small></button>
+      <button type="button" class="stat-tile" data-f="delivered" aria-pressed="false" title="Parcels delivered since midnight">
+        <b id="st-delivered">0</b><span>Delivered</span><small>today</small></button>
+      <button type="button" class="stat-tile" data-f="late" aria-pressed="false" title="Undelivered parcels past their deadline">
+        <b id="st-late">0</b><span>Late</span><small>overdue</small></button>
+      <div class="stat-tile static" title="Share of today’s deliveries made before the deadline">
+        <b id="st-ontime">–</b><span>On time</span><small>today</small></div>
+    </div>
+
     <div class="tabs" role="tablist" aria-label="Console sections">
       <button id="tab-btn-parcels" role="tab" aria-selected="true" aria-controls="tab-parcels">
         Parcels<span class="badge warn" id="parcel-badge" hidden>0</span>
       </button>
       <button id="tab-btn-fleet" role="tab" aria-selected="false" aria-controls="tab-fleet" tabindex="-1">
         Runs<span class="badge" id="fleet-badge">0</span>
+      </button>
+      <button id="tab-btn-attention" role="tab" aria-selected="false" aria-controls="tab-attention" tabindex="-1">
+        Attention<span class="badge warn" id="attention-badge" hidden>0</span>
       </button>
       <button id="tab-btn-registry" role="tab" aria-selected="false" aria-controls="tab-registry" tabindex="-1">
         Registry
@@ -980,6 +1039,21 @@
           <button type="button" id="df-depot-save" class="dispatch-btn">Save start point</button>
         </div>
       </div>
+
+      <div class="filter-row">
+        <input id="flt-q" type="search" class="search-input" style="margin:0" autocomplete="off"
+               placeholder="Search tracking no., receiver, address…" aria-label="Search parcels">
+        <div class="pair">
+          <select id="flt-driver" aria-label="Filter by driver"><option value="">All drivers</option></select>
+          <select id="flt-when" aria-label="Filter by date">
+            <option value="">Any time</option>
+            <option value="dueToday">Due today</option>
+            <option value="due2h">Due in next 2 h</option>
+            <option value="deliveredToday">Delivered today</option>
+          </select>
+        </div>
+      </div>
+      <div id="filter-note" class="hint" hidden></div>
 
       <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">
         <div class="field">
@@ -1091,6 +1165,13 @@
     <section id="tab-fleet" role="tabpanel" aria-labelledby="tab-btn-fleet" hidden>
       <h2>Delivery runs <span class="spacer"></span><button id="btn-clear-all" class="link-danger" type="button">Clear all</button></h2>
       <div id="trip-list" style="margin-top:12px"></div>
+    </section>
+
+    <!-- ================= ATTENTION ================= -->
+    <section id="tab-attention" role="tabpanel" aria-labelledby="tab-btn-attention" hidden>
+      <h2>Needs attention</h2>
+      <div class="hint" style="margin-top:4px">Most urgent first. Select an item to open it.</div>
+      <div id="attention-list"></div>
     </section>
 
     <!-- ================= REGISTRY ================= -->
@@ -1256,6 +1337,7 @@
 <script src="/static/js/maps-loader.js"></script>
 <script src="/static/js/common.js"></script>
 <script src="/static/js/import.js"></script>
+<script src="/static/js/overview.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>
