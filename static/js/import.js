@@ -17,6 +17,9 @@ const IMPORT_COLUMNS = {
   fragile: ["fragile"],
   notes: ["notes", "instructions", "delivery notes", "remarks"],
   deadline: ["deadline", "deliver by", "due", "due date"],
+  priority: ["priority", "service", "service level"],
+  windowStart: ["window start", "deliver after", "not before", "earliest"],
+  receiverEmail: ["email", "receiver email", "recipient email"],
 };
 
 function parseCSV(text) {

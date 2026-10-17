@@ -979,6 +979,17 @@
   .timeline time { font-size: 11.5px; color: var(--text-subtle); font-weight: 600; font-variant-numeric: tabular-nums; }
   .parcel-row .info { cursor: pointer; }
   .parcel-row .info:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  /* ---------- drag a parcel onto a run ---------- */
+  .parcel-row[draggable="true"], #manifest tr[draggable="true"] { cursor: grab; }
+  .parcel-row.dragging, #manifest tr.dragging { opacity: .45; }
+  .trip-row.drop-target { outline: 2px dashed var(--primary); outline-offset: 2px; background: var(--primary-soft); }
+  .tabs button.drop-hint { color: var(--primary); box-shadow: inset 0 -3px 0 var(--primary); }
+  #run-footer { display: none; }
+  #run-footer .btn + .btn { margin-top: var(--space-2); }
+  #reassign-form { display: flex; flex-direction: column; gap: var(--space-2); }
+  #reassign-form[hidden] { display: none; }
+  #reassign-form select { padding: 9px 10px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: inherit; font-size: var(--fs-sm); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1119,6 +1130,14 @@
           </div>
         </div>
 
+        <div class="field"><label id="pf-prio-label">Priority</label>
+          <div class="seg" id="pf-prio" role="group" aria-labelledby="pf-prio-label">
+            <button type="button" data-p="standard" class="active" aria-pressed="true">Standard</button>
+            <button type="button" data-p="priority" aria-pressed="false">Priority</button>
+            <button type="button" data-p="express" aria-pressed="false">Express</button>
+          </div>
+        </div>
+
         <button type="button" class="disclosure" id="pf-more-btn" aria-expanded="false" aria-controls="pf-more">
           <svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
           Add details <span class="opt">(optional)</span>
@@ -1145,8 +1164,15 @@
                    aria-describedby="pf-phone-err">
             <div class="field-err" id="pf-phone-err" role="alert" hidden></div>
           </div>
-          <div class="field"><label for="pf-deadline">Deliver by <span class="opt">(optional)</span></label>
-            <input id="pf-deadline" type="datetime-local"></div>
+          <div class="form-grid">
+            <div class="field"><label for="pf-window">Not before <span class="opt">(optional)</span></label>
+              <input id="pf-window" type="datetime-local"></div>
+            <div class="field"><label for="pf-deadline">Deliver by <span class="opt">(optional)</span></label>
+              <input id="pf-deadline" type="datetime-local"></div>
+          </div>
+          <div class="field-err" id="pf-window-err" role="alert" hidden></div>
+          <div class="field"><label for="pf-email">Receiver email <span class="opt">(for tracking updates)</span></label>
+            <input id="pf-email" type="email" placeholder="name@example.com" autocomplete="off" maxlength="120"></div>
           <label class="check-row">
             <input type="checkbox" id="pf-fragile">
             <span>Fragile — handle with care</span>
@@ -1259,9 +1285,17 @@
           <div class="field"><label for="df-phone">Phone</label><input id="df-phone" placeholder="+94 77 …"></div>
         </div>
         <div class="field"><label for="df-vehicle">Vehicle</label><select id="df-vehicle"></select></div>
+        <div class="form-grid">
+          <div class="field"><label for="df-shift-start">Shift starts</label><input id="df-shift-start" type="time"></div>
+          <div class="field"><label for="df-shift-end">Shift ends</label><input id="df-shift-end" type="time"></div>
+          <div class="field"><label for="df-max-stops">Max stops per run</label><input id="df-max-stops" type="number" min="1" inputmode="numeric" placeholder="No limit"></div>
+          <div class="field"><label for="df-max-hours">Max hours per run</label><input id="df-max-hours" type="number" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="No limit"></div>
+        </div>
+        <label class="check-row"><input type="checkbox" id="df-leave"><span>On leave (not scheduled for runs)</span></label>
+        <div class="field-err form-err" id="df-err" role="alert" hidden></div>
         <div class="row">
           <button class="btn btn-ghost" id="df-cancel" type="button">Cancel</button>
-          <button class="btn btn-primary" id="df-save" type="button">Add driver</button>
+          <button class="btn btn-primary" id="df-save" type="button">Save driver</button>
         </div>
       </div>
       <div class="reg-list" id="driver-list" style="margin-top:10px"></div>
@@ -1269,6 +1303,7 @@
 
     <div id="run-footer">
       <button class="btn btn-primary" id="btn-plan-run" type="button">Plan delivery run</button>
+      <button class="btn btn-ghost" id="btn-add-to-run" type="button" hidden>Add to run</button>
     </div>
   </aside>
 
@@ -1310,7 +1345,17 @@
       <table id="manifest"></table>
       <div id="briefing"></div>
       <div id="driver-link"><a id="driver-url" target="_blank" rel="noopener"></a><button id="btn-copy" type="button">Copy link</button></div>
+      <div id="reassign-form" class="form-card" hidden>
+        <div class="field"><label for="reassign-driver">Give this run to</label>
+          <select id="reassign-driver"></select></div>
+        <div class="field-err form-err" id="reassign-err" role="alert" hidden></div>
+        <div class="row">
+          <button class="btn btn-ghost" id="reassign-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="reassign-save" type="button">Change driver</button>
+        </div>
+      </div>
       <div class="row">
+        <button id="btn-reassign" class="btn btn-ghost" type="button" hidden>Change driver</button>
         <a id="btn-runsheet" class="btn btn-ghost" target="_blank" rel="noopener" style="text-decoration:none">Run sheet</a>
         <button id="btn-delete" class="btn btn-ghost danger" type="button">Delete run</button>
       </div>

@@ -136,6 +136,43 @@ def _order_with_precedence(stops: list[dict]) -> list[dict]:
     return [depot] + ordered
 
 
+PRIORITY_RANK = {"express": 0, "priority": 1, "standard": 2}
+
+
+def has_special_handling(stops: list[dict]) -> bool:
+    """Any express/priority parcel or delivery window on the run (depot excluded)?"""
+    return any((s.get("priority") or "standard") != "standard" or s.get("windowStart")
+               for s in stops[1:])
+
+
+def sequence_stops(stops: list[dict], now: float | None = None) -> list[dict]:
+    """Visiting order for runs with express/priority parcels or delivery
+    windows: express first, then priority, then standard; within a tier the
+    nearest stop next. A stop whose delivery window opens more than 45 minutes
+    from now waits behind the stops that are ready. A parcel's delivery is never
+    ahead of its pickup. Deterministic — no Routes optimisation or LLM involved,
+    so the dispatcher's priorities are always honoured."""
+    import time as _time
+    now = now or _time.time()
+    depot, rest, ordered, cur = stops[0], list(stops[1:]), [], stops[0]
+    while rest:
+        blocked = {s["parcelId"] for s in rest if s.get("kind") == "pickup"}
+        cands = [s for s in rest
+                 if not (s.get("kind") == "delivery" and s.get("parcelId") in blocked)]
+
+        def key(s):
+            rank = PRIORITY_RANK.get(s.get("priority") or "standard", 2)
+            not_ready = bool(s.get("windowStart") and s["windowStart"] > now + 45 * 60
+                             and s.get("kind") != "pickup")
+            return (rank + (3 if not_ready else 0), _haversine_m(cur, s))
+
+        nxt = min(cands, key=key)
+        ordered.append(nxt)
+        rest.remove(nxt)
+        cur = nxt
+    return [depot] + ordered
+
+
 def repair_precedence(rest: list[dict]) -> list[dict]:
     """Take a proposed visiting order (depot excluded) and make it
     precedence-valid: a delivery whose pickup hasn't been visited yet is held

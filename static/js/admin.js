@@ -31,6 +31,8 @@ let trafficLines = [];
 
 // parcel form state
 let pfSize = "small";
+let pfPrio = "standard";
+let editingDriverId = null;
 let pfDest = null;         // {lat, lng, label}
 let pfMarker = null;
 let pfPickup = null;       // {lat, lng, label}
@@ -97,6 +99,16 @@ async function init() {
       });
     };
   });
+  document.querySelectorAll("#pf-prio button").forEach(b => {
+    b.onclick = () => {
+      pfPrio = b.dataset.p;
+      document.querySelectorAll("#pf-prio button").forEach(x => {
+        const on = x === b;
+        x.classList.toggle("active", on);
+        x.setAttribute("aria-pressed", String(on));
+      });
+    };
+  });
   setupDestSearch();
   setupPickupSearch();
   $("pf-has-pickup").onchange = onPickupToggle;
@@ -120,6 +132,9 @@ async function init() {
   $("pf-phone").addEventListener("blur", validatePhoneField);
   $("depot-chip").onclick = toggleDepotEdit;
   $("btn-plan-run").onclick = openPicker;
+  $("btn-add-to-run").onclick = addSelectedToRun;
+  setupDragAndDrop();
+  setupReassign();
   $("btn-auto").onclick = () => autoAssign("rules");
   $("btn-auto-ai").onclick = () => autoAssign("ai");
   $("btn-close-dispatch").onclick = closeDispatch;
@@ -156,7 +171,7 @@ async function init() {
       $("vf-payload").value = c[3];
     };
   });
-  $("btn-add-driver").onclick = () => { renderDriverVehicleSelect(); $("driver-form").style.display = "flex"; };
+  $("btn-add-driver").onclick = () => openDriverForm(null);
   $("df-cancel").onclick = () => { $("driver-form").style.display = "none"; };
   $("df-save").onclick = saveDriver;
 
@@ -349,6 +364,9 @@ function parcelRow(p) {
   const chips = [
     p.status === "delivered" && p.deadlineMissed ? `<span class="late-tag">late</span>` : "",
     p.pickup && p.status !== "awaiting_redelivery" ? `<span class="p-chip" title="Collect at ${p.pickup.label}">P</span>` : "",
+    p.priority === "express" ? `<span class="p-chip fragile" title="Express — scheduled first">express</span>` : "",
+    p.priority === "priority" ? `<span class="p-chip" title="Priority — scheduled ahead of standard parcels">priority</span>` : "",
+    p.windowStart && p.windowStart > Date.now() / 1000 ? `<span class="p-chip" title="Not before ${new Date(p.windowStart * 1000).toLocaleString()}">window</span>` : "",
     p.fragile ? `<span class="p-chip fragile" title="Fragile — handle with care">fragile</span>` : "",
     p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the depot">redeliv</span>` : "",
   ].join(" ");
@@ -373,6 +391,7 @@ function parcelRow(p) {
     </div>
     <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
     ${plannable ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
+  if (plannable || ["assigned", "in_transit", "picked_up"].includes(p.status)) makeDraggable(row, p.id);
   const info = row.querySelector(".info");
   info.setAttribute("role", "button");
   info.tabIndex = 0;
@@ -440,6 +459,9 @@ function updateRunFooter() {
   const n = selectedParcels.size;
   $("run-footer").style.display = activeTab === "parcels" && n ? "block" : "none";
   $("btn-plan-run").textContent = `Plan delivery run (${n})`;
+  const open = selectedId && trips[selectedId] && trips[selectedId].status !== "completed" ? trips[selectedId] : null;
+  $("btn-add-to-run").hidden = !open;
+  if (open) $("btn-add-to-run").textContent = `Add ${n} to run ${open.id}`;
 }
 
 // ---- inline validation helpers ----
@@ -454,7 +476,7 @@ function pfErr(id, msg) {
   if (input && input.tagName !== "DIV") input.classList.toggle("invalid", !!msg);
 }
 
-const PF_ERR_IDS = ["pf-name-err", "pf-dest-err", "pf-weight-err", "pf-dim-err", "pf-phone-err",
+const PF_ERR_IDS = ["pf-window-err", "pf-name-err", "pf-dest-err", "pf-weight-err", "pf-dim-err", "pf-phone-err",
   "pf-pickup-err", "pf-pickup-win-err", "pf-form-err"];
 
 function pfClearErrors() { PF_ERR_IDS.forEach(id => pfErr(id, "")); }
@@ -507,6 +529,8 @@ function validateParcelForm() {
   }
   const dl = toEpoch($("pf-deadline").value);
   if (dl && dl < Date.now() / 1000) { pfErr("pf-form-err", "The delivery deadline is in the past."); ok = false; }
+  const win = toEpoch($("pf-window").value);
+  if (win && dl && win > dl) { pfErr("pf-window-err", "“Not before” is later than “Deliver by”."); ok = false; }
   return ok;
 }
 
@@ -541,6 +565,12 @@ function toggleParcelForm(show) {
   pfDest = pfPickup = null;
   pfMapTarget = "dest";
   pfSize = "small";
+  pfPrio = "standard";
+  document.querySelectorAll("#pf-prio button").forEach(b => {
+    const on = b.dataset.p === "standard";
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
   if (pfMarker) { pfMarker.setMap(null); pfMarker = null; }
   if (pfPickupMarker) { pfPickupMarker.setMap(null); pfPickupMarker = null; }
   document.querySelectorAll("#pf-size button").forEach(b => {
@@ -549,7 +579,7 @@ function toggleParcelForm(show) {
     b.setAttribute("aria-pressed", String(on));
   });
   ["pf-name", "pf-tracking", "pf-receiver", "pf-dim-l", "pf-dim-w", "pf-dim-h",
-    "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
+    "pf-window", "pf-email", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
     "pf-deadline", "pf-pickup", "pf-pickup-from", "pf-pickup-until"].forEach(id => { $(id).value = ""; });
   $("pf-fragile").checked = false;
   $("pf-dest-label").textContent = "No destination set";
@@ -675,6 +705,9 @@ async function saveParcel() {
       method: "POST",
       body: JSON.stringify({
         name: $("pf-name").value.trim(),
+        priority: pfPrio,
+        windowStart: toEpoch($("pf-window").value),
+        receiverEmail: $("pf-email").value.trim() || null,
         trackingNumber: $("pf-tracking").value.trim() || null,
         receiverName: $("pf-receiver").value.trim() || null,
         dimensionsCm: dims,
@@ -749,6 +782,8 @@ async function previewImport() {
     else if (!r.destination) row.error = "missing destination address";
     else if (!SIZES_OK(row.sizeResolved)) row.error = "size must be small/medium/large (or give dimensions)";
     else if (r.deadline && parseDeadline(r.deadline) === null) row.error = "bad deadline";
+    else if (r.windowStart && parseDeadline(r.windowStart) === null) row.error = "bad window start";
+    else if (r.priority && !["standard", "priority", "express"].includes(r.priority.toLowerCase())) row.error = "priority must be standard, priority or express";
     else {
       try {
         row.destinationResolved = await api(`/api/geocode?q=${encodeURIComponent(r.destination)}`);
@@ -781,6 +816,9 @@ $("btn-do-import") && ($("btn-do-import").onclick = async () => {
   const good = importRows.filter(r => !r.error);
   const body = {
     parcels: good.map(r => ({
+      priority: (r.priority || "standard").toLowerCase(),
+      windowStart: parseDeadline(r.windowStart),
+      receiverEmail: r.receiverEmail || null,
       name: r.name || r.trackingNumber,
       trackingNumber: r.trackingNumber || null,
       receiverName: r.receiverName || null,
@@ -800,6 +838,123 @@ $("btn-do-import") && ($("btn-do-import").onclick = async () => {
   if (res.errors.length) alert(`${res.errors.length} rows were rejected by the server:\n` +
     res.errors.slice(0, 5).map(e => `row ${e.index + 1}: ${e.message}`).join("\n"));
 });
+
+// ---------------- editing runs: add, move, drag and drop, change driver ----------------
+
+function makeDraggable(el, parcelId) {
+  el.draggable = true;
+  el.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", parcelId);
+    e.dataTransfer.effectAllowed = "move";
+    el.classList.add("dragging");
+  });
+  el.addEventListener("dragend", () => el.classList.remove("dragging"));
+}
+
+function makeDropTarget(row, tripId) {
+  row.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; row.classList.add("drop-target"); });
+  row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+  row.addEventListener("drop", e => {
+    e.preventDefault();
+    row.classList.remove("drop-target");
+    const pid = e.dataTransfer.getData("text/plain");
+    if (pid && parcels[pid]) dropParcelOnRun(pid, tripId);
+  });
+}
+
+// hovering a dragged parcel over the Runs tab opens it, so a parcel can be
+// dragged from the Parcels list straight onto a run
+function setupDragAndDrop() {
+  const tab = $("tab-btn-fleet");
+  let timer = null;
+  tab.addEventListener("dragover", e => {
+    e.preventDefault();
+    tab.classList.add("drop-hint");
+    if (!timer && activeTab !== "fleet") timer = setTimeout(() => { switchTab("fleet"); timer = null; }, 500);
+  });
+  tab.addEventListener("dragleave", () => { tab.classList.remove("drop-hint"); clearTimeout(timer); timer = null; });
+  tab.addEventListener("drop", () => { tab.classList.remove("drop-hint"); clearTimeout(timer); timer = null; });
+}
+
+async function dropParcelOnRun(parcelId, tripId) {
+  const p = parcels[parcelId];
+  if (!p || p.tripId === tripId) return;
+  try {
+    await putParcelOnRun(p, tripId);
+  } catch (err) {
+    alert(`Couldn’t move “${p.name}”: ${err.message}`);
+  }
+}
+
+// pending parcel -> add to the run; parcel already on another run -> move it
+async function putParcelOnRun(p, tripId) {
+  if (p.tripId && ["assigned", "in_transit", "picked_up"].includes(p.status)) {
+    await api(`/api/parcels/${p.id}/move`, { method: "POST", body: JSON.stringify({ toTripId: tripId }) });
+  } else {
+    await api(`/api/runs/${tripId}/parcels`, { method: "POST", body: JSON.stringify({ parcelIds: [p.id] }) });
+  }
+  await refreshAfterRunEdit();
+}
+
+// the edit itself already succeeded; a failed redraw must not read as a failed edit
+async function refreshAfterRunEdit() {
+  try {
+    await Promise.all([loadParcels(), loadTrips()]);
+    if (selectedId && trips[selectedId]) await selectTrip(selectedId);
+  } catch (err) { console.warn("refresh after run edit failed", err); }
+}
+
+async function addSelectedToRun() {
+  if (!selectedId || !selectedParcels.size) return;
+  const btn = $("btn-add-to-run");
+  btn.disabled = true;
+  try {
+    await api(`/api/runs/${selectedId}/parcels`, {
+      method: "POST", body: JSON.stringify({ parcelIds: [...selectedParcels] }),
+    });
+    selectedParcels.clear();
+    await refreshAfterRunEdit();
+  } catch (err) {
+    alert("Couldn’t add them: " + err.message);
+  } finally {
+    btn.disabled = false;
+    renderParcels();
+  }
+}
+
+function setupReassign() {
+  $("btn-reassign").onclick = async () => {
+    const box = $("reassign-form");
+    if (!box.hidden) { box.hidden = true; return; }
+    $("reassign-err").hidden = true;
+    const sel = $("reassign-driver");
+    sel.innerHTML = `<option>Loading…</option>`;
+    box.hidden = false;
+    try {
+      const o = await api(`/api/runs/${selectedId}/options`);
+      sel.innerHTML = o.drivers.map(d =>
+        `<option value="${d.id}" ${d.reason ? "disabled" : ""}>${d.name}${d.vehicle ? " · " + d.vehicle : ""}${d.reason ? " — " + d.reason : ""}</option>`).join("")
+        || `<option value="">No other drivers</option>`;
+      const first = o.drivers.find(d => !d.reason);
+      if (first) sel.value = first.id;
+    } catch (err) { sel.innerHTML = `<option value="">${err.message}</option>`; }
+  };
+  $("reassign-cancel").onclick = () => { $("reassign-form").hidden = true; };
+  $("reassign-save").onclick = async () => {
+    const id = $("reassign-driver").value;
+    if (!id) return;
+    $("reassign-save").disabled = true;
+    try {
+      await api(`/api/runs/${selectedId}/reassign`, { method: "POST", body: JSON.stringify({ driverId: id }) });
+      $("reassign-form").hidden = true;
+      await Promise.all([loadTrips(), loadParcels()]);
+      await selectTrip(selectedId);
+    } catch (err) {
+      $("reassign-err").textContent = err.message;
+      $("reassign-err").hidden = false;
+    } finally { $("reassign-save").disabled = false; }
+  };
+}
 
 // ---------------- run creation ----------------
 
@@ -1027,10 +1182,12 @@ function renderRegistry() {
       <span class="veh-ico">${v ? vehIconSvg(v.type) : iconSvg("user")}</span>
       <div class="info">
         <div class="label">${d.name}</div>
-        <div class="meta">${d.phone || "—"} · ${v ? v.name : "no vehicle"} ·
+        <div class="meta">${d.phone || "—"} · ${v ? v.name : "no vehicle"}${driverHoursText(d)} ·
           <a href="${queueUrl}" target="_blank" rel="noopener" style="color:var(--primary)">driver link</a></div>
       </div>
+      <button class="link-action edit-driver" type="button" aria-label="Edit driver ${d.name}">Edit</button>
       <button class="del" type="button" aria-label="Delete driver ${d.name}">${iconSvg("trash")}</button>`;
+    row.querySelector(".edit-driver").onclick = () => openDriverForm(d);
     row.querySelector(".del").onclick = async () => {
       if (!confirm(`Delete driver ${d.name}?`)) return;
       try { await api(`/api/drivers/${d.id}`, { method: "DELETE" }); await loadRegistry(); }
@@ -1069,20 +1226,55 @@ function renderDriverVehicleSelect() {
     || `<option value="">— add a vehicle first —</option>`;
 }
 
+function driverHoursText(d) {
+  const bits = [];
+  if (d.onLeave) bits.push("on leave");
+  else if (d.shiftStart && d.shiftEnd) bits.push(`${d.shiftStart}–${d.shiftEnd}`);
+  if (d.maxStops) bits.push(`max ${d.maxStops} stops`);
+  if (d.maxHours) bits.push(`max ${d.maxHours} h`);
+  return bits.length ? " · " + bits.join(" · ") : "";
+}
+
+function openDriverForm(d) {
+  editingDriverId = d ? d.id : null;
+  renderDriverVehicleSelect();
+  $("df-name").value = d ? d.name : "";
+  $("df-phone").value = d ? d.phone || "" : "";
+  if (d && d.vehicleId) $("df-vehicle").value = d.vehicleId;
+  $("df-shift-start").value = d ? d.shiftStart || "" : "";
+  $("df-shift-end").value = d ? d.shiftEnd || "" : "";
+  $("df-max-stops").value = d && d.maxStops ? d.maxStops : "";
+  $("df-max-hours").value = d && d.maxHours ? d.maxHours : "";
+  $("df-leave").checked = !!(d && d.onLeave);
+  $("df-save").textContent = d ? "Save changes" : "Add driver";
+  $("df-err").hidden = true;
+  $("driver-form").style.display = "flex";
+  $("df-name").focus();
+}
+
 async function saveDriver() {
+  $("df-err").hidden = true;
   try {
-    await api("/api/drivers", {
-      method: "POST",
+    await api(editingDriverId ? `/api/drivers/${editingDriverId}` : "/api/drivers", {
+      method: editingDriverId ? "PUT" : "POST",
       body: JSON.stringify({
         name: $("df-name").value.trim() || "Driver",
         phone: $("df-phone").value.trim(),
         vehicleId: $("df-vehicle").value || null,
+        shiftStart: $("df-shift-start").value || null,
+        shiftEnd: $("df-shift-end").value || null,
+        maxStops: Number($("df-max-stops").value) || null,
+        maxHours: Number($("df-max-hours").value) || null,
+        onLeave: $("df-leave").checked,
       }),
     });
     $("driver-form").style.display = "none";
-    $("df-name").value = ""; $("df-phone").value = "";
+    editingDriverId = null;
     await loadRegistry();
-  } catch (err) { alert(err.message); }
+  } catch (err) {
+    $("df-err").textContent = err.message;
+    $("df-err").hidden = false;
+  }
 }
 
 // ---------------- fleet (runs) ----------------
@@ -1165,6 +1357,7 @@ function tripRow(t) {
     ${t.risk ? `<span class="dev-badge risk">${iconSvg("alert")} ${t.risk}</span>` : ""}
     ${t.deviations ? `<span class="dev-badge">${iconSvg("alert")} ${t.deviations}</span>` : ""}`;
   row.onclick = () => selectTrip(t.id);
+  if (t.status !== "completed") makeDropTarget(row, t.id);
   return row;
 }
 
@@ -1202,11 +1395,14 @@ async function selectTrip(id, prefetched = null) {
   renderDetail();
   drawSelectedRoute();
   setHeaderStatus(detail.status);
+  updateRunFooter();
 }
 
 function renderDetail() {
   closeParcelDetail();
   $("trip-detail").style.display = "flex";
+  $("btn-reassign").hidden = detail.status !== "planned";
+  $("reassign-form").hidden = true;
   $("detail-id").textContent = detail.id;
   const r = detail.route;
   const v = vehiclesReg.find(x => x.id === detail.vehicleId);
@@ -1273,7 +1469,8 @@ function renderManifest() {
     const eta = e ? new Date(e.eta * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
     const sub = isPickup ? (p && p.pickup ? p.pickup.label : s.label)
                          : (p ? p.destination.label : "");
-    return `<tr>
+    const drag = p && !done && !isPickup && detail.status !== "completed" ? ` draggable="true" data-parcel="${p.id}"` : "";
+    return `<tr${drag}>
       <td class="leg-route">${isPickup ? "Collect" : "Deliver"} — ${p ? p.name : s.label}<small>${sub}</small></td>
       <td class="num">${eta}</td>
       <td class="num">${status}</td>
@@ -1281,6 +1478,7 @@ function renderManifest() {
   }).filter(Boolean);
   $("manifest").innerHTML = rows.join("") ||
     `<tr><td class="leg-route">No parcels on this trip</td></tr>`;
+  document.querySelectorAll("#manifest tr[data-parcel]").forEach(tr => makeDraggable(tr, tr.dataset.parcel));
 }
 
 function drawSelectedRoute() {

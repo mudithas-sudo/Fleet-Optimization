@@ -82,7 +82,7 @@ async function refreshParcelDetail() {
 function renderParcelDetail(p) {
   const tone = PD_STATUS_TONE[p.status] || "";
   const dims = p.dimensionsCm ? `${p.dimensionsCm.l}×${p.dimensionsCm.w}×${p.dimensionsCm.h} cm` : "";
-  const facts = [p.size, dims, p.weightKg ? `${(+p.weightKg).toLocaleString()} kg` : "", p.fragile ? "fragile" : "", p.type !== "general" ? p.type : ""]
+  const facts = [p.priority && p.priority !== "standard" ? p.priority : "", p.size, dims, p.weightKg ? `${(+p.weightKg).toLocaleString()} kg` : "", p.fragile ? "fragile" : "", p.type !== "general" ? p.type : ""]
     .filter(Boolean).join(" · ");
   const deadline = p.status === "delivered" && p.deliveredAt
     ? `Delivered ${pdWhen(p.deliveredAt)}${p.deadlineMissed ? " — after the deadline" : ""}`
@@ -100,6 +100,7 @@ function renderParcelDetail(p) {
       ${p.pickup ? `<div class="hint">Collected from ${pdEsc(p.pickup.label)}</div>` : ""}
       ${facts ? `<div class="hint">${pdEsc(facts)}</div>` : ""}
       ${p.notes ? `<div class="hint">Note: ${pdEsc(p.notes)}</div>` : ""}
+      ${p.windowStart ? `<div class="hint">Not before ${pdWhen(p.windowStart)}</div>` : ""}
       <div class="hint">${deadline}${p.driverName ? ` · ${pdEsc(p.driverName)}` : ""}</div>
     </div>
     ${failureBlock(p)}
@@ -151,8 +152,15 @@ function actionsBlock(p) {
   const onRoad = ["in_transit", "picked_up"].includes(p.status);
   const back = ["awaiting_redelivery", "pending"].includes(p.status);
   const btns = [];
+  const runs = Object.values(trips).filter(t => t.status !== "completed" && t.id !== p.tripId);
+  if (runs.length && (onRoad || back || p.status === "assigned")) {
+    btns.push(`<button type="button" class="btn btn-ghost" data-act="move">${p.tripId ? "Move to another run" : "Add to a run"}</button>`);
+  }
+  if (p.tripId && ["assigned", "in_transit", "picked_up"].includes(p.status)) {
+    btns.push(`<button type="button" class="btn btn-ghost" data-act="unassign">Take off run</button>`);
+  }
   if (onRoad) {
-    btns.push(`<button type="button" class="btn btn-primary" data-act="deliver">Record delivery</button>`);
+    btns.unshift(`<button type="button" class="btn btn-primary" data-act="deliver">Record delivery</button>`);
     btns.push(`<button type="button" class="btn btn-ghost danger" data-act="fail">Report failed delivery</button>`);
   } else if (back) {
     btns.push(`<button type="button" class="btn btn-primary" data-act="reschedule">Reschedule</button>`);
@@ -219,6 +227,27 @@ function showPdForm(act, p) {
       }
       submitPdAction(`/api/parcels/${p.id}/reschedule`, { deadline: when, destination }, "Reschedule");
     };
+  } else if (act === "move") {
+    const runs = Object.values(trips).filter(t => t.status !== "completed" && t.id !== p.tripId);
+    box.innerHTML = `<div class="form-card">
+      ${pdField("pd-run", p.tripId ? "Move to" : "Add to", `<select id="pd-run">${
+        runs.map(t => `<option value="${t.id}">${pdEsc(t.label)} · ${pdEsc(t.driverName || "no driver")} (${t.status === "planned" ? "planned" : "under way"})</option>`).join("")}</select>`)}
+      <div class="hint">The route is recalculated${runs.some(t => LIVE.includes(t.status)) ? " — for a run under way, from the vehicle’s current position" : ""}.</div>
+      ${buttons(p.tripId ? "Move parcel" : "Add to run")}</div>`;
+    $("pd-submit").onclick = async () => {
+      const toTripId = $("pd-run").value;
+      const url = p.tripId ? `/api/parcels/${p.id}/move` : `/api/runs/${toTripId}/parcels`;
+      const body = p.tripId ? { toTripId } : { parcelIds: [p.id] };
+      await submitPdAction(url, body, p.tripId ? "Move parcel" : "Add to run");
+      if (typeof refreshAfterRunEdit === "function") refreshAfterRunEdit();
+    };
+  } else if (act === "unassign") {
+    box.innerHTML = `<div class="form-card"><div class="hint">The parcel goes back to the pending list and the run’s route is recalculated.</div>
+      ${buttons("Take off run")}</div>`;
+    $("pd-submit").onclick = async () => {
+      await submitPdAction(`/api/runs/${p.tripId}/parcels/${p.id}`, undefined, "Take off run", "DELETE");
+      if (typeof refreshAfterRunEdit === "function") refreshAfterRunEdit();
+    };
   } else if (act === "return") {
     box.innerHTML = `<div class="form-card"><div class="hint">The parcel will be marked as returned to the sender and leave the delivery queue.</div>
       ${buttons("Return to sender")}</div>`;
@@ -233,12 +262,12 @@ function pdFormError(msg) {
   el.hidden = !msg;
 }
 
-async function submitPdAction(url, body, label) {
+async function submitPdAction(url, body, label, method = "POST") {
   const btn = $("pd-submit");
   btn.disabled = true;
   pdFormError("");
   try {
-    await api(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+    await api(url, { method, body: body === undefined ? undefined : JSON.stringify(body) });
     await refreshParcelDetail();
   } catch (err) {
     pdFormError(err.message || "That didn’t work — try again.");

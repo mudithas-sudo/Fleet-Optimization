@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 
-from . import db, store
+from . import db, routing, store
 
 SIZES = ["small", "medium", "large"]
 SIZE_ORDER = {s: i for i, s in enumerate(SIZES)}
@@ -30,6 +30,9 @@ CARGO_DEFAULTS = {
 }
 # share of the cargo volume parcels can realistically fill (packing gaps)
 PACKING_EFFICIENCY = 0.85
+
+PRIORITIES = ("standard", "priority", "express")
+PRIORITY_LABEL = {"standard": "Standard", "priority": "Priority", "express": "Express"}
 
 # a parcel committed to a run (can't be edited/deleted or picked for a new run)
 PARCEL_ACTIVE_STATUSES = ("assigned", "in_transit", "picked_up")
@@ -97,6 +100,9 @@ def new_parcel(data: dict) -> dict:
         "receiverName": (data.get("receiverName") or "").strip() or None,
         "type": data.get("type", "general"),
         "size": data["size"],
+        "priority": data.get("priority") or "standard",
+        "windowStart": data.get("windowStart"),   # earliest delivery time (epoch) or None
+        "receiverEmail": (data.get("receiverEmail") or "").strip() or None,
         "dimensionsCm": data.get("dimensionsCm"),   # {l,w,h} cm or None
         "destination": data["destination"],
         "pickup": data.get("pickup"),      # {lat,lng,label,earliest?,latest?} or None
@@ -145,6 +151,12 @@ def new_driver(data: dict) -> dict:
         "name": data["name"],
         "phone": data.get("phone", ""),
         "vehicleId": data.get("vehicleId"),
+        "shiftStart": data.get("shiftStart") or None,    # "HH:MM", blank = always on
+        "shiftEnd": data.get("shiftEnd") or None,
+        "onLeave": bool(data.get("onLeave")),
+        "maxStops": data.get("maxStops") or None,
+        "maxHours": data.get("maxHours") or None,
+        "breakMinutes": data.get("breakMinutes") if data.get("breakMinutes") is not None else 30,
         "createdAt": time.time(),
     }
     db.save_entity("drivers", driver)
@@ -187,10 +199,70 @@ def parcel_unfit_reason(vehicle: dict, parcel: dict) -> str | None:
     return None
 
 
-def check_eligibility(vehicle: dict, parcels: list[dict]) -> str | None:
-    """None if the vehicle can take the parcel set, else a human reason.
-    Checks count, size class, per-parcel dimensions, total weight and total
-    volume (parcels without dimensions are skipped for volume/fit)."""
+def _hhmm(text: str | None) -> int | None:
+    try:
+        h, m = (text or "").split(":")
+        return int(h) * 60 + int(m)
+    except ValueError:
+        return None
+
+
+def driver_unavailable_reason(driver: dict, at: float | None = None) -> str | None:
+    """Why this driver can't start work now (on leave / outside their shift)."""
+    if driver.get("onLeave"):
+        return "on leave"
+    start, end = _hhmm(driver.get("shiftStart")), _hhmm(driver.get("shiftEnd"))
+    if start is None or end is None:
+        return None
+    t = time.localtime(at or time.time())
+    minute = t.tm_hour * 60 + t.tm_min
+    if not (start <= minute < end):
+        return f"off shift (works {driver['shiftStart']}–{driver['shiftEnd']})"
+    return None
+
+
+def estimate_run_minutes(parcels: list[dict]) -> float:
+    """Rough working time for a run before it is routed: nearest-neighbour
+    straight-line legs from the hub × 1.35 road factor at 28 km/h, plus 6 min per
+    stop (8 for a collect-and-deliver parcel)."""
+    from . import routing
+    cur, rest, metres = get_depot(), [p["destination"] for p in parcels], 0.0
+    while rest:
+        nxt = min(rest, key=lambda d: routing._haversine_m(cur, d))
+        metres += routing._haversine_m(cur, nxt)
+        rest.remove(nxt)
+        cur = nxt
+    stops = sum(2 if p.get("pickup") and p["status"] != "awaiting_redelivery" else 1 for p in parcels)
+    return metres * 1.35 / 1000 / 28 * 60 + 6 * stops + 2 * sum(1 for p in parcels if p.get("pickup"))
+
+
+def check_driver_limits(driver: dict, parcels: list[dict], minutes: float | None = None) -> str | None:
+    """Driver-level limits (max stops, max hours, shift end). None when fine."""
+    if driver.get("maxStops") and len(parcels) > driver["maxStops"]:
+        return f"{driver['name']} takes at most {driver['maxStops']} stops"
+    minutes = estimate_run_minutes(parcels) if minutes is None else minutes
+    brk = driver.get("breakMinutes") or 0
+    total = minutes + (brk if minutes > 240 else 0)
+    if driver.get("maxHours") and total > driver["maxHours"] * 60:
+        return (f"about {total / 60:.1f} h of work is over {driver['name']}'s "
+                f"{driver['maxHours']:g} h limit")
+    end = _hhmm(driver.get("shiftEnd"))
+    if end is not None:
+        t = time.localtime()
+        if t.tm_hour * 60 + t.tm_min + total > end:
+            return f"would run past {driver['name']}'s shift end ({driver['shiftEnd']})"
+    return None
+
+
+def check_eligibility(vehicle: dict, parcels: list[dict], driver: dict | None = None) -> str | None:
+    """None if the vehicle (and driver, when given) can take the parcel set,
+    else a human reason. Checks count, size class, per-parcel dimensions, total
+    weight and total volume (parcels without dimensions are skipped for
+    volume/fit), then the driver's availability and limits."""
+    if driver:
+        away = driver_unavailable_reason(driver)
+        if away:
+            return f"{driver['name']} is {away}"
     if len(parcels) > vehicle["capacity"]:
         return f"capacity {vehicle['capacity']} < {len(parcels)} parcels"
     for p in parcels:
@@ -206,6 +278,8 @@ def check_eligibility(vehicle: dict, parcels: list[dict]) -> str | None:
     if volume > usable:
         return (f"parcels need {volume / 1e6:.2f} m³ but only "
                 f"{usable / 1e6:.2f} m³ is usable in the cargo space")
+    if driver:
+        return check_driver_limits(driver, parcels)
     return None
 
 
@@ -342,8 +416,10 @@ def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) 
                          "eta": eta, "earliest": earliest, "latest": latest,
                          "atRisk": at_risk})
         else:
+            ws = p.get("windowStart")
             etas.append({"stopIndex": i, "parcelId": pid, "kind": "delivery",
-                         "eta": eta, "deadline": p["deadline"],
+                         "eta": eta, "deadline": p["deadline"], "windowStart": ws,
+                         "early": bool(ws and eta < ws),
                          "atRisk": eta > p["deadline"]})
     return etas
 
@@ -359,10 +435,10 @@ def build_run_stops(parcels: list[dict]) -> list[dict]:
     stops = [{**depot, "depot": True, "kind": "depot"}]
     for p in parcels:
         pk = p.get("pickup")
-        if pk and p["status"] != "awaiting_redelivery":
+        if pk and p["status"] not in ("awaiting_redelivery", "picked_up"):
             stops.append({"lat": pk["lat"], "lng": pk["lng"], "label": pk["label"],
                           "parcelId": p["id"], "parcelName": p["name"], "kind": "pickup",
-                          "place": pk["label"],
+                          "place": pk["label"], "priority": p.get("priority", "standard"),
                           "earliest": pk.get("earliest"), "latest": pk.get("latest")})
         dest_label = (p["destination"].get("label") or "").strip() or p["name"]
         stops.append({"lat": p["destination"]["lat"], "lng": p["destination"]["lng"],
@@ -370,6 +446,8 @@ def build_run_stops(parcels: list[dict]) -> list[dict]:
                       # markers show a number, the manifest looks the parcel up by id
                       "label": dest_label, "parcelId": p["id"], "parcelName": p["name"],
                       "place": dest_label, "kind": "delivery",
+                      "priority": p.get("priority", "standard"),
+                      "windowStart": p.get("windowStart"),
                       "deadline": p["deadline"]})
     return stops
 
@@ -378,6 +456,22 @@ def route_has_pickup(route: dict, parcel_id: str) -> bool:
     """Does this run's route collect the given parcel en route?"""
     return any(stop_kind(s) == "pickup" and s.get("parcelId") == parcel_id
               for s in route["orderedStops"])
+
+
+async def plan_with_priorities(stops: list[dict], avoid_tolls: bool, vehicle_type: str) -> dict:
+    """Route a run that has express/priority parcels or delivery windows in the
+    order the dispatcher's priorities demand, without involving the AI planner."""
+    ordered = routing.sequence_stops(stops)
+    route = await routing.compute_route(ordered, avoid_tolls=avoid_tolls, optimize=False,
+                                        vehicle_type=vehicle_type, presequenced=True)
+    first = [s for s in ordered[1:] if (s.get("priority") or "standard") != "standard"
+             and s.get("kind") == "delivery"]
+    route["briefing"] = (
+        f"{len(ordered) - 1} stops from the hub. "
+        + (f"Express and priority parcels come first ({', '.join(s['parcelName'] for s in first[:3])}"
+           f"{'…' if len(first) > 3 else ''}). " if first else "")
+        + "Stops with a delivery window are timed so you arrive once the window opens.")
+    return route
 
 
 class RunError(Exception):
@@ -411,14 +505,17 @@ async def create_run(parcel_ids: list[str], driver_id: str,
     if not parcels:
         raise RunError("Select at least one parcel", 400)
 
-    reason = check_eligibility(vehicle, parcels)
+    reason = check_eligibility(vehicle, parcels, driver)
     if reason:
         raise RunError(f"{vehicle['name']} not eligible: {reason}")
 
     stops = build_run_stops(parcels)
 
-    route = await plan_route(stops, avoid_tolls=avoid_tolls,
-                             vehicle_type=vehicle["type"])
+    if routing.has_special_handling(stops):
+        route = await plan_with_priorities(stops, avoid_tolls, vehicle["type"])
+    else:
+        route = await plan_route(stops, avoid_tolls=avoid_tolls,
+                                 vehicle_type=vehicle["type"])
     trip = store.new_trip(stops, route, avoid_tolls=avoid_tolls,
                           vehicle_type=vehicle["type"])
     parcels_by_id = {p["id"]: p for p in parcels}

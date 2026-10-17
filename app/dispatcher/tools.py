@@ -112,7 +112,7 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
     if not parcels:
         return {"status": "error", "message": "empty batch"}
 
-    reason = delivery.check_eligibility(vehicle, parcels)
+    reason = delivery.check_eligibility(vehicle, parcels, driver)
     if reason:
         return {"status": "ineligible", "reason": reason}
 

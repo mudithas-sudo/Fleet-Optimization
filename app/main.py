@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import db, delivery, deviation, routing, store  # noqa: E402
+from . import db, delivery, deviation, replan, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -145,6 +145,9 @@ class Dims(BaseModel):
 
 class ParcelIn(BaseModel):
     name: str
+    priority: str = "standard"          # standard | priority | express
+    windowStart: float | None = None    # earliest delivery time (epoch secs)
+    receiverEmail: str | None = None    # optional — used for tracking notifications
     trackingNumber: str | None = None   # blank → generated (FO-XXXXXXXX)
     receiverName: str | None = None
     dimensionsCm: Dims | None = None    # optional — package L×W×H in cm
@@ -200,6 +203,12 @@ class DriverIn(BaseModel):
     name: str
     phone: str = ""
     vehicleId: str | None = None
+    shiftStart: str | None = None       # "HH:MM"; blank = always on duty
+    shiftEnd: str | None = None
+    onLeave: bool = False
+    maxStops: int | None = None
+    maxHours: float | None = None
+    breakMinutes: int | None = None
 
 
 def _entity_or_404(table: str, entity_id: str) -> dict:
@@ -212,6 +221,10 @@ def _entity_or_404(table: str, entity_id: str) -> dict:
 def _validate_parcel(p: ParcelIn, exclude_id: str | None = None):
     if p.size not in delivery.SIZE_ORDER:
         raise HTTPException(400, f"size must be one of {delivery.SIZES}")
+    if p.priority not in delivery.PRIORITIES:
+        raise HTTPException(400, f"priority must be one of {list(delivery.PRIORITIES)}")
+    if p.windowStart and p.windowStart > p.deadline:
+        raise HTTPException(400, "The delivery window opens after the deadline.")
     if p.weightKg is not None and (p.weightKg <= 0 or p.weightKg > 2000):
         raise HTTPException(400, "weightKg must be between 0 and 2000")
     if p.dimensionsCm and not all(0 < v <= 1000 for v in
@@ -221,6 +234,20 @@ def _validate_parcel(p: ParcelIn, exclude_id: str | None = None):
     if tn and any(x["trackingNumber"].lower() == tn.lower() and x["id"] != exclude_id
                   for x in db.all_entities("parcels") if x.get("trackingNumber")):
         raise HTTPException(409, f"Tracking number {tn} already exists")
+
+
+def _validate_driver(d: DriverIn):
+    for label, value in (("shiftStart", d.shiftStart), ("shiftEnd", d.shiftEnd)):
+        if value and delivery._hhmm(value) is None:
+            raise HTTPException(400, f"{label} must look like 08:00")
+    if bool(d.shiftStart) != bool(d.shiftEnd):
+        raise HTTPException(400, "Give both a shift start and a shift end, or neither.")
+    if d.shiftStart and delivery._hhmm(d.shiftStart) >= delivery._hhmm(d.shiftEnd):
+        raise HTTPException(400, "The shift must end after it starts.")
+    if d.maxStops is not None and d.maxStops < 1:
+        raise HTTPException(400, "maxStops must be at least 1")
+    if d.maxHours is not None and not 0 < d.maxHours <= 24:
+        raise HTTPException(400, "maxHours must be between 0 and 24")
 
 
 def _validate_vehicle(v: VehicleIn):
@@ -467,6 +494,7 @@ async def list_drivers():
 
 @app.post("/api/drivers")
 async def add_driver(d: DriverIn):
+    _validate_driver(d)
     if d.vehicleId:
         _entity_or_404("vehicles", d.vehicleId)
     return delivery.new_driver(d.model_dump())
@@ -477,9 +505,13 @@ async def edit_driver(driver_id: str, d: DriverIn):
     driver = _entity_or_404("drivers", driver_id)
     if delivery.entity_in_use("drivers", driver_id):
         raise HTTPException(409, "Driver is on a delivery run — end it first.")
+    _validate_driver(d)
     if d.vehicleId:
         _entity_or_404("vehicles", d.vehicleId)
-    driver.update(d.model_dump())
+    data = d.model_dump()
+    if data["breakMinutes"] is None:
+        data["breakMinutes"] = driver.get("breakMinutes", 30)
+    driver.update(data)
     db.save_entity("drivers", driver)
     return driver
 
@@ -502,6 +534,88 @@ async def get_depot():
 async def set_depot(depot: Stop):
     db.set_setting("depot", depot.model_dump())
     return depot.model_dump()
+
+
+class AddToRun(BaseModel):
+    parcelIds: list[str]
+
+
+class ReassignRequest(BaseModel):
+    driverId: str
+
+
+class MoveRequest(BaseModel):
+    toTripId: str
+
+
+def _replan_error(e: Exception):
+    code = getattr(e, "code", 409)
+    raise HTTPException(code, str(e))
+
+
+@app.post("/api/runs/{trip_id}/parcels")
+async def run_add_parcels(trip_id: str, req: AddToRun):
+    """Add parcels to a planned run — or one already under way."""
+    try:
+        trip = await replan.replan(trip_id, add_ids=req.parcelIds)
+    except delivery.RunError as e:
+        _replan_error(e)
+    store.broadcast(trip_id, "trip", _summary(trip))
+    return _summary(trip)
+
+
+@app.delete("/api/runs/{trip_id}/parcels/{parcel_id}")
+async def run_remove_parcel(trip_id: str, parcel_id: str):
+    try:
+        trip = await replan.replan(trip_id, remove_ids=[parcel_id])
+    except delivery.RunError as e:
+        _replan_error(e)
+    store.broadcast(trip_id, "trip", _summary(trip))
+    return _summary(trip)
+
+
+@app.post("/api/runs/{trip_id}/reassign")
+async def run_reassign(trip_id: str, req: ReassignRequest):
+    """Give a planned run to another driver (and their vehicle)."""
+    try:
+        trip = await replan.replan(trip_id, driver_id=req.driverId)
+    except delivery.RunError as e:
+        _replan_error(e)
+    store.broadcast(trip_id, "trip", _summary(trip))
+    return _summary(trip)
+
+
+@app.post("/api/parcels/{parcel_id}/move")
+async def parcel_move(parcel_id: str, req: MoveRequest):
+    """Move a parcel from its run (or the pending list) onto another run."""
+    try:
+        target, source = await replan.move_parcel(parcel_id, req.toTripId)
+    except delivery.RunError as e:
+        _replan_error(e)
+    store.broadcast(target["id"], "trip", _summary(target))
+    if source:
+        store.broadcast(source["id"], "trip", _summary(source))
+    return {"to": _summary(target), "from": _summary(source) if source else None}
+
+
+@app.get("/api/runs/{trip_id}/options")
+async def run_options(trip_id: str):
+    """What the dispatcher can do with this run: drivers who could take it over
+    (planned runs only) and the reason each of the others can't."""
+    trip = _trip_or_404(trip_id)
+    parcels = [p for p in (db.load_entity("parcels", pid) for pid in trip.get("parcelIds") or [])
+               if p and p["status"] in ("assigned", "in_transit", "picked_up")]
+    drivers = []
+    for d in db.all_entities("drivers"):
+        if d["id"] == trip.get("driverId"):
+            continue
+        v = db.load_entity("vehicles", d.get("vehicleId") or "")
+        reason = ("no vehicle assigned" if not v else
+                  "has an unfinished run" if delivery.entity_in_use("drivers", d["id"]) else
+                  delivery.check_eligibility(v, parcels, d))
+        drivers.append({"id": d["id"], "name": d["name"],
+                        "vehicle": v["name"] if v else None, "reason": reason})
+    return {"canReassign": trip["status"] == "planned", "drivers": drivers}
 
 
 class RunRequest(BaseModel):
@@ -551,7 +665,7 @@ async def run_eligibility(req: EligibilityRequest):
     for d in db.all_entities("drivers"):
         v = db.load_entity("vehicles", d.get("vehicleId") or "")
         out[d["id"]] = ("no vehicle assigned" if not v
-                        else delivery.check_eligibility(v, parcels))
+                        else delivery.check_eligibility(v, parcels, d))
     return out
 
 

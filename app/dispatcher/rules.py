@@ -5,7 +5,8 @@ so count, size class, dimensions, weight and volume limits all apply, and it
 returns the same shape as dispatcher.service.propose_dispatch so the admin UI
 and /api/dispatch/approve treat both engines alike.
 
-Algorithm (sweep + largest-vehicle-first):
+Algorithm (sweep + largest-vehicle-first; express/priority parcels first,
+drivers on leave or off shift are skipped, driver limits respected):
   1. A parcel that no vehicle in the fleet could ever carry is flagged
      unassigned with the reason (too big, too heavy …).
   2. Free drivers (no unfinished run) are ordered by cargo volume, largest first,
@@ -19,7 +20,7 @@ Algorithm (sweep + largest-vehicle-first):
 import math
 import time
 
-from .. import db, delivery, store
+from .. import db, delivery, routing, store
 
 
 def _bearing(depot: dict, p: dict) -> float:
@@ -27,20 +28,27 @@ def _bearing(depot: dict, p: dict) -> float:
     return math.atan2(dest["lng"] - depot["lng"], dest["lat"] - depot["lat"])
 
 
-def _free_drivers() -> list[tuple[dict, dict]]:
+def _free_drivers() -> tuple[list[tuple[dict, dict]], list[str]]:
+    """Idle drivers who are on duty, largest cargo space first, plus a note for
+    each driver left out because of leave or shift hours."""
     busy = {t.get("driverId") for t in store.list_trips() if t["status"] != "completed"}
-    out = []
+    out, skipped = [], []
     for d in db.all_entities("drivers"):
         v = db.load_entity("vehicles", d.get("vehicleId") or "")
-        if v and d["id"] not in busy:
-            out.append((d, v))
+        if not v or d["id"] in busy:
+            continue
+        away = delivery.driver_unavailable_reason(d)
+        if away:
+            skipped.append(f"{d['name']} is {away}")
+            continue
+        out.append((d, v))
 
     def volume(pair):
         cargo, _ = delivery._vehicle_cargo(pair[1])
         return delivery._volume_cm3(cargo)
 
     out.sort(key=volume, reverse=True)
-    return out
+    return out, skipped
 
 
 def propose_by_rules(parcel_ids: list[str] | None = None) -> dict:
@@ -68,21 +76,28 @@ def propose_by_rules(parcel_ids: list[str] | None = None) -> dict:
             workable.append(p)
 
     depot = delivery.get_depot()
+    rank = lambda p: routing.PRIORITY_RANK.get(p.get("priority") or "standard", 2)
     workable.sort(key=lambda p: _bearing(depot, p))
     if workable:
-        urgent = min(range(len(workable)), key=lambda i: workable[i]["deadline"])
+        # start the sweep at the most important parcel: express, then earliest deadline
+        urgent = min(range(len(workable)), key=lambda i: (rank(workable[i]), workable[i]["deadline"]))
         workable = workable[urgent:] + workable[:urgent]
 
+    free, skipped = _free_drivers()
     batches, remaining = [], workable
-    for driver, vehicle in _free_drivers():
+    for driver, vehicle in free:
         if not remaining:
             break
         load, left = [], []
-        for p in remaining:
-            if delivery.check_eligibility(vehicle, load + [p]) is None:
+        # express / priority parcels claim space first; the rest keep sweep order
+        for p in sorted(remaining, key=rank):
+            if delivery.check_eligibility(vehicle, load + [p], driver) is None:
                 load.append(p)
             else:
                 left.append(p)
+        order = {p["id"]: i for i, p in enumerate(remaining)}
+        load.sort(key=lambda p: order[p["id"]])
+        left.sort(key=lambda p: order[p["id"]])
         if not load:
             continue
         remaining = left
@@ -105,7 +120,8 @@ def propose_by_rules(parcel_ids: list[str] | None = None) -> dict:
     for p in remaining:
         unassigned.append({"parcelId": p["id"], "name": p["name"],
                            "reason": "No free vehicle with enough room left — "
-                                     "finish a run or add a vehicle."})
+                                     "finish a run or add a vehicle."
+                                     + (f" ({'; '.join(skipped)}.)" if skipped else "")})
 
     used = len(batches)
     return {
@@ -115,5 +131,5 @@ def propose_by_rules(parcel_ids: list[str] | None = None) -> dict:
         "summary": (f"{len(parcels) - len(unassigned)} of {len(parcels)} parcels fit on "
                     f"{used} vehicle{'s' if used != 1 else ''}"
                     + (f"; {len(unassigned)} could not be assigned." if unassigned else ".")),
-        "warnings": [],
+        "warnings": [f"Not scheduled: {n}." for n in skipped],
     }

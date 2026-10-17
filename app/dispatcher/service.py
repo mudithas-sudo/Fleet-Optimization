@@ -52,7 +52,7 @@ def _validate(plan: dict, scope: list[str] | None) -> dict:
         if not parcels:
             continue
 
-        reason = delivery.check_eligibility(vehicle, parcels)
+        reason = delivery.check_eligibility(vehicle, parcels, driver)
         if reason:
             warnings.append(
                 f"Batch for {driver['name']} failed eligibility ({reason}); parcels left unassigned.")
