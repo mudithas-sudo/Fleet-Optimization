@@ -990,6 +990,15 @@
   #reassign-form { display: flex; flex-direction: column; gap: var(--space-2); }
   #reassign-form[hidden] { display: none; }
   #reassign-form select { padding: 9px 10px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: inherit; font-size: var(--fs-sm); font-weight: 600; }
+
+  .pd-notify { display: flex; flex-direction: column; gap: var(--space-2); }
+  .pd-notify a { color: var(--primary); word-break: break-all; }
+  .pd-msg { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 3px; }
+  .pd-msg-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .pd-msg time { margin-left: auto; font-size: 11.5px; color: var(--text-subtle); }
+  .nt { font-size: 11.5px; font-weight: 700; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); }
+  .nt.ok { background: var(--success-soft); color: var(--success); }
+  .nt.bad { background: var(--danger-soft); color: var(--danger); }
 </style>
 </head>
 <body>

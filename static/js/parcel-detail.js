@@ -109,7 +109,10 @@ function renderParcelDetail(p) {
     <ol class="timeline">${p.timeline.map(e => `
       <li class="${PD_EVENT_TONE[e.type] || ""}"><time>${pdWhen(e.ts)}</time><span>${pdEsc(e.message)}</span></li>`).join("")}
     </ol>
+    <h2>Customer updates</h2>
+    <div id="pd-notify" class="pd-notify"><div class="hint">Loading…</div></div>
     <div id="pd-actions">${actionsBlock(p)}</div>`;
+  loadNotifications(p);
   if (p.pod && (p.pod.hasSignature || p.pod.hasPhoto)) loadPodImages(p.id);
   wirePdActions(p);
 }
@@ -144,6 +147,31 @@ async function loadPodImages(id) {
       r.photo ? `<figure><img alt="Delivery photo" src="${r.photo}"><figcaption>Photo</figcaption></figure>` : "",
     ].join("");
   } catch (_) { /* images are a nice-to-have */ }
+}
+
+async function loadNotifications(p) {
+  try {
+    const r = await api(`/api/parcels/${p.id}/notifications`);
+    if (p.id !== pdOpenId) return;
+    const box = $("pd-notify");
+    if (!box) return;
+    const chip = m => m.status === "sent" ? `<span class="nt ok">sent</span>`
+      : m.status === "failed" ? `<span class="nt bad">failed</span>`
+      : m.status === "sending" ? `<span class="nt">sending</span>`
+      : `<span class="nt" title="No SMS/email provider is configured (NOTIFY_WEBHOOK_URL), so this was only logged">logged, not sent</span>`;
+    const contact = p.recipientPhone || p.receiverEmail;
+    box.innerHTML = `
+      <div class="hint">Customer tracking link: <a href="${pdEsc(r.trackingUrl)}" target="_blank" rel="noopener">${pdEsc(r.trackingUrl)}</a>
+        <button type="button" class="link-action" id="pd-copy">Copy</button></div>
+      ${r.messages.length ? r.messages.map(m => `
+        <div class="pd-msg"><div class="pd-msg-top"><b>${m.channel === "sms" ? "SMS" : "Email"}</b> to ${pdEsc(m.to)} ${chip(m)}
+          <time>${pdWhen(m.createdAt)}</time></div><div>${pdEsc(m.message)}</div></div>`).join("")
+        : `<div class="hint">${contact ? "Nothing sent yet — messages go out when the parcel is out for delivery, nearby, delivered or fails." : "No phone number or email on this parcel, so no updates are sent."}</div>`}`;
+    $("pd-copy").onclick = async () => {
+      try { await navigator.clipboard.writeText(r.trackingUrl); $("pd-copy").textContent = "Copied"; }
+      catch (_) { $("pd-copy").textContent = "Select and copy"; }
+    };
+  } catch (_) { /* optional section */ }
 }
 
 // ---- actions

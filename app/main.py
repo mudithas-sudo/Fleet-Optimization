@@ -11,14 +11,14 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before app modules read env vars
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi import FastAPI, HTTPException, Request  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import db, delivery, deviation, replan, routing, store  # noqa: E402
+from . import db, delivery, deviation, notify, replan, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -396,6 +396,7 @@ async def parcel_reschedule(parcel_id: str, body: RescheduleIn):
     delivery.add_event(parcel, "rescheduled", f"Rescheduled for delivery by {when}")
     db.save_entity("parcels", parcel)
     store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    notify.notify(parcel, "rescheduled", deadline=body.deadline)
     return parcel
 
 
@@ -408,6 +409,100 @@ async def parcel_return(parcel_id: str):
     delivery.set_parcel_status(parcel, "returned", trip_id=None,
                                note="Returned to sender by dispatch")
     return parcel
+
+
+# ---- customer tracking (public: no admin data, only what the customer should see)
+
+_TRACK_STEPS = ["Order received", "Scheduled", "Out for delivery", "Delivered"]
+_TRACK_STEP = {"pending": 0, "awaiting_redelivery": 0, "assigned": 1, "in_transit": 2,
+               "picked_up": 2, "delivered": 3, "returned": 3}
+_TRACK_LABEL = {
+    "pending": "We have your parcel", "assigned": "Scheduled for delivery",
+    "in_transit": "Out for delivery", "picked_up": "Out for delivery",
+    "delivered": "Delivered", "awaiting_redelivery": "We'll try delivering again",
+    "returned": "Returned to sender",
+}
+_TRACK_EVENT = {
+    "created": "Order received", "assigned": "Scheduled for delivery",
+    "out_for_delivery": "Out for delivery", "collected": "Collected from the sender",
+    "delivered": "Delivered", "returned_to_hub": "Back at our depot",
+    "rescheduled": "Delivery rescheduled", "returned": "Returned to the sender",
+    "unassigned": "Waiting to be scheduled",
+}
+_track_hits: dict[str, list[float]] = {}
+TRACK_RATE_PER_MIN = int(os.environ.get("TRACK_RATE_PER_MIN", "30"))
+
+
+def _track_rate_limit(ip: str):
+    now = time.time()
+    hits = [t for t in _track_hits.get(ip, []) if now - t < 60]
+    if len(hits) >= TRACK_RATE_PER_MIN:
+        raise HTTPException(429, "Too many lookups — wait a minute and try again.")
+    hits.append(now)
+    _track_hits[ip] = hits
+
+
+@app.get("/api/track/{tracking_number}")
+async def track(tracking_number: str, request: Request):
+    _track_rate_limit(request.client.host if request.client else "?")
+    want = tracking_number.strip().lower()
+    parcel = next((p for p in db.all_entities("parcels")
+                   if (p.get("trackingNumber") or "").lower() == want), None)
+    if not parcel:
+        raise HTTPException(404, "We couldn't find that tracking number. Check it and try again.")
+    trip = _trip_for(parcel)
+    eta, stops_away, driver = None, None, None
+    if trip and parcel["status"] in ("in_transit", "picked_up"):
+        driver = trip.get("driverId") and db.load_entity("drivers", trip["driverId"])
+        order = [s.get("parcelId") for s in trip["route"]["orderedStops"][1:]
+                 if delivery.stop_kind(s) == "delivery"]
+        pending = []
+        for pid in order:
+            q = db.load_entity("parcels", pid)
+            if q and q["status"] in ("in_transit", "picked_up"):
+                pending.append(pid)
+        if parcel["id"] in pending:
+            stops_away = pending.index(parcel["id"])
+        eta = next((e["eta"] for e in trip.get("plannedEtaPerStop") or []
+                    if e.get("parcelId") == parcel["id"] and e.get("kind") == "delivery"), None)
+    label = parcel["destination"].get("label") or ""
+    area = label.split(",", 1)[1].strip() if "," in label else label
+    pod = parcel.get("pod") or {}
+    failure = parcel.get("lastFailure")
+    history = [{"ts": e["ts"], "message": _TRACK_EVENT[e["type"]]}
+               for e in delivery.timeline(parcel) if e["type"] in _TRACK_EVENT]
+    for e in delivery.timeline(parcel):
+        if e["type"] == "failed":
+            history.append({"ts": e["ts"], "message": "Delivery attempt unsuccessful"})
+    history.sort(key=lambda h: h["ts"])
+    return {
+        "trackingNumber": parcel["trackingNumber"],
+        "status": parcel["status"],
+        "headline": _TRACK_LABEL.get(parcel["status"], "In progress"),
+        "step": _TRACK_STEP.get(parcel["status"], 0),
+        "steps": _TRACK_STEPS,
+        "deliverTo": area,
+        "expectedBy": parcel["deadline"] if parcel["status"] != "delivered" else None,
+        "eta": eta,
+        "stopsAway": stops_away,
+        "driverFirstName": driver["name"].split()[0] if driver else None,
+        "deliveredAt": parcel.get("deliveredAt"),
+        "receivedBy": pod.get("receivedBy") if parcel["status"] == "delivered" else None,
+        "lastProblem": failure["label"] if failure and parcel["status"] in ("awaiting_redelivery", "returned") else None,
+        "history": history,
+    }
+
+
+@app.get("/api/parcels/{parcel_id}/notifications")
+async def parcel_notifications(parcel_id: str):
+    parcel = _entity_or_404("parcels", parcel_id)
+    return {"trackingUrl": notify.tracking_url(parcel), "messages": notify.for_parcel(parcel_id)}
+
+
+@app.get("/api/notifications")
+async def recent_notifications(limit: int = 50):
+    return {"providerConfigured": bool(os.environ.get("NOTIFY_WEBHOOK_URL")),
+            "messages": notify.recent(min(max(limit, 1), 200))}
 
 
 @app.get("/api/trips/{trip_id}/parcels")
@@ -920,6 +1015,7 @@ async def post_position(trip_id: str, pos: Position):
     runtime["driver_halted"] = pos.stopped
     alert, along = deviation.check_position(trip, runtime, pos.lat, pos.lng)
     _check_stop_progress(trip, runtime)
+    _check_nearby(trip, runtime)
     _check_pickup_risk(trip, runtime)
     _check_stall(trip, runtime)
     if alert:
@@ -998,6 +1094,31 @@ def _check_stop_progress(trip: dict, runtime: dict):
             trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
             late = " (past deadline)" if p["deadlineMissed"] else ""
             _emit(trip, "delivered", f"Delivered: {p['name']}{late}")
+
+
+NEARBY_METERS = float(os.environ.get("NEARBY_METERS", "1500"))
+NEARBY_SPEED_MS = 25 / 3.6          # assumed urban speed for the "minutes away" estimate
+
+
+def _check_nearby(trip: dict, runtime: dict):
+    """Tell the customer when the vehicle is within NEARBY_METERS (along the
+    route) of their stop. notify() makes this once per parcel."""
+    if not trip.get("parcelIds") or trip["status"] not in ("active", "deviating"):
+        return
+    bounds, cum = [0.0], 0.0
+    for leg in trip["route"]["legs"]:
+        cum += leg["distanceMeters"]
+        bounds.append(cum)
+    for i, stop in enumerate(trip["route"]["orderedStops"]):
+        pid = stop.get("parcelId")
+        if i == 0 or not pid or delivery.stop_kind(stop) != "delivery":
+            continue
+        remaining = bounds[i] - runtime["along"]
+        if not 0 < remaining <= NEARBY_METERS:
+            continue
+        p = db.load_entity("parcels", pid)
+        if p and p["status"] in ("in_transit", "picked_up"):
+            notify.notify(p, "nearby", minutes=max(1, round(remaining / NEARBY_SPEED_MS / 60)))
 
 
 def _emit(trip: dict, kind: str, message: str):

@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 
-from . import db, routing, store
+from . import db, notify, routing, store
 
 SIZES = ["small", "medium", "large"]
 SIZE_ORDER = {s: i for i, s in enumerate(SIZES)}
@@ -335,7 +335,24 @@ def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None, note=Non
         add_event(parcel, kind, message, tripId=trip_id or parcel.get("tripId"))
     db.save_entity("parcels", parcel)
     store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    if status != previous:
+        _notify_for_status(parcel, status)
     return parcel
+
+
+def _notify_for_status(parcel: dict, status: str) -> None:
+    try:
+        if status == "in_transit":
+            trip = parcel.get("tripId") and store.get_trip(parcel["tripId"])
+            eta = next((e["eta"] for e in (trip or {}).get("plannedEtaPerStop") or []
+                        if e.get("parcelId") == parcel["id"] and e.get("kind") == "delivery"), None)
+            notify.notify(parcel, "out_for_delivery", eta=eta)
+        elif status == "delivered":
+            notify.notify(parcel, "delivered", receivedBy=(parcel.get("pod") or {}).get("receivedBy"))
+        elif status == "returned":
+            notify.notify(parcel, "returned")
+    except Exception:                      # customer messaging must never block a delivery
+        notify.log.exception("notification failed")
 
 
 def record_failed_attempt(parcel: dict, reason: str, note: str | None,
@@ -361,6 +378,10 @@ def record_failed_attempt(parcel: dict, reason: str, note: str | None,
             add_event(parcel, "rescheduled", "Redelivery scheduled for "
                       + time.strftime("%d %b %H:%M", time.localtime(retry_at)))
         set_parcel_status(parcel, "awaiting_redelivery", trip_id=None)
+        try:
+            notify.notify(parcel, "failed", reason=label, retryAt=retry_at)
+        except Exception:
+            notify.log.exception("notification failed")
     return parcel
 
 

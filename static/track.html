@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0f2e35">
+<title>Track your parcel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #eef1ec; --surface: #fbfcfa; --border: #cdd7d1; --border-strong: #a9b8b0;
+    --text: #0f2e35; --muted: #4b6268; --nav: #0f2e35;
+    --primary: #0b7f86; --accent: #f4b400; --on-accent: #17262a;
+    --success: #2a7a4d; --danger: #c0301d; --warning: #8a5a00;
+    --focus: 0 0 0 3px rgba(11, 127, 134, .4);
+    --font: "Hanken Grotesk", system-ui, sans-serif; --display: "Bricolage Grotesque", var(--font);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0a1c21; --surface: #102a31; --border: #234650; --border-strong: #356572;
+      --text: #e8f2f0; --muted: #9fbdc2; --nav: #07151a;
+      --primary: #43c6cc; --accent: #ffc933; --on-accent: #1a1403;
+      --success: #4fcb88; --danger: #ff7b68; --warning: #e8b04a;
+      --focus: 0 0 0 3px rgba(67, 198, 204, .5);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 500 15px/1.5 var(--font); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  header { background: var(--nav); color: #f2f7f5; padding: 16px max(16px, env(safe-area-inset-left)); }
+  header div { max-width: 560px; margin: 0 auto; font: 700 20px var(--display); letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+  header .logo { width: 26px; height: 26px; border-radius: 3px; background: var(--accent); color: #17262a; display: grid; place-items: center; }
+  header .logo svg { width: 16px; height: 16px; }
+  main { max-width: 560px; margin: 0 auto; padding: 18px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+  :focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; min-width: 0; min-height: 48px; padding: 0 14px; border: 1.5px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: 600 16px var(--font); }
+  input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus); }
+  button.go { min-height: 48px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); font: 700 16px var(--display); cursor: pointer; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .no { color: var(--muted); font-weight: 600; font-size: 14px; }
+  h1 { font: 800 30px/1.1 var(--display); letter-spacing: -.03em; }
+  h1.ok { color: var(--success); } h1.bad { color: var(--danger); }
+  .eta { font: 700 20px var(--display); }
+  .sub { color: var(--muted); font-weight: 600; }
+  .steps { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .steps li { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .steps li::before { content: ""; height: 6px; border-radius: 3px; background: var(--border); }
+  .steps li.done { color: var(--text); } .steps li.done::before { background: var(--primary); }
+  .steps li.now::before { background: var(--accent); }
+  .steps.bad li.now::before { background: var(--danger); }
+  .dots { display: flex; align-items: center; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+  .dots i.you { background: var(--accent); width: 14px; height: 14px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+  .dots i.gone { background: var(--primary); }
+  .problem { border-left: 4px solid var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); padding: 10px 12px; border-radius: 6px; font-weight: 600; }
+  h2 { font: 700 17px var(--display); }
+  ol.history { list-style: none; padding: 0 0 0 14px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+  ol.history li { position: relative; display: flex; flex-direction: column; }
+  ol.history li::before { content: ""; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); border: 2px solid var(--surface); }
+  ol.history time { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .err { color: var(--danger); font-weight: 700; }
+  .note { color: var(--muted); font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header><div>
+  <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h13V6H3zM16 10h4l1 4v3h-5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg></span>
+  Track your parcel
+</div></header>
+<main>
+  <form id="f" role="search">
+    <input id="no" name="no" placeholder="Tracking number, e.g. FO-1A2B3C4D" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Tracking number" required>
+    <button class="go" type="submit">Track</button>
+  </form>
+  <div id="out" aria-live="polite"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clock = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const day = ts => new Date(ts * 1000).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+const when = ts => `${day(ts)}, ${clock(ts)}`;
+let timer = null;
+
+async function lookup(no, quiet) {
+  clearTimeout(timer);
+  if (!quiet) $("out").innerHTML = `<div class="sub">Looking it up…</div>`;
+  try {
+    const r = await fetch(`/api/track/${encodeURIComponent(no)}`);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || "Something went wrong. Please try again.");
+    render(d);
+    if (!["delivered", "returned"].includes(d.status)) timer = setTimeout(() => lookup(no, true), 20000);
+  } catch (e) {
+    if (!quiet) $("out").innerHTML = `<div class="card"><div class="err" role="alert">${esc(e.message)}</div></div>`;
+  }
+}
+
+function render(d) {
+  const bad = ["returned", "awaiting_redelivery"].includes(d.status);
+  const ok = d.status === "delivered";
+  let lead = "";
+  if (d.status === "delivered") lead = `<div class="sub">${d.deliveredAt ? "Delivered " + when(d.deliveredAt) : "Delivered"}${d.receivedBy ? " · received by " + esc(d.receivedBy) : ""}</div>`;
+  else if (d.eta && (d.status === "in_transit" || d.status === "picked_up")) lead = `<div class="eta">Arriving around ${clock(d.eta)}</div>`;
+  else if (d.expectedBy && !bad) lead = `<div class="eta">Expected by ${when(d.expectedBy)}</div>`;
+  else if (d.status === "awaiting_redelivery" && d.expectedBy) lead = `<div class="eta">Next attempt by ${when(d.expectedBy)}</div>`;
+
+  let near = "";
+  if (d.stopsAway != null && ["in_transit", "picked_up"].includes(d.status)) {
+    const n = d.stopsAway;
+    near = `<div><div class="dots" aria-hidden="true">${Array.from({ length: Math.min(n, 6) }, () => `<i class="gone"></i>`).join("")}<i class="you"></i></div>
+      <div class="sub" style="margin-top:6px">${n === 0 ? "You’re next on the route" : n + " stop" + (n === 1 ? "" : "s") + " before yours"}${d.driverFirstName ? " · driver " + esc(d.driverFirstName) : ""}</div></div>`;
+  }
+  $("out").innerHTML = `
+    <div class="card">
+      <div class="no">${esc(d.trackingNumber)}${d.deliverTo ? " · to " + esc(d.deliverTo) : ""}</div>
+      <h1 class="${ok ? "ok" : bad ? "bad" : ""}">${esc(d.headline)}</h1>
+      ${lead}
+      ${d.lastProblem ? `<div class="problem">Last attempt: ${esc(d.lastProblem)}.</div>` : ""}
+      ${near}
+      <ol class="steps ${bad ? "bad" : ""}" aria-label="Progress">${d.steps.map((s, i) =>
+        `<li class="${i < d.step || (ok && i === d.step) ? "done" : i === d.step ? "now" : ""}">${esc(s)}</li>`).join("")}</ol>
+    </div>
+    <div class="card">
+      <h2>History</h2>
+      <ol class="history">${d.history.slice().reverse().map(h => `<li><span>${esc(h.message)}</span><time>${when(h.ts)}</time></li>`).join("")}</ol>
+    </div>
+    <div class="note">This page updates by itself. Need help? Quote the tracking number to the sender or the delivery company.</div>`;
+}
+
+$("f").addEventListener("submit", e => {
+  e.preventDefault();
+  const no = $("no").value.trim();
+  if (!no) return;
+  history.replaceState(null, "", `?no=${encodeURIComponent(no)}`);
+  lookup(no);
+});
+const initial = new URLSearchParams(location.search).get("no");
+if (initial) { $("no").value = initial; lookup(initial); }
+</script>
+</body>
+</html>
