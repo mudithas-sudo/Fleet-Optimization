@@ -1,6 +1,7 @@
 """Fleet Transportation Planning demo — FastAPI backend."""
 
 import asyncio
+import re
 import logging
 import os
 import time
@@ -158,6 +159,29 @@ class ParcelIn(BaseModel):
     notes: str | None = None            # optional — delivery instructions
 
 
+class PodIn(BaseModel):
+    method: str                          # handed_over | signature | photo | left_safe
+    receivedBy: str | None = None
+    note: str | None = None
+    signature: str | None = None         # data URL (png) drawn on the driver's screen
+    photo: str | None = None             # data URL (jpeg/webp), downscaled client-side
+    lat: float | None = None
+    lng: float | None = None
+    by: str = "driver"
+
+
+class FailIn(BaseModel):
+    reason: str
+    note: str | None = None
+    retryAt: float | None = None         # new deadline for the next attempt (epoch secs)
+    by: str = "driver"
+
+
+class RescheduleIn(BaseModel):
+    deadline: float
+    destination: Stop | None = None      # corrected address, if the first one was wrong
+
+
 class BulkParcels(BaseModel):
     parcels: list[ParcelIn]
 
@@ -231,6 +255,150 @@ async def bulk_parcels(req: BulkParcels):
         except HTTPException as e:
             errors.append({"index": i, "message": str(e.detail)})
     return {"created": created, "errors": errors}
+
+
+_DATA_URL = re.compile(r"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$")
+_MAX_IMAGE_CHARS = 700_000      # ~500 KB of image
+
+
+def _check_image(value: str | None, what: str):
+    if value is None:
+        return
+    if len(value) > _MAX_IMAGE_CHARS:
+        raise HTTPException(413, f"The {what} is too large — use a smaller image.")
+    if not _DATA_URL.match(value):
+        raise HTTPException(400, f"The {what} must be a PNG, JPEG or WebP image.")
+
+
+def _trip_for(parcel: dict) -> dict | None:
+    return store.get_trip(parcel["tripId"]) if parcel.get("tripId") else None
+
+
+@app.get("/api/parcels/{parcel_id}")
+async def parcel_detail(parcel_id: str):
+    parcel = _entity_or_404("parcels", parcel_id)
+    trip = _trip_for(parcel) or (store.get_trip((parcel.get("lastFailure") or {}).get("tripId") or "")
+                                 if parcel.get("lastFailure") else None)
+    driver = trip and trip.get("driverId") and db.load_entity("drivers", trip["driverId"])
+    return {**parcel, "timeline": delivery.timeline(parcel),
+            "driverName": driver["name"] if driver else None,
+            "attemptsLeft": max(0, delivery.MAX_DELIVERY_ATTEMPTS - parcel.get("failedAttempts", 0))}
+
+
+@app.get("/api/parcels/{parcel_id}/pod")
+async def parcel_pod_images(parcel_id: str):
+    parcel = _entity_or_404("parcels", parcel_id)
+    files = db.load_entity("pods", parcel_id) or {}
+    return {"pod": parcel.get("pod"), "signature": files.get("signature"),
+            "photo": files.get("photo")}
+
+
+@app.post("/api/parcels/{parcel_id}/pod")
+async def parcel_pod(parcel_id: str, body: PodIn):
+    """Proof of delivery. On a parcel that is still on the road this also marks
+    it delivered (the driver confirmed the drop); on one the route already
+    ticked off it just attaches the evidence."""
+    parcel = _entity_or_404("parcels", parcel_id)
+    if body.method not in delivery.POD_METHODS:
+        raise HTTPException(400, f"method must be one of {list(delivery.POD_METHODS)}")
+    if parcel["status"] not in ("in_transit", "picked_up", "delivered"):
+        raise HTTPException(409, "This parcel isn't out for delivery.")
+    _check_image(body.signature, "signature")
+    _check_image(body.photo, "photo")
+    received_by = (body.receivedBy or "").strip()[:80] or None
+    note = (body.note or "").strip()[:300] or None
+    needs = {"signature": body.signature, "photo": body.photo,
+             "handed_over": received_by, "left_safe": note or body.photo}
+    if not needs[body.method]:
+        raise HTTPException(400, {"signature": "Draw a signature.", "photo": "Add a photo.",
+                                  "handed_over": "Enter who received the parcel.",
+                                  "left_safe": "Say where it was left, or add a photo."}[body.method])
+    trip = _trip_for(parcel)
+    was_delivered = parcel["status"] == "delivered"
+    delivery.save_pod(parcel, body.method, received_by, note, body.signature, body.photo,
+                      parcel.get("tripId"), body.lat, body.lng, actor=body.by)
+    if not was_delivered:
+        delivery.set_parcel_status(parcel, "delivered")
+        if trip:
+            trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
+            late = " (past deadline)" if parcel["deadlineMissed"] else ""
+            _emit(trip, "delivered", f"Delivered: {parcel['name']}{late}")
+            store.save_trip(trip)
+    else:
+        db.save_entity("parcels", parcel)
+        store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return parcel
+
+
+@app.post("/api/parcels/{parcel_id}/fail")
+async def parcel_fail(parcel_id: str, body: FailIn):
+    parcel = _entity_or_404("parcels", parcel_id)
+    if body.reason not in delivery.FAIL_REASONS:
+        raise HTTPException(400, f"reason must be one of {list(delivery.FAIL_REASONS)}")
+    if parcel["status"] not in ("in_transit", "picked_up"):
+        raise HTTPException(409, "Only a parcel that is out for delivery can fail.")
+    if body.retryAt and body.retryAt < time.time():
+        raise HTTPException(400, "The new delivery time is in the past.")
+    trip = _trip_for(parcel)
+    note = (body.note or "").strip()[:300] or None
+    delivery.record_failed_attempt(parcel, body.reason, note, parcel.get("tripId") or
+                                   (trip and trip["id"]), body.retryAt, actor=body.by)
+    if trip:
+        trip["failedCount"] = trip.get("failedCount", 0) + 1
+        _emit(trip, "failed", f"Couldn't deliver {parcel['name']}: "
+                              f"{delivery.FAIL_REASONS[body.reason]}")
+        store.save_trip(trip)
+    return parcel
+
+
+@app.post("/api/parcels/{parcel_id}/reschedule")
+async def parcel_reschedule(parcel_id: str, body: RescheduleIn):
+    """Set a new delivery time (and optionally a corrected address) for a
+    parcel that is back at the hub or still pending."""
+    parcel = _entity_or_404("parcels", parcel_id)
+    if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        raise HTTPException(409, "Only a pending parcel or one back at the hub can be rescheduled.")
+    if body.deadline < time.time():
+        raise HTTPException(400, "The new delivery time is in the past.")
+    parcel["deadline"] = body.deadline
+    parcel["deadlineMissed"] = False
+    when = time.strftime("%d %b %H:%M", time.localtime(body.deadline))
+    if body.destination:
+        parcel["destination"] = body.destination.model_dump()
+        delivery.add_event(parcel, "edited", f"Delivery address changed to {body.destination.label}")
+    delivery.add_event(parcel, "rescheduled", f"Rescheduled for delivery by {when}")
+    db.save_entity("parcels", parcel)
+    store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return parcel
+
+
+@app.post("/api/parcels/{parcel_id}/return")
+async def parcel_return(parcel_id: str):
+    """Give up on delivery: return the parcel to the sender."""
+    parcel = _entity_or_404("parcels", parcel_id)
+    if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        raise HTTPException(409, "This parcel is on a run — it can't be returned yet.")
+    delivery.set_parcel_status(parcel, "returned", trip_id=None,
+                               note="Returned to sender by dispatch")
+    return parcel
+
+
+@app.get("/api/trips/{trip_id}/parcels")
+async def trip_parcels(trip_id: str):
+    """The parcels of a run, in stop order, for the driver's stop list."""
+    trip = _trip_or_404(trip_id)
+    order = {}
+    for i, stop in enumerate(trip["route"]["orderedStops"]):
+        if stop.get("parcelId") and delivery.stop_kind(stop) == "delivery":
+            order.setdefault(stop["parcelId"], i)
+    out = []
+    for pid in trip.get("parcelIds") or []:
+        p = db.load_entity("parcels", pid)
+        if p:
+            out.append({**p, "stopIndex": order.get(pid), "events": None,
+                        "collectFirst": delivery.route_has_pickup(trip["route"], pid)
+                        and p["status"] != "picked_up" and p["status"] != "delivered"})
+    return sorted(out, key=lambda p: (p["stopIndex"] is None, p["stopIndex"] or 0))
 
 
 @app.put("/api/parcels/{parcel_id}")
@@ -609,6 +777,8 @@ async def end_trip(trip_id: str, req: EndRequest | None = None):
     for pid in trip.get("parcelIds") or []:
         p = db.load_entity("parcels", pid)
         if not p or p["status"] == "delivered":
+            continue
+        if p.get("tripId") != trip_id:        # failed / returned during this run
             continue
         if arrived:
             delivery.set_parcel_status(p, "delivered")

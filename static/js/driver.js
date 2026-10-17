@@ -115,6 +115,7 @@ async function init() {
   $("btn-stop").onclick = toggleStop;
   $("btn-end").onclick = () => endTrip(false);
   $("btn-overview").onclick = toggleOverview;
+  $("btn-stops").onclick = openStops;
 
   // trip already live (page refreshed mid-drive): resume from the server's
   // last stored position instead of restarting from the origin

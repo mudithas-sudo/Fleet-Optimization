@@ -130,6 +130,7 @@ async function init() {
   setupImport();
   setupDepotForm();
   setupOverview();
+  setupParcelDetail();
 
   // fleet tab
   $("btn-clear-all").onclick = clearAllTrips;
@@ -327,6 +328,8 @@ const PARCEL_GROUPS = [
     match: s => ["assigned", "in_transit", "picked_up"].includes(s) },
   { key: "done",     label: "Delivered",        dot: "",
     match: s => s === "delivered" },
+  { key: "returned", label: "Returned to sender", dot: "",
+    match: s => s === "returned" },
 ];
 
 function parcelGroupHead(label, count, dotMod) {
@@ -370,6 +373,12 @@ function parcelRow(p) {
     </div>
     <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
     ${plannable ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
+  const info = row.querySelector(".info");
+  info.setAttribute("role", "button");
+  info.tabIndex = 0;
+  info.setAttribute("aria-label", `Open details for ${p.name}`);
+  info.onclick = () => openParcelDetail(p.id);
+  info.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParcelDetail(p.id); } };
   const cb = row.querySelector("input[type=checkbox]");
   if (cb) cb.onchange = () => {
     cb.checked ? selectedParcels.add(p.id) : selectedParcels.delete(p.id);
@@ -1196,6 +1205,7 @@ async function selectTrip(id, prefetched = null) {
 }
 
 function renderDetail() {
+  closeParcelDetail();
   $("trip-detail").style.display = "flex";
   $("detail-id").textContent = detail.id;
   const r = detail.route;
@@ -1396,6 +1406,7 @@ function openStream() {
     if (deleted) delete parcels[parcel.id];
     else parcels[parcel.id] = parcel;
     renderParcels();
+    if (pdOpenId === parcel.id) { deleted ? closeParcelDetail() : refreshParcelDetail(); }
     if (detail && (detail.parcelIds || []).includes(parcel.id)) {
       renderManifest();
       $("kpi-delivered").textContent =
@@ -1478,7 +1489,7 @@ const ALERT_STYLE = {
   back_on_route: "ok", completed: "ok", delivered: "ok", collected: "ok",
   moving_again: "ok",
   reroute: "info", started: "info", ended: "info",
-  pickup_risk: "warn", stalled: "warn",
+  pickup_risk: "warn", stalled: "warn", failed: "warn",
 };
 
 const ALERT_ICON = { ok: "check", info: "info", warn: "alert" };

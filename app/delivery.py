@@ -36,6 +36,25 @@ PARCEL_ACTIVE_STATUSES = ("assigned", "in_transit", "picked_up")
 # a parcel that can be selected for a (new) run
 PARCEL_PLANNABLE_STATUSES = ("pending", "awaiting_redelivery")
 
+# why a delivery attempt failed (code -> label shown to drivers and dispatchers)
+FAIL_REASONS = {
+    "no_one_home": "Nobody home",
+    "wrong_address": "Wrong or incomplete address",
+    "refused": "Receiver refused the parcel",
+    "damaged": "Parcel damaged",
+    "access_problem": "Couldn't get access (gate, road, security)",
+    "other": "Other reason",
+}
+# how proof of delivery was captured
+POD_METHODS = {
+    "handed_over": "Handed to the receiver",
+    "signature": "Signed for",
+    "photo": "Photo taken",
+    "left_safe": "Left in a safe place",
+}
+# after this many failed attempts a parcel is returned to the sender
+MAX_DELIVERY_ATTEMPTS = 3
+
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:6]}"
@@ -44,6 +63,29 @@ def _new_id(prefix: str) -> str:
 def stop_kind(stop: dict) -> str:
     """Back-compat: pre-pickup stops have no `kind`."""
     return stop.get("kind") or ("depot" if stop.get("depot") else "delivery")
+
+
+def add_event(parcel: dict, kind: str, message: str, **extra) -> dict:
+    """Append to the parcel's history (caller saves). `kind` is a short code
+    (created, assigned, out_for_delivery, collected, delivered, failed,
+    rescheduled, returned, pod, edited …)."""
+    event = {"ts": time.time(), "type": kind, "message": message, **extra}
+    parcel.setdefault("events", []).append(event)
+    return event
+
+
+def timeline(parcel: dict) -> list[dict]:
+    """The parcel's history, oldest first. Parcels created before history was
+    recorded get a best-effort timeline from their timestamps."""
+    if parcel.get("events"):
+        return sorted(parcel["events"], key=lambda e: e["ts"])
+    out = [{"ts": parcel.get("createdAt") or 0, "type": "created", "message": "Added to the system"}]
+    if parcel.get("pickedUpAt"):
+        out.append({"ts": parcel["pickedUpAt"], "type": "collected", "message": "Collected"})
+    if parcel.get("deliveredAt"):
+        late = " (after the deadline)" if parcel.get("deadlineMissed") else ""
+        out.append({"ts": parcel["deliveredAt"], "type": "delivered", "message": "Delivered" + late})
+    return out
 
 
 def new_parcel(data: dict) -> dict:
@@ -69,7 +111,12 @@ def new_parcel(data: dict) -> dict:
         "tripId": None,
         "deliveredAt": None,
         "createdAt": time.time(),
+        "failedAttempts": 0,
+        "lastFailure": None,    # {reason, label, note, ts, tripId}
+        "pod": None,            # proof-of-delivery meta; images live in the pods table
+        "events": [],
     }
+    add_event(parcel, "created", f"Added to the system ({parcel['trackingNumber']})")
     db.save_entity("parcels", parcel)
     return parcel
 
@@ -178,17 +225,87 @@ def entity_in_use(kind: str, entity_id: str) -> bool:
                for t in store.list_trips())
 
 
-def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None) -> dict:
+_STATUS_EVENT = {
+    "pending": ("unassigned", "Back on the pending list"),
+    "assigned": ("assigned", "Assigned to a run"),
+    "in_transit": ("out_for_delivery", "Out for delivery"),
+    "picked_up": ("collected", "Collected from the pickup point"),
+    "delivered": ("delivered", "Delivered"),
+    "awaiting_redelivery": ("returned_to_hub", "Back at the hub, waiting to be redelivered"),
+    "returned": ("returned", "Returned to sender"),
+}
+
+
+def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None, note=None) -> dict:
+    previous = parcel["status"]
     parcel["status"] = status
-    if trip_id is not None or status in ("pending", "awaiting_redelivery"):
+    if trip_id is not None or status in ("pending", "awaiting_redelivery", "returned"):
         parcel["tripId"] = trip_id
     if status == "picked_up":
         parcel["pickedUpAt"] = ts or time.time()
     if status == "delivered":
         parcel["deliveredAt"] = ts or time.time()
         parcel["deadlineMissed"] = parcel["deliveredAt"] > parcel["deadline"]
+    if status != previous and status in _STATUS_EVENT:
+        kind, message = _STATUS_EVENT[status]
+        if note:
+            message = note
+        elif status == "assigned" and trip_id:
+            trip = store.get_trip(trip_id)
+            driver = trip and trip.get("driverId") and db.load_entity("drivers", trip["driverId"])
+            message = f"Assigned to run {trip_id}" + (f" ({driver['name']})" if driver else "")
+        elif status == "in_transit" and trip_id:
+            message = f"Out for delivery on run {trip_id}"
+        elif status == "delivered" and parcel["deadlineMissed"]:
+            message = "Delivered after the deadline"
+        add_event(parcel, kind, message, tripId=trip_id or parcel.get("tripId"))
     db.save_entity("parcels", parcel)
     store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return parcel
+
+
+def record_failed_attempt(parcel: dict, reason: str, note: str | None,
+                          trip_id: str | None, retry_at: float | None = None,
+                          actor: str = "driver") -> dict:
+    """A delivery attempt failed. The parcel goes back to the hub for another
+    try (awaiting_redelivery), or is returned to the sender once it has used up
+    MAX_DELIVERY_ATTEMPTS or the receiver refused it."""
+    label = FAIL_REASONS[reason]
+    parcel["failedAttempts"] = parcel.get("failedAttempts", 0) + 1
+    parcel["lastFailure"] = {"reason": reason, "label": label, "note": note or None,
+                             "ts": time.time(), "tripId": trip_id, "by": actor}
+    attempt = parcel["failedAttempts"]
+    add_event(parcel, "failed", f"Delivery attempt {attempt} failed: {label}"
+              + (f" — {note}" if note else ""), tripId=trip_id, reason=reason, by=actor)
+    if reason == "refused" or attempt >= MAX_DELIVERY_ATTEMPTS:
+        why = "the receiver refused it" if reason == "refused" else f"{attempt} failed attempts"
+        set_parcel_status(parcel, "returned", trip_id=None, note=f"Returned to sender — {why}")
+    else:
+        if retry_at:
+            parcel["deadline"] = retry_at
+            parcel["deadlineMissed"] = False
+            add_event(parcel, "rescheduled", "Redelivery scheduled for "
+                      + time.strftime("%d %b %H:%M", time.localtime(retry_at)))
+        set_parcel_status(parcel, "awaiting_redelivery", trip_id=None)
+    return parcel
+
+
+def save_pod(parcel: dict, method: str, received_by: str | None, note: str | None,
+             signature: str | None, photo: str | None, trip_id: str | None,
+             lat: float | None, lng: float | None, actor: str = "driver") -> dict:
+    """Attach proof of delivery. Images go to the pods table so parcel lists
+    and live updates stay small."""
+    parcel["pod"] = {
+        "method": method, "label": POD_METHODS[method],
+        "receivedBy": received_by or None, "note": note or None,
+        "hasSignature": bool(signature), "hasPhoto": bool(photo),
+        "ts": time.time(), "tripId": trip_id, "by": actor,
+        "position": {"lat": lat, "lng": lng} if lat is not None and lng is not None else None,
+    }
+    db.save_entity("pods", {"id": parcel["id"], "createdAt": time.time(),
+                            "signature": signature, "photo": photo})
+    detail = POD_METHODS[method] + (f" — {received_by}" if received_by else "")
+    add_event(parcel, "pod", "Proof of delivery: " + detail, tripId=trip_id, by=actor)
     return parcel
 
 

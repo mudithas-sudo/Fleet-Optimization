@@ -39,6 +39,21 @@ selects its model (gemini-3.5-flash recommended).
   card) is a printable back-office sheet: driver, vehicle, ordered stops with
   tracking numbers, receivers, addresses, package details, ETAs and status.
 
+- **Dispatcher overview** — a today strip (pending / out now / delivered /
+  late / on-time %), parcel search and driver/date filters, and an Attention
+  tab listing late, at-risk, off-route, failed and un-carriable items by urgency.
+- **Proof of delivery** — the driver's **My stops** sheet (list button in the
+  navigator) confirms a drop with who received it, a drawn signature and/or a
+  photo, or "left in a safe place". Evidence is stored apart from the parcel so
+  lists stay light; dispatch can also record a delivery by hand.
+- **Failed deliveries** — the driver picks a reason (nobody home, wrong address,
+  refused, damaged, no access). The parcel returns to the hub for redelivery
+  (reschedule it with a new time or corrected address) and is returned to the
+  sender after 3 failed attempts or a refusal.
+- **Parcel timeline** — every parcel keeps a history (created, assigned, out for
+  delivery, collected, failed, rescheduled, proof recorded, delivered); open it
+  by clicking a parcel in the admin list.
+
 Built on the fleet-tracking prototype demonstrating
 **Google ADK + Google Maps Platform**:
 

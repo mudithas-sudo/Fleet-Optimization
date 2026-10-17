@@ -357,6 +357,57 @@
   /* sentence-case small labels */
   .speed-row label { text-transform: none; letter-spacing: 0; font-size: 12px; }
   #speed-bubble small { text-transform: none; letter-spacing: 0; font-size: 10px; }
+
+  /* ---- my stops: delivery confirmation sheet ---- */
+  #stops-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; max-height: 86dvh;
+    background: var(--bg); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 30px rgba(10, 28, 33, .28);
+    display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  #stops-sheet.hidden { display: none; }
+  .stops-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+  .stops-head h2 { font: 700 20px var(--display); letter-spacing: -.02em; flex: 1; }
+  .stops-head small { color: var(--text-muted); font-weight: 700; font-size: 13px; }
+  #stops-body { overflow-y: auto; padding: 0 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .stop-card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .stop-card.done { border-left-color: var(--success); }
+  .stop-card.failed { border-left-color: var(--danger); }
+  .stop-card.collect { border-left-color: var(--warning); }
+  .stop-top { display: flex; align-items: center; gap: 8px; }
+  .stop-n { width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--nav-bg); color: var(--nav-text); display: grid; place-items: center; font: 700 13px var(--display); }
+  .stop-chip { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--primary); }
+  .done .stop-chip { color: var(--success); }
+  .failed .stop-chip { color: var(--danger); }
+  .collect .stop-chip { color: var(--warning); }
+  .stop-name { font-weight: 700; }
+  .stop-line { font-size: 13.5px; color: var(--text-muted); font-weight: 600; }
+  .stop-line a { color: var(--primary); }
+  .stop-note { font-size: 13px; color: var(--text); background: var(--surface-2); border-radius: var(--radius-sm); padding: 6px 8px; margin-top: 4px; font-weight: 600; }
+  .stop-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .stop-actions:empty { display: none; }
+  .stop-btn { flex: 1; min-height: 46px; font: 700 15px var(--display); border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; padding: 0 14px; }
+  .stop-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .stop-btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .stop-btn:disabled { opacity: .5; }
+  .stop-form { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .stop-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; }
+  .stop-form input:not([type=radio]):not([type=file]) { min-height: 44px; padding: 0 12px; border: 1.5px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); font: 600 15px var(--font); }
+  .stop-form input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
+  .stop-form .seg { display: flex; gap: 6px; }
+  .stop-form .seg button { flex: 1; min-height: 44px; border-radius: var(--radius); border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text-muted); font: 700 14px var(--font); }
+  .stop-form .seg button.active { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .stop-label { font-size: 13px; font-weight: 700; }
+  .stop-label span { color: var(--text-muted); font-weight: 600; }
+  #sd-sign { width: 100%; height: 120px; background: #fff; border: 1.5px dashed var(--border-strong); border-radius: var(--radius); }
+  #sd-thumb { max-width: 100%; max-height: 140px; border-radius: var(--radius-sm); align-self: flex-start; }
+  .stop-row { display: flex; gap: 8px; align-items: center; }
+  .stop-link, .stop-photo { background: none; border: 0; color: var(--primary); font: 700 14px var(--font); cursor: pointer; padding: 8px 0; }
+  .stop-photo { margin-left: auto; flex-direction: row; }
+  .stop-radio { flex-direction: row !important; align-items: center; gap: 10px !important; min-height: 44px; padding: 0 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface); font-weight: 600 !important; font-size: 15px !important; }
+  .stop-radio input { width: 20px; height: 20px; accent-color: var(--primary); }
+  .stop-err { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -406,9 +457,22 @@
     <b id="eta-time">–</b>
     <span id="eta-sub">– min · – km</span>
   </div>
+  <button id="btn-stops" class="round-btn" type="button" aria-label="My stops" title="My stops">
+    <svg viewBox="0 0 24 24" class="i" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12M9 12h12M9 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>
+  </button>
   <button id="btn-overview" class="round-btn" type="button" aria-label="Toggle route overview">
     <svg viewBox="0 0 24 24" class="i" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14M15 6v14"/></svg>
   </button>
+</div>
+
+<div id="stops-sheet" class="hidden" role="dialog" aria-label="My stops">
+  <div class="stops-head">
+    <h2>My stops</h2><small id="stops-count"></small>
+    <button id="stops-close" class="round-btn" type="button" aria-label="Close my stops">
+      <svg viewBox="0 0 24 24" class="i" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div id="stops-body"></div>
 </div>
 
 <div id="sheet">
@@ -437,6 +501,7 @@
 
 <script src="/static/js/maps-loader.js"></script>
 <script src="/static/js/common.js"></script>
+<script src="/static/js/stops.js"></script>
 <script src="/static/js/driver.js"></script>
 <script>
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/static/sw.js");
