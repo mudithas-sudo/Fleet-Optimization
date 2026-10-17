@@ -12,13 +12,13 @@ from dotenv import load_dotenv
 load_dotenv()  # must run before app modules read env vars
 
 from fastapi import FastAPI, HTTPException, Request  # noqa: E402
-from fastapi.responses import RedirectResponse  # noqa: E402
+from fastapi.responses import RedirectResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import db, delivery, deviation, notify, replan, routing, store  # noqa: E402
+from . import db, delivery, deviation, notify, replan, reports, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -497,6 +497,55 @@ async def track(tracking_number: str, request: Request):
 async def parcel_notifications(parcel_id: str):
     parcel = _entity_or_404("parcels", parcel_id)
     return {"trackingUrl": notify.tracking_url(parcel), "messages": notify.for_parcel(parcel_id)}
+
+
+# ---- reports
+
+class CostsIn(BaseModel):
+    perKm: float
+    perHour: float
+    currency: str = "LKR"
+
+
+def _period(days: str | None) -> int | None:
+    """?days=today|7|30|all  ->  0 | n | None"""
+    if days in (None, "", "7"):
+        return 7
+    if days == "all":
+        return None
+    if days == "today":
+        return 0
+    if days.isdigit() and 0 < int(days) <= 3650:
+        return int(days)
+    raise HTTPException(400, "days must be today, a number of days, or all")
+
+
+@app.get("/api/reports/summary")
+async def report_summary(days: str | None = None):
+    return reports.summary(_period(days))
+
+
+@app.get("/api/reports/export")
+async def report_export(kind: str = "parcels", days: str | None = None):
+    try:
+        body = reports.export_csv(kind, _period(days))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    name = f"fleetops-{kind}-{time.strftime('%Y%m%d')}.csv"
+    return Response("﻿" + body, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/settings/costs")
+async def get_costs():
+    return reports.get_costs()
+
+
+@app.put("/api/settings/costs")
+async def put_costs(c: CostsIn):
+    if c.perKm < 0 or c.perHour < 0 or c.perKm > 1e6 or c.perHour > 1e6:
+        raise HTTPException(400, "Rates must be between 0 and 1,000,000.")
+    return reports.set_costs(c.perKm, c.perHour, c.currency)
 
 
 @app.get("/api/notifications")

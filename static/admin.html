@@ -999,6 +999,48 @@
   .nt { font-size: 11.5px; font-weight: 700; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); }
   .nt.ok { background: var(--success-soft); color: var(--success); }
   .nt.bad { background: var(--danger-soft); color: var(--danger); }
+
+  /* ---------- reports ---------- */
+  #reports { display: none; position: fixed; inset: 0; z-index: 30; background: var(--scrim); align-items: flex-start; justify-content: center; padding: var(--space-5) var(--space-4); overflow-y: auto; }
+  #reports .rp-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(1040px, 100%); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
+  #reports h3 { font: 700 var(--fs-md) var(--display); margin-bottom: var(--space-2); }
+  .rp-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+  .rp-head h2 { flex: 1; font-size: var(--fs-xl); }
+  .rp-head select { padding: 9px 10px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text); font: 600 var(--fs-sm) var(--font); }
+  .rp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: var(--space-2); }
+  .rp-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .rp-kpi b { font: 700 var(--fs-2xl)/1.1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .rp-kpi span { font-weight: 700; font-size: var(--fs-sm); }
+  .rp-kpi small { color: var(--text-muted); font-size: 11.5px; }
+  .rp-grid { display: grid; grid-template-columns: 3fr 2fr; gap: var(--space-4); }
+  .rp-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .rp-bars { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding-bottom: 16px; }
+  .rp-bar { flex: 1 1 0; min-width: 6px; max-width: 48px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; position: relative; }
+  .rp-bar .seg-ok { background: var(--primary); border-radius: 2px 2px 0 0; min-height: 0; }
+  .rp-bar .seg-fail { background: var(--danger); }
+  .rp-bar small { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--text-subtle); white-space: nowrap; }
+  .rp-bar:nth-child(odd) small { display: none; }
+  .rp-legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .rp-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .rp-legend i.ok { background: var(--primary); } .rp-legend i.bad { background: var(--danger); }
+  .rp-hbar { display: grid; grid-template-columns: 1fr 90px 26px; gap: 8px; align-items: center; font-size: var(--fs-sm); padding: 4px 0; }
+  .rp-hbar div { background: var(--surface-2); border-radius: 3px; height: 10px; }
+  .rp-hbar div i { display: block; height: 100%; background: var(--danger); border-radius: 3px; }
+  .rp-hbar b { text-align: right; font-variant-numeric: tabular-nums; }
+  #rp-drivers { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  #rp-drivers th { text-align: left; color: var(--text-muted); font-weight: 700; padding: 6px 8px; border-bottom: 2px solid var(--text); white-space: nowrap; }
+  #rp-drivers td { padding: 8px; border-bottom: 1px solid var(--border); }
+  #rp-drivers .n { text-align: right; font-variant-numeric: tabular-nums; }
+  .rp-tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .rp-row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end; }
+  .rp-row .field { min-width: 110px; }
+  .rp-exports { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+  .rp-exports a { text-decoration: none; }
+  #rp-notes { display: flex; flex-direction: column; gap: var(--space-2); }
+  #rp-status { color: var(--text-muted); font-weight: 600; min-height: 1.2em; }
+  .hdr-btn { height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 700 var(--fs-sm) var(--font); cursor: pointer; }
+  .hdr-btn:hover { border-color: var(--border-strong); }
+  @media (max-width: 760px) { .rp-grid { grid-template-columns: 1fr; } #reports { padding: var(--space-3); } }
 </style>
 </head>
 <body>
@@ -1013,6 +1055,10 @@
   <span class="tag">Delivery Console</span>
   <div class="header-spacer"></div>
   <span id="stream-dot" title="Live updates: connecting…" aria-label="Live updates status"></span>
+  <button id="btn-reports" class="hdr-btn" type="button" title="Reports and exports">
+    <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    Reports
+  </button>
   <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
   <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
 </header>
@@ -1407,6 +1453,52 @@
 </main>
 
 <!-- import modal -->
+<div id="reports" role="dialog" aria-modal="true" aria-label="Reports">
+  <div class="rp-card">
+    <div class="rp-head">
+      <h2>Reports</h2>
+      <select id="rp-days" aria-label="Period">
+        <option value="today">Today</option>
+        <option value="7" selected>Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
+      <button id="rp-close" class="close-btn" type="button" aria-label="Close reports">
+        <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="rp-status" role="status"></div>
+    <div id="rp-kpis" class="rp-kpis"></div>
+    <div class="rp-grid">
+      <div class="rp-panel"><h3>Deliveries per day</h3><div id="rp-daily"></div></div>
+      <div class="rp-panel"><h3>Why deliveries fail</h3><div id="rp-fail"></div></div>
+    </div>
+    <div><h3>Drivers</h3><div class="rp-tablewrap"><table id="rp-drivers"></table></div></div>
+    <div class="rp-grid">
+      <div class="rp-panel">
+        <h3>Cost rates</h3>
+        <div class="hint" style="margin-bottom:8px">Cost per delivery = (km driven × rate per km + hours × rate per hour) ÷ deliveries.</div>
+        <div class="rp-row">
+          <div class="field"><label for="rp-perkm">Per km</label><input id="rp-perkm" type="number" min="0" step="1" inputmode="decimal"></div>
+          <div class="field"><label for="rp-perhour">Per hour</label><input id="rp-perhour" type="number" min="0" step="10" inputmode="decimal"></div>
+          <div class="field"><label for="rp-currency">Currency</label><input id="rp-currency" maxlength="6"></div>
+          <button id="rp-costs-save" class="btn btn-primary" type="button">Save rates</button>
+        </div>
+      </div>
+      <div class="rp-panel">
+        <h3>Export</h3>
+        <div class="hint" style="margin-bottom:8px">CSV files open in Excel and Google Sheets, for the period selected above.</div>
+        <div class="rp-exports">
+          <a id="rp-export-parcels" class="btn btn-ghost" download>Parcels</a>
+          <a id="rp-export-runs" class="btn btn-ghost" download>Runs</a>
+          <a id="rp-export-drivers" class="btn btn-ghost" download>Drivers</a>
+        </div>
+      </div>
+    </div>
+    <div><h3>Recent customer messages</h3><div class="hint" id="rp-notes-hint" style="margin-bottom:6px"></div><div id="rp-notes"></div></div>
+  </div>
+</div>
+
 <div id="import-modal" role="dialog" aria-modal="true" aria-label="Import parcels">
   <div class="modal-card">
     <div class="panel-head">
@@ -1431,6 +1523,7 @@
 <script src="/static/js/import.js"></script>
 <script src="/static/js/overview.js"></script>
 <script src="/static/js/parcel-detail.js"></script>
+<script src="/static/js/reports.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>

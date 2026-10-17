@@ -146,6 +146,7 @@ async function init() {
   setupDepotForm();
   setupOverview();
   setupParcelDetail();
+  setupReports();
 
   // fleet tab
   $("btn-clear-all").onclick = clearAllTrips;
