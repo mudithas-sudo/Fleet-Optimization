@@ -71,6 +71,8 @@ function syncControls() {
   $("dash-slider").max = isToday ? nowMins : 1439;
   $("dash-slider").value = mins;
   $("dash-time").textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  $("dash-hint").textContent = live ? "Drag back to replay the day" : "Viewing the past — press Live to return";
+  $("dash-hint").classList.toggle("past", !live);
 }
 
 function setAtFromControls() {

@@ -942,12 +942,14 @@
 
   <main id="stage">
     <div id="dash-bar" class="card" role="group" aria-label="Choose a time">
-      <button id="dash-live" class="live-btn" type="button" aria-pressed="true"><span class="pulse"></span>Live</button>
-      <input id="dash-date" type="date" aria-label="Day">
-      <button id="dash-back" class="step-btn" type="button" aria-label="15 minutes earlier">−15m</button>
-      <input id="dash-slider" type="range" min="0" max="1439" step="1" value="0" aria-label="Time of day">
-      <button id="dash-fwd" class="step-btn" type="button" aria-label="15 minutes later">+15m</button>
+      <span class="bar-label">Show rides at</span>
+      <button id="dash-live" class="live-btn" type="button" aria-pressed="true" title="Show rides as they are right now"><span class="pulse"></span>Live</button>
+      <input id="dash-date" type="date" aria-label="Day" title="Pick a day to look back at">
+      <button id="dash-back" class="step-btn" type="button" aria-label="15 minutes earlier" title="Go back 15 minutes">−15 min</button>
+      <input id="dash-slider" type="range" min="0" max="1439" step="1" value="0" aria-label="Time of day" title="Drag to see where every ride was at that time">
+      <button id="dash-fwd" class="step-btn" type="button" aria-label="15 minutes later" title="Go forward 15 minutes">+15 min</button>
       <span id="dash-time" aria-live="polite">--:--</span>
+      <span id="dash-hint" class="bar-note">Drag back to replay the day</span>
     </div>
 
     <aside id="panel" aria-label="Lists">
