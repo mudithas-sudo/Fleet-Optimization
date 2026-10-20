@@ -70,6 +70,11 @@ function initTheme() {
 
 function onThemeChange(fn) { _themeListeners.push(fn); }
 
+function setTheme(next) {
+  try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+  applyTheme(next);
+}
+
 function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : null; }
 // routes are blue (the universal navigation convention) so the amber/red
 // traffic overlays and alert colors stay unambiguous — tracking blue from
@@ -240,6 +245,9 @@ function _roundBearing(bearing) {
   return ((Math.round(bearing / 10) * 10) % 360 + 360) % 360;
 }
 
+// fleet markers on the admin map: a vehicle should read as a dot on the road, not a toy
+const FLEET_MARKER_SCALE = 0.4;
+
 function _fleetIcon(type, bearing) {
   const sprite = VEHICLE_SPRITES[type] || VEHICLE_SPRITES.car;
   const b = _roundBearing(bearing);
@@ -248,7 +256,7 @@ function _fleetIcon(type, bearing) {
 
   const { W, H, vb, inner } = _spriteNatural(sprite);
   if (!inner) {  // bike artwork not fetched yet: north-up fallback, uncached
-    const w = Math.round(sprite.w * 0.8), h = Math.round(sprite.h * 0.8);
+    const w = Math.round(sprite.w * FLEET_MARKER_SCALE), h = Math.round(sprite.h * FLEET_MARKER_SCALE);
     return {
       url: sprite.url,
       scaledSize: new google.maps.Size(w, h),
@@ -262,7 +270,7 @@ function _fleetIcon(type, bearing) {
     `<g transform="rotate(${b} ${D / 2} ${D / 2})">` +
     `<svg x="${(D - W) / 2}" y="${(D - H) / 2}" width="${W}" height="${H}" viewBox="${vb}">${inner}</svg>` +
     `</g></svg>`;
-  const side = Math.round(Math.hypot(sprite.w, sprite.h) * 0.8);
+  const side = Math.round(Math.hypot(sprite.w, sprite.h) * FLEET_MARKER_SCALE);
   const icon = {
     url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
     scaledSize: new google.maps.Size(side, side),

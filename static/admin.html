@@ -881,35 +881,46 @@
       <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
       <span class="name">FleetOps</span>
     </h1>
-    <div id="global-search" role="search">
-      <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="gsearch" type="search" placeholder="Search tracking no., receiver, address…" aria-label="Search parcels" autocomplete="off">
-    </div>
+    <button id="gsearch" class="omnibox" type="button" aria-label="Search and commands" aria-keyshortcuts="Control+K">
+      <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="ob-text">Search parcels, rides, drivers…</span><kbd>Ctrl K</kbd>
+    </button>
     <div class="topbar-spacer"></div>
-    <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
-    <span id="stream-dot" title="Live updates: connecting…" aria-label="Live updates status"></span>
+    <button id="btn-add-top" class="btn-add" type="button"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add parcel</span></button>
+    <span id="stream-pill" class="live-pill" data-state="" role="status" aria-live="polite"><span id="stream-dot"></span><span id="stream-text">Connecting</span></span>
     <button id="btn-bell" class="top-btn" type="button" aria-label="Needs attention" title="Needs attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0"/></svg><span class="dot-badge" id="bell-badge" hidden>0</span></button>
-    <button id="btn-palette" class="top-btn" type="button" aria-label="Search and commands (Ctrl+K)" title="Search and commands (Ctrl+K)"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M5 5h14v14H5zM9 9h6v6H9z"/></svg></button>
-    <button id="density-toggle" class="top-btn" type="button" aria-label="Compact view" aria-pressed="false" title="Compact view"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg></button>
-    <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
-    <div class="top-user"><span class="avatar" id="top-avatar">–</span><div class="who"><b id="user-name">Local admin</b><span id="user-role">Administrator</span></div></div>
+    <div class="menu-wrap">
+      <button id="display-btn" class="top-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="display-menu" aria-label="Display options" title="Display options"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+      <div id="display-menu" class="pop" role="menu" aria-label="Display options" hidden>
+        <div class="pop-sec"><span class="pop-label">Theme</span>
+          <div class="seg2" role="group" aria-label="Theme"><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+        <div class="pop-sec"><span class="pop-label">Density</span>
+          <div class="seg2" role="group" aria-label="Density"><button type="button" data-density="comfortable" aria-pressed="false">Comfortable</button><button type="button" data-density="compact" aria-pressed="false">Compact</button></div></div>
+        <div class="pop-sec pop-hint"><kbd>Ctrl K</kbd> search and commands<br><kbd>n</kbd> new parcel · <kbd>l</kbd> live · <kbd>g</kbd> then <kbd>d</kbd> <kbd>p</kbd> <kbd>r</kbd> <kbd>a</kbd> <kbd>f</kbd> go to a page</div>
+      </div>
+    </div>
+    <span class="top-sep" aria-hidden="true"></span>
+    <div class="menu-wrap">
+      <button id="user-btn" class="user-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu">
+        <span class="avatar" id="top-avatar">–</span>
+        <span class="who"><b id="user-name">Local admin</b><span id="user-role">Administrator</span></span><svg viewBox="0 0 24 24" class="i caret" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="user-menu" class="pop" role="menu" aria-label="Account" hidden>
+        <div class="pop-head"><b id="menu-name">Local admin</b><span id="menu-role">Administrator</span></div>
+        <p class="pop-note" id="menu-note">Sign-in is off, so everyone works as an administrator. Turn it on with AUTH_ENABLED=1.</p>
+        <div id="menu-auth" hidden>
+          <button type="button" class="item" id="btn-password" role="menuitem"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3"/></svg>Change password</button>
+          <button type="button" class="item" id="btn-logout" role="menuitem"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
+        </div>
+      </div>
+    </div>
+    <div id="trip-status" role="status" aria-live="polite" hidden><span class="dot"></span><span id="trip-status-text">No run</span></div>
   </header>
 
-  <section id="hero-profile" aria-label="Your profile">
-    <div class="profile-card">
-      <div class="profile-top"><span class="avatar" id="profile-avatar">–</span><div><b id="profile-name">Dispatcher</b><span id="profile-role">Control room</span></div></div>
-      <div class="profile-meta"><span>Hub</span><b id="profile-hub">…</b></div>
-      <button id="btn-change-hub" class="btn-line" type="button">Change hub</button>
-    </div>
-  </section>
   <section id="hero-main" aria-label="Today at a glance">
-    <div class="hero-top">
+    <div class="hero-left">
       <h1 id="greeting">Good morning!</h1>
-      <div class="quick" id="quick-actions">
-        <button type="button" class="btn-line" id="quick-add">Add parcel</button>
-        <button type="button" class="btn-solid" id="quick-suggest">Suggest runs</button>
-      </div>
       <div class="hero-meta"><span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b id="hero-date"></b></span><span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b id="hero-clock"></b></span></div>
+      <div class="hub-chip"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg><span>Hub</span><b id="profile-hub">…</b><button id="btn-change-hub" type="button">Change</button></div>
     </div>
     <div class="kpis" id="today" role="group" aria-label="Today at a glance">
       <button type="button" class="kpi-card" data-f="all" aria-pressed="false" title="All parcels"><span class="k-top"><span>Total parcels</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg></span><span class="k-main"><b id="st-total">0</b><span class="delta flat" id="st-total-delta">–</span></span></button>
@@ -927,11 +938,7 @@
     <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-registry"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg><span class="label">Fleet</span></button>
     <button type="button" class="nav-item" id="btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
-    <div class="nav-foot" id="nav-foot" hidden>
-      <button type="button" class="nav-item" id="btn-password"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3"/></svg><span class="label">Password</span></button>
-      <button type="button" class="nav-item" id="btn-logout"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span class="label">Sign out</span></button>
-    </div>
-  </nav>
+    </nav>
 
   <main id="stage">
     <div id="dash-bar" class="card" role="group" aria-label="Choose a time">

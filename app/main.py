@@ -1453,4 +1453,14 @@ async def stream_trip(trip_id: str):
     return _stream(trip_id)
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+class RevalidatingStatic(StaticFiles):
+    """Static files that browsers must revalidate on every load (cheap 304s when unchanged), so an
+    updated page never runs against a stale cached script or stylesheet."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", RevalidatingStatic(directory="static"), name="static")

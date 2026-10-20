@@ -17,9 +17,10 @@ async function loadMe() {
   authEnabled = me.authEnabled;
   currentUser = me.user;
   document.body.classList.add("role-" + currentUser.role);
-  $("nav-foot").hidden = !authEnabled;
-  $("user-name").textContent = currentUser.name;
-  $("user-role").textContent = currentUser.roleLabel;
+  $("menu-auth").hidden = !authEnabled;
+  $("menu-note").hidden = authEnabled;
+  $("user-name").textContent = $("menu-name").textContent = currentUser.name;
+  $("user-role").textContent = $("menu-role").textContent = currentUser.roleLabel;
   const initials = currentUser.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "–";
   $("top-avatar").textContent = initials;
   if (authEnabled) {

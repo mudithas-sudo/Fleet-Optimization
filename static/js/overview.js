@@ -44,7 +44,6 @@ function filtersActive() { return !!(FILTERS.status || FILTERS.q || FILTERS.driv
 function clearFilters() {
   FILTERS.status = null; FILTERS.q = ""; FILTERS.driverId = ""; FILTERS.when = "";
   $("flt-q").value = ""; $("flt-driver").value = ""; $("flt-when").value = ""; $("flt-status").value = "";
-  if ($("gsearch")) $("gsearch").value = "";
   renderParcels();
 }
 
@@ -253,27 +252,13 @@ function setupOverview() {
   document.querySelectorAll("#today [data-f]").forEach(b => {
     b.onclick = () => setStatusFilter(b.dataset.f);
   });
-  $("flt-q").addEventListener("input", e => { FILTERS.q = e.target.value.trim(); if ($("gsearch")) $("gsearch").value = e.target.value; renderParcels(); });
-  const gs = $("gsearch");
-  if (gs) {
-    gs.addEventListener("input", () => {
-      FILTERS.q = gs.value.trim();
-      $("flt-q").value = gs.value;
-      if (FILTERS.q && activeTab !== "parcels") switchTab("parcels");
-      renderParcels();
-    });
-    gs.addEventListener("keydown", e => {
-      if (e.key !== "Enter") return;
-      const hits = Object.values(parcels).filter(parcelMatchesFilters);
-      if (hits.length === 1) openParcelDetail(hits[0].id);
-    });
-  }
+  $("flt-q").addEventListener("input", e => { FILTERS.q = e.target.value.trim(); renderParcels(); });
+  $("gsearch").onclick = () => palOpen();
+  $("btn-add-top").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); };
   $("btn-bell").onclick = () => switchTab("attention");
   $("flt-driver").addEventListener("change", e => { FILTERS.driverId = e.target.value; renderParcels(); });
   $("flt-when").addEventListener("change", e => { FILTERS.when = e.target.value; renderParcels(); });
   $("flt-sort").addEventListener("change", e => { FILTERS.sort = e.target.value; renderParcels(); });
   $("flt-status").addEventListener("change", e => { FILTERS.status = e.target.value || null; renderStats(); renderParcels(); });
-  $("quick-add").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); };
-  $("quick-suggest").onclick = () => { switchTab("parcels"); autoAssign("rules"); };
   setInterval(refreshOverview, 30000);   // "past the deadline" minutes drift
 }

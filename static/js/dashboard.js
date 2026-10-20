@@ -51,12 +51,6 @@ function renderHero() {
   $("greeting").textContent = `${hello}${name ? ", " + name : ""}!`;
   $("hero-date").textContent = now.toLocaleDateString([], { day: "numeric", month: "long", weekday: "long" });
   $("hero-clock").textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  if (currentUser) {
-    const initials = currentUser.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "–";
-    $("profile-avatar").textContent = initials;
-    $("profile-name").textContent = currentUser.name;
-    $("profile-role").textContent = currentUser.roleLabel + (authEnabled ? "" : " · local");
-  }
   if (typeof depot !== "undefined" && depot) $("profile-hub").textContent = depot.label;
 }
 

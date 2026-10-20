@@ -1609,8 +1609,11 @@ function setStreamDot(state) {          // "live" | "down" | ""
   const d = $("stream-dot");
   if (!d) return;
   d.className = state;
+  const text = state === "live" ? "Live" : state === "down" ? "Reconnecting…" : "Connecting";
   d.title = state === "live" ? "Live updates: connected"
     : state === "down" ? "Live updates: reconnecting…" : "Live updates: connecting…";
+  const pill = $("stream-pill");
+  if (pill) { pill.dataset.state = state; $("stream-text").textContent = text; }
 }
 
 // EventSource retries on its own, but a server restart (or a proxy dropping an

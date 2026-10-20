@@ -23,9 +23,8 @@ function palCommands() {
   }
   if (supervisor) list.push({ group: "Do", label: "Change the hub (start point)", key: "", run: () => { switchTab("parcels"); if (!depotEditing) startDepotEdit(); } });
   list.push(
-    { group: "View", label: "Switch light / dark theme", key: "", run: () => $("theme-toggle").click() },
-    { group: "View", label: "Switch compact / comfortable view", key: "", run: () => $("density-toggle").click() },
-    { group: "View", label: "Search parcels", key: "/", run: () => $("gsearch").focus() },
+    { group: "View", label: "Switch light / dark theme", key: "", run: () => setTheme(currentTheme() === "dark" ? "light" : "dark") },
+    { group: "View", label: "Switch compact / comfortable view", key: "", run: () => setDensity(!document.body.classList.contains("compact")) },
   );
   if (typeof authEnabled !== "undefined" && authEnabled) list.push({ group: "Account", label: "Sign out", key: "", run: () => $("btn-logout").click() });
   return list;
@@ -103,7 +102,7 @@ function typing(e) {
 }
 
 function setupPalette() {
-  $("btn-palette").onclick = palOpen;
+  setupMenus();
   $("palette").addEventListener("mousedown", e => { if (e.target === $("palette")) palClose(); });
   $("pal-input").addEventListener("input", () => { PAL.idx = 0; palRender(); });
   $("pal-input").addEventListener("keydown", e => {
@@ -124,24 +123,44 @@ function setupPalette() {
       return;
     }
     if (k === "g") { PAL.goUntil = Date.now() + 1500; return; }
-    if (k === "/") { e.preventDefault(); $("gsearch").focus(); }
+    if (k === "/") { e.preventDefault(); palOpen(); }
     else if (k === "?") { e.preventDefault(); palOpen(); }
     else if (k === "n" && roleAtLeast("dispatcher")) { e.preventDefault(); switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); }
     else if (k === "l") { switchTab("dashboard"); goLive(); }
   });
 
-  // compact view, remembered per browser
-  const apply = on => {
-    document.body.classList.toggle("compact", on);
-    $("density-toggle").setAttribute("aria-pressed", String(on));
-    $("density-toggle").title = on ? "Comfortable view" : "Compact view";
-  };
-  let on = false;
-  try { on = localStorage.getItem("fleetops-density") === "compact"; } catch (_) {}
-  apply(on);
-  $("density-toggle").onclick = () => {
-    on = !on;
-    apply(on);
-    try { localStorage.setItem("fleetops-density", on ? "compact" : "comfortable"); } catch (_) {}
-  };
+  let compact = false;
+  try { compact = localStorage.getItem("fleetops-density") === "compact"; } catch (_) {}
+  setDensity(compact);
+}
+
+// compact view, remembered per browser; the Display menu mirrors it
+function setDensity(on) {
+  document.body.classList.toggle("compact", on);
+  document.querySelectorAll("[data-density]").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.density === "compact") === on)));
+  try { localStorage.setItem("fleetops-density", on ? "compact" : "comfortable"); } catch (_) {}
+}
+
+// the two top-bar menus: Display (theme, density) and Account
+function setupMenus() {
+  const pairs = [["display-btn", "display-menu"], ["user-btn", "user-menu"]];
+  const closeAll = () => pairs.forEach(([b, m]) => { $(m).hidden = true; $(b).setAttribute("aria-expanded", "false"); });
+  pairs.forEach(([b, m]) => {
+    $(b).onclick = e => {
+      e.stopPropagation();
+      const open = $(m).hidden;
+      closeAll();
+      $(m).hidden = !open;
+      $(b).setAttribute("aria-expanded", String(open));
+      if (open) { const first = $(m).querySelector("button"); if (first) first.focus(); }
+    };
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".menu-wrap")) closeAll(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeAll(); });
+
+  const syncTheme = t => document.querySelectorAll("[data-theme-set]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeSet === t)));
+  document.querySelectorAll("[data-theme-set]").forEach(b => { b.onclick = () => setTheme(b.dataset.themeSet); });
+  document.querySelectorAll("[data-density]").forEach(b => { b.onclick = () => setDensity(b.dataset.density === "compact"); });
+  onThemeChange(syncTheme);
+  syncTheme(currentTheme());
 }

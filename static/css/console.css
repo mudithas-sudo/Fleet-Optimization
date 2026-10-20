@@ -377,3 +377,109 @@ body.compact .acc-head { padding: 7px 0; }
 
 /* the dock stays in view while the table scrolls, and scrolls inside itself */
 body[data-page="dashboard"] #dock-empty { position: sticky; top: 0; max-height: calc(100vh - 150px); overflow-y: auto; }
+
+/* ============================================================
+   Top bar and hero, redesigned
+   One 60px bar grouped by purpose (find | act | status | settings | account)
+   over one compact band: greeting + hub on the left, KPI cards on the right.
+   ============================================================ */
+:root {
+  --pop-bg: #ffffff; --pop-text: #1a2234; --pop-muted: #5b6577; --pop-border: #e4e8ee; --pop-hover: #f1f4f8;
+  --pop-accent: #1a2234; --pop-on-accent: #ffffff;
+}
+[data-theme="dark"] {
+  --pop-bg: #1b2335; --pop-text: #e8ecf4; --pop-muted: #9aa6bd; --pop-border: #2a3550; --pop-hover: #232d44;
+  --pop-accent: #4d7de0; --pop-on-accent: #ffffff;
+}
+#app { grid-template-areas: "top top" "hero hero" "nav stage"; }
+#topbar { height: 60px; padding: 0 20px; gap: 10px; align-items: center; }
+.brand { width: 196px; font-size: 18px; letter-spacing: -.01em; }
+.brand .logo { width: 32px; height: 32px; border-radius: 9px; }
+
+/* find: one field for search and commands */
+.omnibox {
+  flex: 0 1 460px; min-width: 0; height: 38px; padding: 0 8px 0 12px; display: flex; align-items: center; gap: 10px;
+  background: var(--nav-bg-2); color: var(--nav-muted); border: 1px solid rgba(255, 255, 255, .1); border-radius: 10px;
+  font: 400 13.5px var(--font); cursor: pointer; text-align: left; transition: background var(--dur), border-color var(--dur);
+}
+.omnibox:hover { background: #586172; border-color: rgba(255, 255, 255, .22); }
+.omnibox:focus-visible { outline: none; border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .22); }
+.omnibox .i { width: 16px; height: 16px; flex: 0 0 auto; }
+.omnibox .ob-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.omnibox kbd { margin: 0; font: 600 11px var(--font); padding: 3px 7px; border-radius: 6px; border: 0; background: rgba(255, 255, 255, .14); color: #fff; white-space: nowrap; }
+
+/* act: the one primary action */
+.btn-add { height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 7px; background: #fff; color: #1a2234; border: 0; border-radius: 9px; font: 600 13px var(--font); cursor: pointer; transition: background var(--dur); }
+.btn-add:hover { background: #e9edf5; }
+.btn-add .i { width: 15px; height: 15px; stroke-width: 2.4; }
+body.role-viewer #btn-add-top { display: none !important; }
+
+/* status: labelled, not just a dot */
+.live-pill { height: 28px; padding: 0 11px 0 9px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 14px; font: 600 12px var(--font); color: #fff; }
+.live-pill #stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex: 0 0 auto; }
+.live-pill[data-state="live"] #stream-dot { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, .22); }
+.live-pill[data-state="down"] #stream-dot { background: #fbbf24; animation: pulse 1s infinite; }
+.live-pill[data-state="down"] { border-color: rgba(251, 191, 36, .5); }
+
+/* settings + account */
+.top-btn { width: 38px; height: 38px; border: 0; border-radius: 10px; background: transparent; }
+.top-btn:hover, .top-btn[aria-expanded="true"] { background: rgba(255, 255, 255, .12); }
+.top-btn .i { width: 18px; height: 18px; }
+.top-sep { width: 1px; height: 26px; background: rgba(255, 255, 255, .18); margin: 0 4px; }
+.user-btn { display: flex; align-items: center; gap: 9px; padding: 4px 8px 4px 4px; border: 0; border-radius: 24px; background: transparent; color: #fff; cursor: pointer; font-family: var(--font); }
+.user-btn:hover, .user-btn[aria-expanded="true"] { background: rgba(255, 255, 255, .12); }
+.user-btn .avatar { width: 32px; height: 32px; font-size: 12.5px; }
+.user-btn .who { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
+.user-btn .who b { font: 600 13px var(--font); } .user-btn .who span { font-size: 11.5px; color: var(--nav-muted); }
+.user-btn .caret { width: 14px; height: 14px; color: var(--nav-muted); }
+.menu-wrap { position: relative; }
+
+/* menus (they sit on the dark bar, so they carry their own colours) */
+.pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 80; width: 264px; padding: 8px; background: var(--pop-bg); color: var(--pop-text); border: 1px solid var(--pop-border); border-radius: 12px; box-shadow: var(--shadow-lg); }
+.pop[hidden] { display: none; }
+.pop-sec { padding: 8px 8px 10px; }
+.pop-label { display: block; font: 600 11.5px var(--font); color: var(--pop-muted); margin-bottom: 6px; }
+.seg2 { display: flex; padding: 3px; gap: 3px; border-radius: 9px; background: var(--pop-hover); }
+.seg2 button { flex: 1; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--pop-muted); font: 600 12.5px var(--font); cursor: pointer; }
+.seg2 button[aria-pressed="true"] { background: var(--pop-accent); color: var(--pop-on-accent); }
+.pop-hint { border-top: 1px solid var(--pop-border); font-size: 12px; line-height: 1.9; color: var(--pop-muted); }
+.pop kbd { margin: 0 1px; color: var(--pop-text); background: var(--pop-bg); border-color: var(--pop-border); }
+.pop-head { padding: 8px 8px 4px; display: flex; flex-direction: column; }
+.pop-head b { font: 600 14px var(--font); } .pop-head span { font-size: 12px; color: var(--pop-muted); }
+.pop-note { margin: 6px 8px 8px; font-size: 12.5px; line-height: 1.5; color: var(--pop-muted); }
+.pop .item { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--pop-text); font: 500 13.5px var(--font); cursor: pointer; text-align: left; }
+.pop .item:hover { background: var(--pop-hover); } .pop .item .i { width: 16px; height: 16px; color: var(--pop-muted); }
+
+/* the band under the bar */
+#hero-main { grid-area: hero; padding: 2px 20px 16px; flex-direction: row; align-items: stretch; gap: 20px; }
+.hero-left { flex: 0 0 292px; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; color: #fff; }
+.hero-left h1 { font: 700 21px/1.2 var(--font); letter-spacing: -.01em; }
+.hero-left .hero-meta { gap: 14px; color: var(--nav-muted); }
+.hub-chip { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 6px 0 10px; border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px; font-size: 12px; color: var(--nav-muted); max-width: 100%; }
+.hub-chip .i { width: 13px; height: 13px; flex: 0 0 auto; }
+.hub-chip b { color: #fff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-chip button { height: 20px; padding: 0 8px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .14); color: #fff; font: 600 11px var(--font); cursor: pointer; }
+.hub-chip button:hover { background: rgba(255, 255, 255, .24); }
+.kpis { flex: 1; min-width: 0; align-content: center; }
+.kpi-card { padding: 10px 12px; gap: 6px; }
+.k-main b { font-size: 26px; }
+
+/* narrower screens: keep the bar tidy, stack the band */
+@media (max-width: 1280px) { .omnibox { flex-basis: 340px; } .btn-add span { display: none; } .btn-add { width: 36px; padding: 0; justify-content: center; } }
+@media (max-width: 1100px) {
+  .brand .name { display: none; } .brand { width: auto; }
+  .user-btn .who { display: none; }
+  #hero-main { flex-wrap: wrap; } .hero-left { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .kpis { flex: 1 1 100%; }
+}
+@media (max-width: 760px) {
+  #topbar { padding: 0 12px; } .omnibox { flex: 0 0 38px; padding: 0; justify-content: center; } .omnibox .ob-text, .omnibox kbd { display: none; }
+  #global-search { display: none; } .live-pill #stream-text { display: none; } .live-pill { padding: 0 9px; } .top-sep { display: none; }
+}
+
+/* tablet fixes: left-align the stacked greeting; badges tuck into the icon corner */
+@media (max-width: 1100px) {
+  .hero-left { justify-content: flex-start; }
+  .nav-item .badge { top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+  .nav-item[aria-current="page"] .badge { background: #fff; color: var(--primary); }
+}
