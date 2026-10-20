@@ -25,6 +25,7 @@ function parcelMatchesFilters(p) {
   if (f.status === "out" && !isOut(p)) return false;
   if (f.status === "delivered" && p.status !== "delivered") return false;
   if (f.status === "late" && !isLate(p)) return false;
+  if (f.status === "returned" && p.status !== "returned") return false;
   if (f.driverId && driverOf(p) !== f.driverId) return false;
   if (f.when === "dueToday" && !(isOpen(p) && p.deadline < endOfToday())) return false;
   if (f.when === "due2h" && !(isOpen(p) && p.deadline < nowSec() + 2 * HOUR)) return false;
@@ -42,7 +43,7 @@ function filtersActive() { return !!(FILTERS.status || FILTERS.q || FILTERS.driv
 
 function clearFilters() {
   FILTERS.status = null; FILTERS.q = ""; FILTERS.driverId = ""; FILTERS.when = "";
-  $("flt-q").value = ""; $("flt-driver").value = ""; $("flt-when").value = "";
+  $("flt-q").value = ""; $("flt-driver").value = ""; $("flt-when").value = ""; $("flt-status").value = "";
   if ($("gsearch")) $("gsearch").value = "";
   renderParcels();
 }
@@ -52,6 +53,7 @@ function setStatusFilter(status) {
   FILTERS.status = FILTERS.status === status ? null : status;
   FILTERS.when = FILTERS.status === "delivered" && FILTERS.when === "" ? "deliveredToday" : "";
   $("flt-when").value = FILTERS.when;
+  $("flt-status").value = FILTERS.status || "";
   switchTab("parcels");
   renderParcels();
 }
@@ -90,11 +92,16 @@ function renderStats() {
   setDelta("st-total-delta", createdToday ? "" : "flat", createdToday ? `+${createdToday} today` : "none added today");
   $("st-out").textContent = all.filter(isOut).length;
   setDelta("st-out-sub", liveRuns ? "" : "flat", liveRuns ? `${liveRuns} run${liveRuns === 1 ? "" : "s"} live` : "none live");
-  $("st-pending").textContent = all.filter(isPending).length;
-  setDelta("st-late", late ? "down" : "", late ? `${late} late` : "on track");
+  const pending = all.filter(isPending).length;
+  $("st-pending").textContent = pending;
+  const soon = all.filter(p => isPending(p) && !isLate(p) && p.deadline < nowSec() + 3600).length;
+  setDelta("st-pending-sub", soon ? "down" : "flat", soon ? `${soon} due within 1 h` : "to assign");
+  $("st-late").textContent = late;
+  setDelta("st-ontime", late ? "down" : (deliveredToday.length ? "" : "flat"),
+    deliveredToday.length ? `${Math.round(onTime / deliveredToday.length * 100)}% on time` : (late ? "overdue" : "none late"));
   $("st-delivered").textContent = deliveredToday.length;
   const [tone, html] = deliveredYday.length ? trendChip(deliveredToday.length, deliveredYday.length)
-    : deliveredToday.length ? ["", `${Math.round(onTime / deliveredToday.length * 100)}% on time`] : ["flat", "–"];
+    : deliveredToday.length ? ["", `${deliveredToday.length} today`] : ["flat", "–"];
   setDelta("st-delivered-delta", tone, html);
   $("today").querySelector('[data-f="delivered"]').title =
     deliveredToday.length ? `${onTime} of ${deliveredToday.length} delivered on time today` : "Parcels delivered since midnight";
@@ -225,7 +232,7 @@ function openAttentionItem(i) {
   const p = parcels[i.id];
   FILTERS.status = null; FILTERS.driverId = ""; FILTERS.when = "";
   FILTERS.q = (p && (p.trackingNumber || p.name)) || "";
-  $("flt-q").value = FILTERS.q; $("flt-driver").value = ""; $("flt-when").value = "";
+  $("flt-q").value = FILTERS.q; $("flt-driver").value = ""; $("flt-when").value = ""; $("flt-status").value = "";
   switchTab("parcels");
   renderParcels();
   openParcelDetail(i.id);
@@ -263,5 +270,8 @@ function setupOverview() {
   $("btn-bell").onclick = () => switchTab("attention");
   $("flt-driver").addEventListener("change", e => { FILTERS.driverId = e.target.value; renderParcels(); });
   $("flt-when").addEventListener("change", e => { FILTERS.when = e.target.value; renderParcels(); });
+  $("flt-status").addEventListener("change", e => { FILTERS.status = e.target.value || null; renderStats(); renderParcels(); });
+  $("quick-add").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); };
+  $("quick-suggest").onclick = () => { switchTab("parcels"); autoAssign("rules"); };
   setInterval(refreshOverview, 30000);   // "past the deadline" minutes drift
 }

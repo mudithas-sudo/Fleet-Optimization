@@ -7,3 +7,4 @@ __pycache__/
 .adk/
 .claude/launch.json
 .vercel/
+fleet-demo.db*

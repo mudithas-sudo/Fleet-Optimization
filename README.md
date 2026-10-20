@@ -84,6 +84,25 @@ selects its model (gemini-3.5-flash recommended).
   reports), admin (+ people). Driver links carry a secret key (`&k=…`), so the
   driver app needs no login but guessed ids can't mark deliveries.
 
+### Demo data
+
+One command starts the console on a separate, fully populated demo database (your
+normal `fleet.db` is untouched) at http://localhost:8001:
+
+```powershell
+.\samples\start-demo.ps1            # add -Users for demo staff accounts
+```
+
+It loads a working day relative to *now*: 4 runs (2 finished earlier today, 1 live,
+1 scheduled), 27 parcels (on-time and late deliveries, a failed attempt waiting to
+be rescheduled, one returned to the sender, express / priority / window parcels,
+collect-and-deliver, one no vehicle can carry), proof-of-delivery signatures and
+photos, customer messages, and vehicle position trails you can replay with the
+dashboard time bar. Re-run it before a demo so the times are fresh. Seeding makes
+no API calls. To load the same data into your normal database instead, run
+`venv\Scripts\python samples\seed_demo.py --reset` (this replaces your parcels,
+fleet and runs). Try the tracking page with `FO-100112` or `FO-100114`.
+
 Built on the fleet-tracking prototype demonstrating
 **Google ADK + Google Maps Platform**:
 

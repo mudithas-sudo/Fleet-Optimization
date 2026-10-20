@@ -903,12 +903,17 @@
   <section id="hero-main" aria-label="Today at a glance">
     <div class="hero-top">
       <h1 id="greeting">Good morning!</h1>
+      <div class="quick" id="quick-actions">
+        <button type="button" class="btn-line" id="quick-add">Add parcel</button>
+        <button type="button" class="btn-solid" id="quick-suggest">Suggest runs</button>
+      </div>
       <div class="hero-meta"><span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b id="hero-date"></b></span><span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b id="hero-clock"></b></span></div>
     </div>
     <div class="kpis" id="today" role="group" aria-label="Today at a glance">
       <button type="button" class="kpi-card" data-f="all" aria-pressed="false" title="All parcels"><span class="k-top"><span>Total parcels</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg></span><span class="k-main"><b id="st-total">0</b><span class="delta flat" id="st-total-delta">–</span></span></button>
       <button type="button" class="kpi-card" data-f="out" aria-pressed="false" title="Parcels on a run that is planned or under way"><span class="k-top"><span>Out for delivery</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg></span><span class="k-main"><b id="st-out">0</b><span class="delta flat" id="st-out-sub">none live</span></span></button>
-      <button type="button" class="kpi-card" data-f="pending" aria-pressed="false" title="Parcels waiting to be put on a run"><span class="k-top"><span>Pending</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg></span><span class="k-main"><b id="st-pending">0</b><span class="delta flat" id="st-late">on track</span></span></button>
+      <button type="button" class="kpi-card" data-f="pending" aria-pressed="false" title="Parcels waiting to be put on a run"><span class="k-top"><span>Pending</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span class="k-main"><b id="st-pending">0</b><span class="delta flat" id="st-pending-sub">on track</span></span></button>
+      <button type="button" class="kpi-card" data-f="late" aria-pressed="false" title="Undelivered parcels past their deadline"><span class="k-top"><span>Late</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg></span><span class="k-main"><b id="st-late">0</b><span class="delta flat" id="st-ontime">–</span></span></button>
       <button type="button" class="kpi-card" data-f="delivered" aria-pressed="false" title="Parcels delivered since midnight"><span class="k-top"><span>Delivered today</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="k-main"><b id="st-delivered">0</b><span class="delta flat" id="st-delivered-delta">–</span></span></button>
     </div>
   </section>
@@ -981,7 +986,15 @@
       <div class="filter-row">
         <input id="flt-q" type="search" class="search-input" style="margin:0" autocomplete="off"
                placeholder="Search tracking no., receiver, address…" aria-label="Search parcels">
-        <div class="pair">
+        <div class="triple">
+          <select id="flt-status" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="out">Out for delivery</option>
+            <option value="delivered">Delivered</option>
+            <option value="late">Late</option>
+            <option value="returned">Returned</option>
+          </select>
           <select id="flt-driver" aria-label="Filter by driver"><option value="">All drivers</option></select>
           <select id="flt-when" aria-label="Filter by date">
             <option value="">Any time</option>

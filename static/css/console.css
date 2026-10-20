@@ -86,7 +86,7 @@ body:not([data-page="dashboard"]) #hero-main { display: none; }
 .hero-meta { display: flex; align-items: center; gap: 16px; font-size: 12.5px; color: var(--nav-muted); font-weight: 500; }
 .hero-meta span { display: inline-flex; align-items: center; gap: 6px; }
 .hero-meta .i { width: 14px; height: 14px; }
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi-card {
   background: var(--surface); color: var(--text); border: 0; border-radius: 8px; padding: 12px 14px;
   display: flex; flex-direction: column; gap: 8px; text-align: left; cursor: pointer; min-width: 0; font: inherit;
@@ -296,9 +296,19 @@ body.role-dispatcher :is(#btn-change-hub, #nav-reports) { display: none !importa
   #sidebar { flex-direction: row; overflow-x: auto; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
   .nav-item { width: auto; flex: 0 0 auto; padding: 0 12px; } .nav-foot { display: none; }
   #global-search { display: none; }
-  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ride-cols { display: none; }
   .ride-row { grid-template-columns: 1fr auto; } .ride-row .prog, .ride-row .next-stop { display: none; }
   .ride-row .track { grid-column: 1 / -1; }
   #stage > .float-card { left: 12px; right: 12px; width: auto; }
 }
+
+/* hero quick actions and the status filter row */
+.quick { display: flex; gap: 8px; }
+.quick .btn-line, .quick .btn-solid { height: 32px; padding: 0 14px; border-radius: 8px; font: 600 12.5px var(--font); cursor: pointer; }
+.quick .btn-line { background: transparent; border: 1px solid var(--border-strong); color: var(--nav-text); }
+.quick .btn-line:hover { background: var(--surface-2); }
+.quick .btn-solid { background: #fff; border: 1px solid #fff; color: var(--nav-bg); }
+.quick .btn-solid:hover { background: #e8ecf4; }
+.filter-row .triple { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.filter-row .triple select { padding: 9px 8px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font: 500 var(--fs-sm) var(--font); min-width: 0; }
+body.role-viewer #quick-actions { display: none !important; }
