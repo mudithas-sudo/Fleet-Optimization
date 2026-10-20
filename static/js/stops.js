@@ -205,7 +205,7 @@ function signaturePad(canvas) {
   const ctx = canvas.getContext("2d");
   ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
   ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "#0f2e35";
+  ctx.strokeStyle = "#1a2234";
   let drawing = false, dirty = false;
   const at = e => {
     const r = canvas.getBoundingClientRect();

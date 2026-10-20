@@ -104,13 +104,11 @@ function renderParcelDetail(p) {
       <div class="hint">${deadline}${p.driverName ? ` · ${pdEsc(p.driverName)}` : ""}</div>
     </div>
     ${failureBlock(p)}
-    ${p.pod ? `<h2>Proof of delivery</h2><div id="pd-pod" class="pd-pod">${podBlock(p)}</div>` : ""}
-    <h2>History</h2>
-    <ol class="timeline">${p.timeline.map(e => `
+    ${p.pod ? accHtml("Proof of delivery", `<div id="pd-pod" class="pd-pod">${podBlock(p)}</div>`, { open: true }) : ""}
+    ${accHtml("History", `<ol class="timeline">${p.timeline.map(e => `
       <li class="${PD_EVENT_TONE[e.type] || ""}"><time>${pdWhen(e.ts)}</time><span>${pdEsc(e.message)}</span></li>`).join("")}
-    </ol>
-    <h2>Customer updates</h2>
-    <div id="pd-notify" class="pd-notify"><div class="hint">Loading…</div></div>
+    </ol>`, { open: true, count: p.timeline.length })}
+    ${accHtml("Customer updates", `<div id="pd-notify" class="pd-notify"><div class="hint">Loading…</div></div>`)}
     <div id="pd-actions">${actionsBlock(p)}</div>`;
   loadNotifications(p);
   if (p.pod && (p.pod.hasSignature || p.pod.hasPhoto)) loadPodImages(p.id);

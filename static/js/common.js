@@ -74,15 +74,15 @@ function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : 
 // routes are blue (the universal navigation convention) so the amber/red
 // traffic overlays and alert colors stay unambiguous — tracking blue from
 // the design system
-function routeColor() { return currentTheme() === "dark" ? "#4fc3ea" : "#0b6f95"; }
+function routeColor() { return currentTheme() === "dark" ? "#7ea4f2" : "#4f7fd6"; }
 
 const MAP_DARK_STYLE = [
-  { elementType: "geometry", stylers: [{ color: "#12262b" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#8fb0b5" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0b181b" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#22393f" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2e4a51" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a1417" }] },
+  { elementType: "geometry", stylers: [{ color: "#171e2e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9aa6bd" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0f1420" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a3550" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3a4766" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0c1119" }] },
   { featureType: "poi", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
@@ -126,7 +126,7 @@ function fmtClock(ts) {
 function stopMarker(map, position, index, total, kind) {
   const isEnd = index === total - 1;
   const isPickup = kind === "pickup";
-  const fill = index === 0 ? "#2a7a4d" : isPickup ? "#8a5a00" : isEnd ? "#0f2e35" : "#0b7f86";
+  const fill = index === 0 ? "#16794a" : isPickup ? "#9a5b00" : isEnd ? "#1a2234" : "#3a6fd8";
   const label = index === 0 ? "S" : isPickup ? "P" : isEnd ? "E" : String(index);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
     <path d="M17 0C7.6 0 0 7.6 0 17c0 12.8 17 27 17 27s17-14.2 17-27C34 7.6 26.4 0 17 0z" fill="${fill}"/>
@@ -146,8 +146,8 @@ function stopMarker(map, position, index, total, kind) {
 // Vehicle marker (pulsing dot).
 function vehicleMarker(map, position) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-    <circle cx="14" cy="14" r="13" fill="#0b7f86" opacity="0.2"/>
-    <circle cx="14" cy="14" r="7.5" fill="#0b7f86" stroke="#ffffff" stroke-width="2.5"/>
+    <circle cx="14" cy="14" r="13" fill="#3a6fd8" opacity="0.2"/>
+    <circle cx="14" cy="14" r="7.5" fill="#3a6fd8" stroke="#ffffff" stroke-width="2.5"/>
   </svg>`;
   return new google.maps.Marker({
     map, position, zIndex: 999,
@@ -295,7 +295,7 @@ function drawRoute(map, path) {
     map, path,
     strokeColor: routeColor(),
     strokeOpacity: 0.95,
-    strokeWeight: 7,
+    strokeWeight: 5,
   });
 }
 
@@ -328,3 +328,22 @@ function fitToPath(map, path) {
   path.forEach(p => bounds.extend(p));
   map.fitBounds(bounds, 60);
 }
+
+
+// ---- accordions: <section class="acc"> + .acc-head toggles .open (works for generated markup too)
+function accHtml(title, body, { open = false, count = null, warn = false } = {}) {
+  return `<section class="acc${open ? " open" : ""}"><div class="acc-bar">` +
+    `<button type="button" class="acc-head" aria-expanded="${open}">` +
+    `<svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>${title}</span>` +
+    `${count != null ? `<span class="acc-count${warn ? " warn" : ""}">${count}</span>` : ""}</button></div>` +
+    `<div class="acc-body">${body}</div></section>`;
+}
+
+document.addEventListener("click", e => {
+  const head = e.target.closest && e.target.closest(".acc-head");
+  if (!head) return;
+  const section = head.closest(".acc");
+  const open = !section.classList.contains("open");
+  section.classList.toggle("open", open);
+  head.setAttribute("aria-expanded", String(open));
+});

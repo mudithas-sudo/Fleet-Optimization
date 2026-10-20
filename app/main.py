@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, db, delivery, deviation, notify, replan, reports, routing, store  # noqa: E402
+from . import auth, db, delivery, deviation, notify, replan, reports, rides, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -549,6 +549,28 @@ async def put_costs(c: CostsIn):
     if c.perKm < 0 or c.perHour < 0 or c.perKm > 1e6 or c.perHour > 1e6:
         raise HTTPException(400, "Rates must be between 0 and 1,000,000.")
     return reports.set_costs(c.perKm, c.perHour, c.currency)
+
+
+# ---- rides at a point in time (admin "live board" and time travel)
+
+@app.get("/api/rides")
+async def rides_at(at: str | None = None):
+    """Every run and what it was doing at `at` (epoch seconds; omit or 'now' for live)."""
+    if at in (None, "", "now"):
+        return rides.rides_at(None)
+    try:
+        ts = float(at)
+    except ValueError:
+        raise HTTPException(400, "at must be 'now' or epoch seconds")
+    if not 0 < ts < time.time() + 366 * 86400:
+        raise HTTPException(400, "at is out of range")
+    return rides.rides_at(min(ts, time.time()))
+
+
+@app.get("/api/trips/{trip_id}/trail")
+async def trip_trail(trip_id: str, until: float | None = None):
+    _trip_or_404(trip_id)
+    return {"points": rides.trail(trip_id, until)}
 
 
 @app.get("/api/notifications")

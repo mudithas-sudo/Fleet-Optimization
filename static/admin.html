@@ -6,69 +6,72 @@
 <title>FleetOps — Delivery Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
-     FleetOps design system — "Harbour chart"
-     Harbour ink + channel teal + buoy yellow · Bricolage Grotesque / Hanken Grotesk
+     FleetOps design system — slate and navy, Inter
+     Palette measured from the reference dashboard
      All colour/spacing/type via semantic tokens, themed per mode.
      Legacy token aliases (--blue/--red/…) kept for inline JS refs.
      ============================================================ */
   :root {
     color-scheme: light;
 
-    /* surfaces & text — chart paper and harbour ink */
-    --bg: #eef1ec;
-    --surface: #fbfcfa;
-    --surface-2: #e7ece8;
-    --surface-3: #dbe3de;
-    --border: #cdd7d1;
-    --border-strong: #a9b8b0;
-    --text: #0f2e35;
-    --text-muted: #4b6268;
-    --text-subtle: #566b70;
+    /* surfaces & text — measured from the reference dashboard */
+    --bg: #f3f5f7;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --surface-3: #eceff3;
+    --border: #e4e8ee;
+    --border-strong: #cfd5de;
+    --text: #1a2234;
+    --text-muted: #5b6577;
+    --text-subtle: #667085;
 
-    /* brand */
-    --primary: #0b7f86;
-    --primary-hover: #096a70;
+    /* brand: deep navy actions on slate */
+    --primary: #1a2234;
+    --primary-hover: #2b3650;
     --on-primary: #ffffff;
-    --primary-soft: #dcefef;
-    --accent: #f4b400;
-    --accent-hover: #ffc42e;
-    --on-accent: #17262a;
-    --accent-soft: #fcf0c8;
-    --nav-bg: #0f2e35;
-    --nav-text: #f2f7f5;
+    --primary-soft: #e9edf5;
+    --accent: #1a2234;
+    --accent-hover: #2b3650;
+    --on-accent: #ffffff;
+    --accent-soft: #e9edf5;
+    --info: #3a6fd8;
+    --nav-bg: #364152;
+    --nav-bg-2: #4c5564;
+    --nav-text: #ffffff;
+    --nav-muted: #b6bfcc;
 
     /* status */
-    --success: #2a7a4d;
-    --success-soft: #dfeee5;
-    --warning: #8a5a00;
-    --warning-soft: #f7ebcc;
-    --danger: #c0301d;
-    --danger-soft: #f9e3df;
+    --success: #16794a;
+    --success-soft: #e3f6ec;
+    --warning: #9a5b00;
+    --warning-soft: #fdf1dc;
+    --danger: #c8372d;
+    --danger-soft: #fdeceb;
 
-    /* effects — borders carry structure; shadow is for floating layers only */
-    --focus-ring: 0 0 0 3px rgba(11, 127, 134, .4);
-    --shadow-sm: 0 1px 0 rgba(15, 46, 53, .06);
-    --shadow-md: 0 6px 18px rgba(15, 46, 53, .12);
-    --shadow-lg: 0 16px 44px rgba(15, 46, 53, .2);
-    --scrim: rgba(10, 28, 33, .52);
+    /* effects */
+    --focus-ring: 0 0 0 3px rgba(58, 111, 216, .3);
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, .05);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, .08);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, .16);
+    --scrim: rgba(16, 24, 40, .5);
 
-    /* spacing — dense dashboard, 4px rhythm */
+    /* spacing — 4px rhythm */
     --space-1: 4px; --space-2: 8px; --space-3: 12px;
     --space-4: 16px; --space-5: 24px; --space-6: 32px;
 
-    /* radius — small on data, larger only on floating layers */
-    --radius-sm: 3px; --radius: 6px; --radius-lg: 10px; --radius-full: 999px;
+    /* radius */
+    --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-full: 999px;
 
-    /* type */
-    --font: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --display: "Bricolage Grotesque", var(--font);
-    --fs-xs: 11.5px; --fs-sm: 13px; --fs-base: 14px; --fs-md: 15px;
-    --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 28px;
+    /* type — Inter, as in the reference */
+    --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --display: var(--font);
+    --fs-xs: 11.5px; --fs-sm: 12.5px; --fs-base: 13.5px; --fs-md: 14.5px;
+    --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px;
 
-    --dur: .18s;
+    --dur: .16s;
     --ease: cubic-bezier(.2, 0, 0, 1);
 
     /* inline validation glyph (circled !) */
@@ -95,38 +98,41 @@
   [data-theme="dark"] {
     color-scheme: dark;
 
-    --bg: #0a1c21;
-    --surface: #102a31;
-    --surface-2: #163740;
-    --surface-3: #1e4650;
-    --border: #234650;
-    --border-strong: #356572;
-    --text: #e8f2f0;
-    --text-muted: #9fbdc2;
-    --text-subtle: #86a4aa;
+    --bg: #0f1420;
+    --surface: #171e2e;
+    --surface-2: #1b2335;
+    --surface-3: #232d44;
+    --border: #2a3550;
+    --border-strong: #3a4766;
+    --text: #e8ecf4;
+    --text-muted: #9aa6bd;
+    --text-subtle: #8591aa;
 
-    --primary: #43c6cc;
-    --primary-hover: #6ad6db;
-    --on-primary: #062226;
-    --primary-soft: #12383f;
-    --accent: #ffc933;
-    --accent-hover: #ffd660;
-    --on-accent: #1a1403;
-    --accent-soft: #3a3010;
-    --nav-bg: #07151a;
-    --nav-text: #f2f7f5;
+    --primary: #e8ecf4;
+    --primary-hover: #ffffff;
+    --on-primary: #151c2c;
+    --primary-soft: #222d47;
+    --accent: #4d7de0;
+    --accent-hover: #6a92ec;
+    --on-accent: #ffffff;
+    --accent-soft: #1f2b47;
+    --info: #7ea4f2;
+    --nav-bg: #1e2638;
+    --nav-bg-2: #2c364d;
+    --nav-text: #ffffff;
+    --nav-muted: #9aa6bd;
 
     --success: #4fcb88;
-    --success-soft: #123425;
+    --success-soft: #11291e;
     --warning: #e8b04a;
     --warning-soft: #33290f;
     --danger: #ff7b68;
     --danger-soft: #3a1d1a;
 
-    --focus-ring: 0 0 0 3px rgba(67, 198, 204, .5);
-    --shadow-sm: 0 1px 0 rgba(0, 0, 0, .4);
-    --shadow-md: 0 6px 20px rgba(0, 0, 0, .5);
-    --shadow-lg: 0 18px 46px rgba(0, 0, 0, .62);
+    --focus-ring: 0 0 0 3px rgba(126, 164, 242, .4);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, .45);
+    --shadow-lg: 0 18px 46px rgba(0, 0, 0, .6);
     --scrim: rgba(0, 0, 0, .62);
   }
 
@@ -169,98 +175,6 @@
   }
   .i-sm { width: 14px; height: 14px; }
   .i-lg { width: 20px; height: 20px; }
-
-  /* ---------- header ---------- */
-  header {
-    display: flex; align-items: center; gap: var(--space-3);
-    padding: 0 var(--space-5); height: 58px; flex: 0 0 auto;
-    background: var(--surface); border-bottom: 1px solid var(--border);
-  }
-  .brand {
-    font-size: var(--fs-xl); font-weight: 800; letter-spacing: -.02em;
-    display: flex; align-items: center;
-  }
-  .brand .logo {
-    width: 26px; height: 26px; border-radius: 8px; margin-right: 9px;
-    background: var(--primary); color: var(--on-primary);
-    display: grid; place-items: center;
-  }
-  .brand .logo svg { width: 16px; height: 16px; }
-  .brand em { font-style: normal; color: var(--primary); }
-  .tag {
-    font-size: var(--fs-xs); font-weight: 700; letter-spacing: .02em;
-    color: var(--text-muted); background: var(--surface-2);
-    padding: 5px 11px; border-radius: var(--radius-full);
-  }
-  .header-spacer { margin-left: auto; }
-
-  /* live-stream health dot */
-  #stream-dot {
-    width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
-    background: var(--text-subtle); transition: background var(--dur);
-  }
-  #stream-dot.live { background: var(--success); }
-  #stream-dot.down { background: var(--danger); animation: pulse 1s infinite; }
-
-  .icon-btn {
-    width: 38px; height: 38px; flex: 0 0 auto;
-    display: grid; place-items: center;
-    background: var(--surface); color: var(--text-muted);
-    border: 1px solid var(--border); border-radius: var(--radius-full);
-    cursor: pointer; transition: color var(--dur), border-color var(--dur), background var(--dur);
-  }
-  .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
-  .icon-btn .i { width: 18px; height: 18px; }
-
-  #trip-status {
-    display: flex; align-items: center; gap: var(--space-2);
-    font-size: var(--fs-sm); font-weight: 700;
-    padding: 7px 13px; border-radius: var(--radius-full);
-    background: var(--surface-2); color: var(--text-muted);
-  }
-  #trip-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-subtle); flex: 0 0 auto; }
-  #trip-status.status-planned  { color: var(--primary); }
-  #trip-status.status-planned  .dot { background: var(--primary); }
-  #trip-status.status-active   { color: var(--success); }
-  #trip-status.status-active   .dot { background: var(--success); animation: pulse 1.6s infinite; }
-  #trip-status.status-deviating { color: var(--danger); }
-  #trip-status.status-deviating .dot { background: var(--danger); animation: pulse .8s infinite; }
-  #trip-status.status-completed .dot { background: var(--text-subtle); }
-  @keyframes pulse { 50% { opacity: .35; } }
-
-  /* ---------- layout ---------- */
-  main { flex: 1; display: flex; min-height: 0; }
-  aside {
-    width: 420px; flex: 0 0 auto; overflow-y: auto;
-    background: var(--surface); border-right: 1px solid var(--border);
-    padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);
-    position: relative; scroll-padding-bottom: 80px;
-  }
-
-  /* ---------- tabs ---------- */
-  .tabs {
-    display: flex; gap: 3px; background: var(--surface-2);
-    border-radius: var(--radius-full); padding: 3px;
-  }
-  .tabs button {
-    flex: 1; font-family: inherit; font-size: var(--fs-sm); font-weight: 700;
-    padding: 9px 6px; border: none; border-radius: var(--radius-full); cursor: pointer;
-    background: transparent; color: var(--text-muted); white-space: nowrap;
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    transition: color var(--dur), background var(--dur);
-  }
-  .tabs button:hover { color: var(--text); }
-  .tabs button[aria-selected="true"] {
-    background: var(--surface); color: var(--text);
-    box-shadow: var(--shadow-sm);
-  }
-  .tabs .badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 18px; height: 18px; padding: 0 5px;
-    border-radius: var(--radius-full); background: var(--primary); color: #fff;
-    font-size: 10px; font-weight: 800;
-  }
-  .tabs .badge.warn { background: var(--danger); }
 
   /* ---------- section headings ---------- */
   h2 {
@@ -821,18 +735,6 @@
   #alert-banner .banner-x:hover { background: rgba(255,255,255,.38); }
   @keyframes slam { from { transform: translateX(-50%) translateY(-16px); opacity: 0; } }
 
-  /* ---------- responsive ---------- */
-  @media (max-width: 900px) {
-    header { padding: 0 var(--space-4); gap: var(--space-2); }
-    .tag { display: none; }
-    main { flex-direction: column; }
-    aside {
-      width: 100%; max-height: 46vh; border-right: none; border-bottom: 1px solid var(--border);
-    }
-    #map-wrap { min-height: 54vh; }
-    .float-card { width: calc(100% - 24px); left: 12px; right: 12px; }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: .001ms !important; animation-iteration-count: 1 !important;
@@ -840,92 +742,7 @@
     }
   }
 
-  /* ============================================================
-     Harbour-chart refinements (override layer)
-     ============================================================ */
-  button, input, select, textarea { font-family: var(--font); }
-  td.num, .kpi b, .deadline, .meta, #eta-time { font-variant-numeric: tabular-nums; }
-
-  /* ink header: scoped tokens keep every child legible on the dark bar */
-  header {
-    background: var(--nav-bg); color: var(--nav-text); border-bottom: none;
-    --primary: #5fd0d5; --success: #6fd29a; --danger: #ff8f7e;
-    --text: #f2f7f5; --text-muted: #a9c8cb; --text-subtle: #86a9ad;
-    --surface: rgba(255, 255, 255, .08); --surface-2: rgba(255, 255, 255, .1);
-    --border: rgba(255, 255, 255, .18); --border-strong: rgba(255, 255, 255, .34);
-  }
-  .brand { font-family: var(--display); font-weight: 700; letter-spacing: -.03em; color: var(--nav-text); }
-  .brand .logo { background: var(--accent); color: #17262a; border-radius: var(--radius-sm); }
-  .brand em { color: var(--accent); }
-  .tag { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); font-weight: 600; letter-spacing: 0; }
-  .icon-btn { border-radius: var(--radius); }
-  #trip-status { border-radius: var(--radius-sm); }
-
-  /* underline tabs */
-  .tabs { background: none; border-radius: 0; padding: 0; gap: var(--space-3); border-bottom: 1px solid var(--border); }
-  .tabs button {
-    border-radius: 0; padding: 10px 2px; font-size: var(--fs-base);
-    border-bottom: 3px solid transparent; margin-bottom: -1px;
-  }
-  .tabs button[aria-selected="true"] { background: none; box-shadow: none; border-bottom-color: var(--primary); }
-  .tabs .badge { border-radius: var(--radius-sm); font-size: 11px; }
-
-  /* sentence-case headings and labels */
-  h2 {
-    font-family: var(--display); font-size: var(--fs-lg); font-weight: 700;
-    letter-spacing: -.01em; text-transform: none; color: var(--text);
-  }
-  .field label { font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text); }
-  .size-chip, .p-chip, .redeliv-chip, .late-tag, .risk-tag, .busy-chip,
-  .kpi span, .speed-row label, #import-preview th {
-    text-transform: none; letter-spacing: 0; font-size: 11px;
-  }
-  .trip-group {
-    font-family: var(--display); font-size: var(--fs-sm); font-weight: 700;
-    letter-spacing: 0; text-transform: none; color: var(--text-muted);
-  }
-  .trip-group .g-count { border-radius: var(--radius-sm); font-size: 11px; }
-
-  /* actions: buoy yellow, squared off */
-  .btn { border-radius: var(--radius); }
-  .btn-primary { font-family: var(--display); font-weight: 700; box-shadow: none; }
-  .btn-primary:hover:not(:disabled) { box-shadow: none; }
-  .dispatch-btn { border-radius: var(--radius-sm); box-shadow: none; font-family: var(--display); font-size: var(--fs-sm); }
-  .dispatch-btn:hover { box-shadow: none; }
-  #depot-chip { border-radius: var(--radius-sm); }
-  #depot-chip .i { color: var(--primary); }
-  #alert-banner { border-radius: var(--radius); }
-
-  /* run rows: a status rail down the left edge */
-  .parcel-row, .reg-row, .trip-row, .driver-card, .batch-card { border-width: 1px; }
-  .trip-row, .driver-card { border-left: 4px solid var(--border-strong); }
-  .trip-row.status-planned { border-left-color: var(--primary); }
-  .trip-row.status-active { border-left-color: var(--success); }
-  .trip-row.status-deviating { border-left-color: var(--danger); }
-  .trip-row.status-completed { border-left-color: var(--border); }
-  .trip-row.selected, .driver-card.selected { background: var(--primary-soft); box-shadow: none; }
-  .trip-row .dev-badge, .parcel-chip { border-radius: var(--radius-sm); }
-
-  /* numbers read as the figures they are */
-  .kpi { border: 1px solid var(--border); background: var(--surface); }
-  .kpi b { font-family: var(--display); font-size: var(--fs-xl); font-weight: 700; }
-
   /* ---------- today strip, filters, attention queue ---------- */
-  .today { flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
-  .stat-tile {
-    font-family: inherit; text-align: left; color: var(--text); background: none;
-    border: 0; border-right: 1px solid var(--border); padding: 9px 9px 8px;
-    display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: pointer;
-    transition: background var(--dur);
-  }
-  .stat-tile:last-child { border-right: 0; }
-  .stat-tile.static { cursor: default; }
-  .stat-tile:hover:not(.static) { background: var(--surface-2); }
-  .stat-tile[aria-pressed="true"] { background: var(--primary-soft); box-shadow: inset 0 -3px 0 var(--primary); }
-  .stat-tile b { font: 700 var(--fs-xl)/1.1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .stat-tile span { font-size: 11.5px; color: var(--text-muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .stat-tile small { font-size: 11px; color: var(--text-subtle); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .stat-tile.alert b { color: var(--danger); }
 
   .filter-row { display: grid; grid-template-columns: 1fr; gap: var(--space-2); margin-top: var(--space-3); }
   .filter-row .pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
@@ -1038,18 +855,9 @@
   .rp-exports a { text-decoration: none; }
   #rp-notes { display: flex; flex-direction: column; gap: var(--space-2); }
   #rp-status { color: var(--text-muted); font-weight: 600; min-height: 1.2em; }
-  .hdr-btn { height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 700 var(--fs-sm) var(--font); cursor: pointer; }
-  .hdr-btn:hover { border-color: var(--border-strong); }
   @media (max-width: 760px) { .rp-grid { grid-template-columns: 1fr; } #reports { padding: var(--space-3); } }
 
   /* ---------- who is signed in; role-based hiding ---------- */
-  #user-chip { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); }
-  #user-chip[hidden] { display: none; }
-  #user-chip .who { display: flex; flex-direction: column; line-height: 1.15; text-align: right; }
-  #user-chip .who b { font-weight: 700; }
-  #user-chip .who span { color: var(--text-muted); font-size: 11.5px; }
-  #user-chip button { height: 32px; padding: 0 10px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 600 var(--fs-xs) var(--font); cursor: pointer; }
-  #user-chip button:hover { border-color: var(--border-strong); }
   body.role-viewer :is(#btn-add-parcel, #btn-import, #btn-auto, #btn-auto-ai, #btn-clear-delivered, #btn-clear-all,
     #run-footer, #depot-chip, #depot-form, #btn-add-vehicle, #btn-add-driver, .edit-driver, .del, #btn-delete,
     #btn-reassign, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports) { display: none !important; }
@@ -1062,65 +870,75 @@
   #pw-modal { display: none; position: fixed; inset: 0; z-index: 40; background: var(--scrim); align-items: center; justify-content: center; padding: var(--space-4); }
   #pw-modal .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(380px, 100%); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
   #pw-err { color: var(--danger); font-weight: 700; font-size: var(--fs-sm); min-height: 1.2em; }
-  @media (max-width: 900px) { #user-chip .who { display: none; } }
 </style>
+<link rel="stylesheet" href="/static/css/console.css">
 </head>
-<body>
-<a class="skip-link" href="#parcel-list">Skip to content</a>
-<header>
-  <h1 class="brand">
-    <span class="logo" aria-hidden="true">
-      <svg viewBox="0 0 24 24" class="i" style="stroke-width:2.2"><path d="M3 17h13V6H3zM16 10h4l1 4v3h-5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
-    </span>
-    Fleet<em>Ops</em>
-  </h1>
-  <span class="tag">Delivery Console</span>
-  <div class="header-spacer"></div>
-  <span id="stream-dot" title="Live updates: connecting…" aria-label="Live updates status"></span>
-  <button id="btn-reports" class="hdr-btn" type="button" title="Reports and exports">
-    <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
-    Reports
-  </button>
-  <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
-  <div id="user-chip" hidden>
-    <div class="who"><b id="user-name"></b><span id="user-role"></span></div>
-    <button id="btn-password" type="button">Password</button>
-    <button id="btn-logout" type="button">Sign out</button>
-  </div>
-  <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
-</header>
-<main>
-  <aside>
-    <div id="today" class="today" role="group" aria-label="Today at a glance">
-      <button type="button" class="stat-tile" data-f="pending" aria-pressed="false" title="Parcels waiting to be put on a run">
-        <b id="st-pending">0</b><span>Pending</span><small>to assign</small></button>
-      <button type="button" class="stat-tile" data-f="out" aria-pressed="false" title="Parcels on a run that is planned or under way">
-        <b id="st-out">0</b><span>Out now</span><small id="st-out-sub">none live</small></button>
-      <button type="button" class="stat-tile" data-f="delivered" aria-pressed="false" title="Parcels delivered since midnight">
-        <b id="st-delivered">0</b><span>Delivered</span><small>today</small></button>
-      <button type="button" class="stat-tile" data-f="late" aria-pressed="false" title="Undelivered parcels past their deadline">
-        <b id="st-late">0</b><span>Late</span><small>overdue</small></button>
-      <div class="stat-tile static" title="Share of today’s deliveries made before the deadline">
-        <b id="st-ontime">–</b><span>On time</span><small>today</small></div>
+<body data-page="dashboard">
+<a class="skip-link" href="#stage">Skip to content</a>
+<div id="app">
+  <header id="topbar">
+    <h1 class="brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
+      <span class="name">FleetOps</span>
+    </h1>
+    <div id="global-search" role="search">
+      <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="gsearch" type="search" placeholder="Search tracking no., receiver, address…" aria-label="Search parcels" autocomplete="off">
+    </div>
+    <div class="topbar-spacer"></div>
+    <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
+    <span id="stream-dot" title="Live updates: connecting…" aria-label="Live updates status"></span>
+    <button id="btn-bell" class="top-btn" type="button" aria-label="Needs attention" title="Needs attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0"/></svg><span class="dot-badge" id="bell-badge" hidden>0</span></button>
+    <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
+    <div class="top-user"><span class="avatar" id="top-avatar">–</span><div class="who"><b id="user-name">Local admin</b><span id="user-role">Administrator</span></div></div>
+  </header>
+
+  <section id="hero-profile" aria-label="Your profile">
+    <div class="profile-card">
+      <div class="profile-top"><span class="avatar" id="profile-avatar">–</span><div><b id="profile-name">Dispatcher</b><span id="profile-role">Control room</span></div></div>
+      <div class="profile-meta"><span>Hub</span><b id="profile-hub">…</b></div>
+      <button id="btn-change-hub" class="btn-line" type="button">Change hub</button>
+    </div>
+  </section>
+  <section id="hero-main" aria-label="Today at a glance">
+    <div class="hero-top">
+      <h1 id="greeting">Good morning!</h1>
+      <div class="hero-meta"><span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b id="hero-date"></b></span><span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b id="hero-clock"></b></span></div>
+    </div>
+    <div class="kpis" id="today" role="group" aria-label="Today at a glance">
+      <button type="button" class="kpi-card" data-f="all" aria-pressed="false" title="All parcels"><span class="k-top"><span>Total parcels</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg></span><span class="k-main"><b id="st-total">0</b><span class="delta flat" id="st-total-delta">–</span></span></button>
+      <button type="button" class="kpi-card" data-f="out" aria-pressed="false" title="Parcels on a run that is planned or under way"><span class="k-top"><span>Out for delivery</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg></span><span class="k-main"><b id="st-out">0</b><span class="delta flat" id="st-out-sub">none live</span></span></button>
+      <button type="button" class="kpi-card" data-f="pending" aria-pressed="false" title="Parcels waiting to be put on a run"><span class="k-top"><span>Pending</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg></span><span class="k-main"><b id="st-pending">0</b><span class="delta flat" id="st-late">on track</span></span></button>
+      <button type="button" class="kpi-card" data-f="delivered" aria-pressed="false" title="Parcels delivered since midnight"><span class="k-top"><span>Delivered today</span><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="k-main"><b id="st-delivered">0</b><span class="delta flat" id="st-delivered-delta">–</span></span></button>
+    </div>
+  </section>
+
+  <nav id="sidebar" aria-label="Main">
+    <button type="button" class="nav-item" id="tab-btn-dashboard"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="label">Dashboard</span></button>
+    <button type="button" class="nav-item" id="tab-btn-parcels"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span class="label">Parcels</span><span class="badge warn" id="parcel-badge" hidden>0</span></button>
+    <button type="button" class="nav-item" id="tab-btn-fleet"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg><span class="label">Runs</span><span class="badge" id="fleet-badge">0</span></button>
+    <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
+    <button type="button" class="nav-item" id="tab-btn-registry"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg><span class="label">Fleet</span></button>
+    <button type="button" class="nav-item" id="btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
+    <div class="nav-foot" id="nav-foot" hidden>
+      <button type="button" class="nav-item" id="btn-password"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3"/></svg><span class="label">Password</span></button>
+      <button type="button" class="nav-item" id="btn-logout"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span class="label">Sign out</span></button>
+    </div>
+  </nav>
+
+  <main id="stage">
+    <div id="dash-bar" class="card" role="group" aria-label="Choose a time">
+      <button id="dash-live" class="live-btn" type="button" aria-pressed="true"><span class="pulse"></span>Live</button>
+      <input id="dash-date" type="date" aria-label="Day">
+      <button id="dash-back" class="step-btn" type="button" aria-label="15 minutes earlier">−15m</button>
+      <input id="dash-slider" type="range" min="0" max="1439" step="1" value="0" aria-label="Time of day">
+      <button id="dash-fwd" class="step-btn" type="button" aria-label="15 minutes later">+15m</button>
+      <span id="dash-time" aria-live="polite">--:--</span>
     </div>
 
-    <div class="tabs" role="tablist" aria-label="Console sections">
-      <button id="tab-btn-parcels" role="tab" aria-selected="true" aria-controls="tab-parcels">
-        Parcels<span class="badge warn" id="parcel-badge" hidden>0</span>
-      </button>
-      <button id="tab-btn-fleet" role="tab" aria-selected="false" aria-controls="tab-fleet" tabindex="-1">
-        Runs<span class="badge" id="fleet-badge">0</span>
-      </button>
-      <button id="tab-btn-attention" role="tab" aria-selected="false" aria-controls="tab-attention" tabindex="-1">
-        Attention<span class="badge warn" id="attention-badge" hidden>0</span>
-      </button>
-      <button id="tab-btn-registry" role="tab" aria-selected="false" aria-controls="tab-registry" tabindex="-1">
-        Registry
-      </button>
-    </div>
-
+    <aside id="panel" aria-label="Lists">
     <!-- ================= PARCELS ================= -->
-    <section id="tab-parcels" role="tabpanel" aria-labelledby="tab-btn-parcels">
+    <section id="tab-parcels" role="tabpanel" aria-label="Parcels">
       <h2>Parcels
         <span class="spacer"></span>
         <button id="btn-auto" class="dispatch-btn" type="button" title="Packs your pending (or selected) parcels onto the fewest vehicles that can carry them and builds a run for each — you review before anything is created">
@@ -1297,26 +1115,28 @@
     </section>
 
     <!-- ================= RUNS (fleet) ================= -->
-    <section id="tab-fleet" role="tabpanel" aria-labelledby="tab-btn-fleet" hidden>
+    <section id="tab-fleet" role="tabpanel" aria-label="Runs" hidden>
       <h2>Delivery runs <span class="spacer"></span><button id="btn-clear-all" class="link-danger" type="button">Clear all</button></h2>
       <div id="trip-list" style="margin-top:12px"></div>
     </section>
 
     <!-- ================= ATTENTION ================= -->
-    <section id="tab-attention" role="tabpanel" aria-labelledby="tab-btn-attention" hidden>
+    <section id="tab-attention" role="tabpanel" aria-label="Attention" hidden>
       <h2>Needs attention</h2>
       <div class="hint" style="margin-top:4px">Most urgent first. Select an item to open it.</div>
       <div id="attention-list"></div>
     </section>
 
     <!-- ================= REGISTRY ================= -->
-    <section id="tab-registry" role="tabpanel" aria-labelledby="tab-btn-registry" hidden>
-      <h2>Vehicles <span class="spacer"></span>
-        <button id="btn-add-vehicle" class="link-action" type="button">
+    <section id="tab-registry" role="tabpanel" aria-label="Fleet and drivers" hidden>
+      <div class="page-title"><h2>Fleet and drivers</h2><span class="hint">Vehicles, who drives them, and who can sign in.</span></div>
+<section class="acc open">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="true"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Vehicles</span><span class="acc-count" id="veh-count">0</span></button><div class="acc-actions"><button id="btn-add-vehicle" class="link-action" type="button">
           <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           Add
-        </button>
-      </h2>
+        </button></div></div>
+  <div class="acc-body">
+
       <div id="vehicle-form" class="form-card" style="display:none; margin-top:10px">
         <div class="form-grid">
           <div class="field"><label for="vf-name">Name</label><input id="vf-name" placeholder="Van 02"></div>
@@ -1355,12 +1175,16 @@
       </div>
       <div class="reg-list" id="vehicle-list" style="margin-top:10px"></div>
 
-      <h2 style="margin-top:18px">Drivers <span class="spacer"></span>
-        <button id="btn-add-driver" class="link-action" type="button">
+
+  </div>
+</section>
+<section class="acc open">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="true"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Drivers</span><span class="acc-count" id="drv-count">0</span></button><div class="acc-actions"><button id="btn-add-driver" class="link-action" type="button">
           <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           Add
-        </button>
-      </h2>
+        </button></div></div>
+  <div class="acc-body">
+
       <div id="driver-form" class="form-card" style="display:none; margin-top:10px">
         <div class="form-grid">
           <div class="field"><label for="df-name">Name</label><input id="df-name" placeholder="Nuwan"></div>
@@ -1382,13 +1206,16 @@
       </div>
       <div class="reg-list" id="driver-list" style="margin-top:10px"></div>
 
-      <div id="users-section" hidden>
-        <h2 style="margin-top:18px">Team <span class="spacer"></span>
-          <button id="btn-add-user" class="link-action" type="button">
+
+  </div>
+</section>
+<section class="acc" id="users-section" hidden>
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="false"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Team</span></button><div class="acc-actions"><button id="btn-add-user" class="link-action" type="button">
             <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             Add
-          </button>
-        </h2>
+          </button></div></div>
+  <div class="acc-body">
+
         <div class="hint" id="role-help" style="margin-top:4px"></div>
         <div id="user-form" class="form-card" style="display:none; margin-top:10px">
           <div class="form-grid">
@@ -1408,18 +1235,27 @@
           </div>
         </div>
         <div class="reg-list" id="user-list" style="margin-top:10px"></div>
-      </div>
+      
+  </div>
+</section>
     </section>
-
     <div id="run-footer">
       <button class="btn btn-primary" id="btn-plan-run" type="button">Plan delivery run</button>
       <button class="btn btn-ghost" id="btn-add-to-run" type="button" hidden>Add to run</button>
     </div>
-  </aside>
+    </aside>
 
-  <div id="map-wrap">
-    <div id="alert-banner" role="alert"></div>
-    <div id="map"></div>
+    <div id="map-wrap">
+      <div id="alert-banner" role="alert"></div>
+      <div id="map"></div>
+    </div>
+
+    <section id="dash-rides" class="card" aria-label="Rides">
+      <div class="rides-head"><h2 id="rides-title">Rides now</h2><div class="filter-chips" id="rides-filter" role="group" aria-label="Show rides"></div></div>
+      <div class="ride-cols"><span>Ride</span><span>Status</span><span>Parcels</span><span>Next stop</span><div class="hour-ticks" id="hour-ticks" aria-hidden="true"></div></div>
+      <div id="rides-list"></div>
+    </section>
+    <div id="dock-empty" class="card"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="m3 11 18-8-8 18-2-8z"/></svg><b>Pick a ride</b><span>Select a ride in the table or on the map to see its route, parcels, alerts and driver link.</span></div>
 
     <!-- parcel detail card -->
     <div id="parcel-detail" class="float-card" role="dialog" aria-label="Parcel detail">
@@ -1432,14 +1268,17 @@
       <div id="pd-body"></div>
     </div>
 
-    <!-- run detail card -->
+
+    <!-- run detail card (docked on the dashboard, floating elsewhere) -->
     <div id="trip-detail" class="float-card" role="dialog" aria-label="Run detail">
       <div class="panel-head">
         <h2>Run <span id="detail-id"></span></h2>
+        <span id="detail-state" class="state-chip"></span>
         <button id="btn-close-detail" class="close-btn" type="button" aria-label="Close run detail">
           <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
+      <div id="view-banner" class="view-banner" hidden><span id="view-banner-text"></span><button id="view-live" type="button">Back to live</button></div>
       <div id="run-meta"></div>
       <div class="totals">
         <div class="kpi"><b id="kpi-dist">–</b><span>Planned</span></div>
@@ -1451,26 +1290,50 @@
         <div class="kpi stat"><b id="kpi-devs">–</b><span>Deviations</span></div>
         <div class="kpi stat"><b id="kpi-delivered">–</b><span>Delivered</span></div>
       </div>
-      <h2>Manifest</h2>
-      <table id="manifest"></table>
-      <div id="briefing"></div>
-      <div id="driver-link"><a id="driver-url" target="_blank" rel="noopener"></a><button id="btn-copy" type="button">Copy link</button></div>
-      <div id="reassign-form" class="form-card" hidden>
-        <div class="field"><label for="reassign-driver">Give this run to</label>
-          <select id="reassign-driver"></select></div>
-        <div class="field-err form-err" id="reassign-err" role="alert" hidden></div>
-        <div class="row">
-          <button class="btn btn-ghost" id="reassign-cancel" type="button">Cancel</button>
-          <button class="btn btn-primary" id="reassign-save" type="button">Change driver</button>
+      <div class="acc-group">
+        <section class="acc open">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="true"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Stops and parcels</span><span class="acc-count" id="manifest-count">0</span></button><div class="acc-actions"></div></div>
+  <div class="acc-body">
+<table id="manifest"></table>
+  </div>
+</section>
+        <section class="acc">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="false"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Driver briefing</span></button><div class="acc-actions"></div></div>
+  <div class="acc-body">
+<div id="briefing"></div>
+  </div>
+</section>
+        <section class="acc">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="false"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Driver link and run sheet</span></button><div class="acc-actions"></div></div>
+  <div class="acc-body">
+<div id="driver-link"><a id="driver-url" target="_blank" rel="noopener"></a><button id="btn-copy" type="button">Copy link</button></div><div class="row" style="margin-top:10px"><a id="btn-runsheet" class="btn btn-ghost" target="_blank" rel="noopener" style="text-decoration:none">Open run sheet</a></div>
+  </div>
+</section>
+        <section class="acc open">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="true"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Alerts</span><span class="acc-count" id="alerts-count">0</span></button><div class="acc-actions"></div></div>
+  <div class="acc-body">
+<div id="alerts" aria-live="polite"></div>
+  </div>
+</section>
+        <section class="acc">
+  <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="false"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Change this run</span></button><div class="acc-actions"></div></div>
+  <div class="acc-body">
+<div id="reassign-form" class="form-card" hidden>
+          <div class="field"><label for="reassign-driver">Give this run to</label>
+            <select id="reassign-driver"></select></div>
+          <div class="field-err form-err" id="reassign-err" role="alert" hidden></div>
+          <div class="row">
+            <button class="btn btn-ghost" id="reassign-cancel" type="button">Cancel</button>
+            <button class="btn btn-primary" id="reassign-save" type="button">Change driver</button>
+          </div>
         </div>
+        <div class="row">
+          <button id="btn-reassign" class="btn btn-ghost" type="button" hidden>Change driver</button>
+          <button id="btn-delete" class="btn btn-ghost danger" type="button">Delete run</button>
+        </div>
+  </div>
+</section>
       </div>
-      <div class="row">
-        <button id="btn-reassign" class="btn btn-ghost" type="button" hidden>Change driver</button>
-        <a id="btn-runsheet" class="btn btn-ghost" target="_blank" rel="noopener" style="text-decoration:none">Run sheet</a>
-        <button id="btn-delete" class="btn btn-ghost danger" type="button">Delete run</button>
-      </div>
-      <h2>Alerts</h2>
-      <div id="alerts" aria-live="polite"></div>
     </div>
 
     <!-- dispatch agent proposal card -->
@@ -1504,8 +1367,8 @@
       </label>
       <button class="btn btn-primary" id="btn-create-run" type="button" disabled>Plan run</button>
     </div>
-  </div>
-</main>
+  </main>
+</div>
 
 <!-- import modal -->
 <div id="reports" role="dialog" aria-modal="true" aria-label="Reports">
@@ -1591,6 +1454,7 @@
 <script src="/static/js/common.js"></script>
 <script src="/static/js/import.js"></script>
 <script src="/static/js/overview.js"></script>
+<script src="/static/js/dashboard.js"></script>
 <script src="/static/js/parcel-detail.js"></script>
 <script src="/static/js/reports.js"></script>
 <script src="/static/js/users.js"></script>

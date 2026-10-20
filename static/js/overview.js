@@ -43,10 +43,12 @@ function filtersActive() { return !!(FILTERS.status || FILTERS.q || FILTERS.driv
 function clearFilters() {
   FILTERS.status = null; FILTERS.q = ""; FILTERS.driverId = ""; FILTERS.when = "";
   $("flt-q").value = ""; $("flt-driver").value = ""; $("flt-when").value = "";
+  if ($("gsearch")) $("gsearch").value = "";
   renderParcels();
 }
 
 function setStatusFilter(status) {
+  if (status === "all") { clearFilters(); switchTab("parcels"); return; }
   FILTERS.status = FILTERS.status === status ? null : status;
   FILTERS.when = FILTERS.status === "delivered" && FILTERS.when === "" ? "deliveredToday" : "";
   $("flt-when").value = FILTERS.when;
@@ -56,24 +58,49 @@ function setStatusFilter(status) {
 
 // ------------------------------------------------------------- today strip
 
+const ARROW_UP = '<svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>';
+const ARROW_DOWN = '<svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+
+function setDelta(id, tone, html) {
+  const el = $(id);
+  if (!el) return;
+  el.className = "delta " + tone;
+  el.innerHTML = html;
+}
+
+// "+12%" / "-28%" against yesterday; flat when there is nothing to compare
+function trendChip(now, before, suffix = "vs yesterday") {
+  if (!before) return now ? ["", `+${now} ${suffix.startsWith("vs") ? "today" : suffix}`] : ["flat", "–"];
+  const pct = Math.round((now - before) / before * 100);
+  if (pct === 0) return ["flat", "same as yesterday"];
+  return [pct > 0 ? "" : "down", `${pct > 0 ? ARROW_UP : ARROW_DOWN}${Math.abs(pct)}%`];
+}
+
 function renderStats() {
   const all = Object.values(parcels);
-  const today = startOfToday();
+  const today = startOfToday(), yday = today - 86400;
   const deliveredToday = all.filter(p => p.status === "delivered" && (p.deliveredAt || 0) >= today);
+  const deliveredYday = all.filter(p => p.status === "delivered" && (p.deliveredAt || 0) >= yday && (p.deliveredAt || 0) < today);
   const onTime = deliveredToday.filter(p => !p.deadlineMissed).length;
   const liveRuns = Object.values(trips).filter(t => LIVE.includes(t.status)).length;
   const late = all.filter(isLate).length;
+  const createdToday = all.filter(p => (p.createdAt || 0) >= today).length;
 
-  $("st-pending").textContent = all.filter(isPending).length;
+  $("st-total").textContent = all.filter(p => p.status !== "returned").length;
+  setDelta("st-total-delta", createdToday ? "" : "flat", createdToday ? `+${createdToday} today` : "none added today");
   $("st-out").textContent = all.filter(isOut).length;
-  $("st-out-sub").textContent = liveRuns ? `${liveRuns} run${liveRuns === 1 ? "" : "s"} live` : "none live";
+  setDelta("st-out-sub", liveRuns ? "" : "flat", liveRuns ? `${liveRuns} run${liveRuns === 1 ? "" : "s"} live` : "none live");
+  $("st-pending").textContent = all.filter(isPending).length;
+  setDelta("st-late", late ? "down" : "", late ? `${late} late` : "on track");
   $("st-delivered").textContent = deliveredToday.length;
-  $("st-late").textContent = late;
-  $("st-ontime").textContent = deliveredToday.length ? Math.round(onTime / deliveredToday.length * 100) + "%" : "–";
-  document.querySelector('[data-f="late"]').classList.toggle("alert", late > 0);
+  const [tone, html] = deliveredYday.length ? trendChip(deliveredToday.length, deliveredYday.length)
+    : deliveredToday.length ? ["", `${Math.round(onTime / deliveredToday.length * 100)}% on time`] : ["flat", "–"];
+  setDelta("st-delivered-delta", tone, html);
+  $("today").querySelector('[data-f="delivered"]').title =
+    deliveredToday.length ? `${onTime} of ${deliveredToday.length} delivered on time today` : "Parcels delivered since midnight";
 
   document.querySelectorAll("#today [data-f]").forEach(b => {
-    b.setAttribute("aria-pressed", String(FILTERS.status === b.dataset.f));
+    b.setAttribute("aria-pressed", String(b.dataset.f !== "all" && FILTERS.status === b.dataset.f));
   });
 }
 
@@ -166,6 +193,8 @@ function renderAttention() {
   badge.hidden = !items.length;
   badge.textContent = items.length;
   badge.classList.toggle("warn", critical > 0);
+  const bell = $("bell-badge");
+  if (bell) { bell.hidden = !items.length; bell.textContent = items.length; }
 
   const wrap = $("attention-list");
   wrap.innerHTML = "";
@@ -216,7 +245,22 @@ function setupOverview() {
   document.querySelectorAll("#today [data-f]").forEach(b => {
     b.onclick = () => setStatusFilter(b.dataset.f);
   });
-  $("flt-q").addEventListener("input", e => { FILTERS.q = e.target.value.trim(); renderParcels(); });
+  $("flt-q").addEventListener("input", e => { FILTERS.q = e.target.value.trim(); if ($("gsearch")) $("gsearch").value = e.target.value; renderParcels(); });
+  const gs = $("gsearch");
+  if (gs) {
+    gs.addEventListener("input", () => {
+      FILTERS.q = gs.value.trim();
+      $("flt-q").value = gs.value;
+      if (FILTERS.q && activeTab !== "parcels") switchTab("parcels");
+      renderParcels();
+    });
+    gs.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      const hits = Object.values(parcels).filter(parcelMatchesFilters);
+      if (hits.length === 1) openParcelDetail(hits[0].id);
+    });
+  }
+  $("btn-bell").onclick = () => switchTab("attention");
   $("flt-driver").addEventListener("change", e => { FILTERS.driverId = e.target.value; renderParcels(); });
   $("flt-when").addEventListener("change", e => { FILTERS.when = e.target.value; renderParcels(); });
   setInterval(refreshOverview, 30000);   // "past the deadline" minutes drift

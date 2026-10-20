@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS positions (
   ts REAL
 );
 CREATE INDEX IF NOT EXISTS idx_positions_trip ON positions(trip_id);
+CREATE INDEX IF NOT EXISTS idx_positions_trip_ts ON positions(trip_id, ts);
 CREATE TABLE IF NOT EXISTS parcels  (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
 CREATE TABLE IF NOT EXISTS vehicles (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
 CREATE TABLE IF NOT EXISTS drivers  (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
@@ -138,6 +139,23 @@ def add_position(trip_id: str, lat: float, lng: float, ts: float) -> None:
         _conn.execute("INSERT INTO positions VALUES(?, ?, ?, ?)",
                       (trip_id, lat, lng, ts))
         _conn.commit()
+
+
+def position_at(trip_id: str, ts: float) -> dict | None:
+    """The last logged position at or before `ts`."""
+    with _lock:
+        row = _conn.execute(
+            "SELECT lat, lng, ts FROM positions WHERE trip_id=? AND ts<=? ORDER BY ts DESC LIMIT 1",
+            (trip_id, ts)).fetchone()
+    return {"lat": row[0], "lng": row[1], "ts": row[2]} if row else None
+
+
+def positions_until(trip_id: str, ts: float | None) -> list[tuple]:
+    with _lock:
+        if ts is None:
+            return _conn.execute("SELECT lat, lng FROM positions WHERE trip_id=? ORDER BY ts", (trip_id,)).fetchall()
+        return _conn.execute("SELECT lat, lng FROM positions WHERE trip_id=? AND ts<=? ORDER BY ts",
+                             (trip_id, ts)).fetchall()
 
 
 def actual_distance_m(trip_id: str) -> float:

@@ -54,6 +54,12 @@ selects its model (gemini-3.5-flash recommended).
   delivery, collected, failed, rescheduled, proof recorded, delivered); open it
   by clicking a parcel in the admin list.
 
+- **Dashboard and ride time-travel** — the console opens on a dashboard (profile,
+  greeting, four KPI cards, live map, rides table). The **time bar** shows every
+  ride as it was at any moment of any day: drag the slider or pick a date and the
+  table (status, parcels delivered, next stop, a day timeline), the vehicle
+  markers and the selected run's panel all go back to that time; **Live** returns.
+  Extra detail lives in accordions (stops, briefing, alerts, customer updates).
 - **Priorities and time windows** — parcels can be Standard, Priority or
   Express and can have a "not before" delivery time. Runs that contain any of
   these are sequenced deterministically (express first, windows respected, pickups

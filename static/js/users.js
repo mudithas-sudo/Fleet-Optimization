@@ -17,10 +17,12 @@ async function loadMe() {
   authEnabled = me.authEnabled;
   currentUser = me.user;
   document.body.classList.add("role-" + currentUser.role);
-  $("user-chip").hidden = !authEnabled;
+  $("nav-foot").hidden = !authEnabled;
+  $("user-name").textContent = currentUser.name;
+  $("user-role").textContent = currentUser.roleLabel;
+  const initials = currentUser.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "–";
+  $("top-avatar").textContent = initials;
   if (authEnabled) {
-    $("user-name").textContent = currentUser.name;
-    $("user-role").textContent = currentUser.roleLabel;
     $("btn-logout").onclick = async () => {
       try { await api("/api/auth/logout", { method: "POST" }); } catch (_) {}
       location.href = "/static/login.html";

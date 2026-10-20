@@ -4,31 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#0f2e35">
+<meta name="theme-color" content="#364152">
 <title>Sign in — FleetOps</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
-    --bg: #eef1ec; --surface: #fbfcfa; --border: #cdd7d1; --border-strong: #a9b8b0;
-    --text: #0f2e35; --muted: #4b6268; --nav: #0f2e35; --primary: #0b7f86;
-    --accent: #f4b400; --on-accent: #17262a; --danger: #c0301d;
-    --focus: 0 0 0 3px rgba(11, 127, 134, .4);
-    --font: "Hanken Grotesk", system-ui, sans-serif; --display: "Bricolage Grotesque", var(--font);
+    --bg: #f3f5f7; --surface: #ffffff; --border: #e4e8ee; --border-strong: #cfd5de;
+    --text: #1a2234; --muted: #5b6577; --nav: #364152; --primary: #3a6fd8;
+    --accent: #1a2234; --on-accent: #ffffff; --danger: #c8372d;
+    --focus: 0 0 0 3px rgba(58, 111, 216, .35);
+    --font: "Inter", system-ui, sans-serif; --display: var(--font);
   }
   @media (prefers-color-scheme: dark) {
-    :root { color-scheme: dark; --bg: #0a1c21; --surface: #102a31; --border: #234650; --border-strong: #356572;
-      --text: #e8f2f0; --muted: #9fbdc2; --nav: #07151a; --primary: #43c6cc; --accent: #ffc933; --on-accent: #1a1403;
-      --danger: #ff7b68; --focus: 0 0 0 3px rgba(67, 198, 204, .5); }
+    :root { color-scheme: dark; --bg: #0f1420; --surface: #171e2e; --border: #2a3550; --border-strong: #3a4766;
+      --text: #e8ecf4; --muted: #9aa6bd; --nav: #1e2638; --primary: #7ea4f2; --accent: #4d7de0; --on-accent: #ffffff;
+      --danger: #ff7b68; --focus: 0 0 0 3px rgba(126, 164, 242, .45); }
   }
   * { box-sizing: border-box; margin: 0; }
   body { background: var(--bg); color: var(--text); font: 500 15px/1.5 var(--font); min-height: 100vh; display: grid; grid-template-rows: auto 1fr; -webkit-font-smoothing: antialiased; }
   header { background: var(--nav); color: #f2f7f5; padding: 16px 20px; font: 700 22px var(--display); letter-spacing: -.03em; display: flex; align-items: center; gap: 10px; }
-  header .logo { width: 28px; height: 28px; border-radius: 3px; background: var(--accent); color: #17262a; display: grid; place-items: center; }
+  header .logo { width: 28px; height: 28px; border-radius: 3px; background: #fff; color: #364152; display: grid; place-items: center; }
   header .logo svg { width: 17px; height: 17px; }
-  header em { font-style: normal; color: var(--accent); }
+  header em { font-style: normal; color: #cbd5e1; }
   main { display: grid; place-items: center; padding: 24px 16px; }
   form { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
   h1 { font: 800 28px/1.1 var(--display); letter-spacing: -.03em; }

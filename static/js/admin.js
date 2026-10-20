@@ -7,7 +7,7 @@
 // A global SSE stream (/api/stream) carries trip AND parcel events.
 
 let map;
-let activeTab = "parcels";
+let activeTab = "dashboard";
 const LIVE = ["active", "deviating"];
 
 // vehicle glyph as an icon-wrapped SVG (chrome uses SVG, never emoji)
@@ -68,7 +68,7 @@ async function init() {
 
   map.addListener("click", e => onMapClick(e.latLng.lat(), e.latLng.lng()));
 
-  ["parcels", "fleet", "attention", "registry"].forEach(t => {
+  ["dashboard", "parcels", "fleet", "attention", "registry"].forEach(t => {
     $(`tab-btn-${t}`).onclick = () => switchTab(t);
   });
 
@@ -146,6 +146,7 @@ async function init() {
   setupImport();
   setupDepotForm();
   setupOverview();
+  setupDashboard();
   setupParcelDetail();
   setupReports();
   setupPassword();
@@ -181,19 +182,25 @@ async function init() {
 
   await Promise.all([loadDepot(), loadParcels(), loadRegistry(), loadTrips(), loadUsers()]);
   openStream();
+  switchTab("dashboard");
+  if (typeof renderHero === "function") renderHero();
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
 
+const PAGES = ["dashboard", "parcels", "fleet", "attention", "registry"];
+
 function switchTab(tab) {
+  if (!PAGES.includes(tab)) tab = "dashboard";
   activeTab = tab;
-  ["parcels", "fleet", "attention", "registry"].forEach(t => {
-    const on = t === tab;
+  document.body.dataset.page = tab;
+  PAGES.forEach(t => {
     const btn = $(`tab-btn-${t}`);
-    btn.setAttribute("aria-selected", String(on));
-    btn.tabIndex = on ? 0 : -1;
-    $(`tab-${t}`).hidden = !on;
+    if (btn) { if (t === tab) btn.setAttribute("aria-current", "page"); else btn.removeAttribute("aria-current"); }
+    const section = $(`tab-${t}`);
+    if (section) section.hidden = t !== tab;
   });
   updateRunFooter();
+  if (typeof onPageChange === "function") onPageChange(tab);
 }
 
 function onMapClick(lat, lng) {
@@ -226,6 +233,7 @@ async function loadDepot() {
   depot = await api("/api/settings/depot");
   $("depot-label").textContent = depot.label;
   drawDepotMarker(depot);
+  if (typeof renderHero === "function") renderHero();
 }
 
 function drawDepotMarker(d) {
@@ -290,6 +298,7 @@ async function saveDepot() {
   depot = next;
   closeDepotForm();
   drawDepotMarker(depot);
+  if (typeof renderHero === "function") renderHero();
 }
 
 function setupDepotForm() {
@@ -1151,6 +1160,7 @@ async function loadRegistry() {
 }
 
 function renderRegistry() {
+  if ($("veh-count")) { $("veh-count").textContent = vehiclesReg.length; $("drv-count").textContent = driversReg.length; }
   const vWrap = $("vehicle-list");
   vWrap.innerHTML = vehiclesReg.length ? "" :
     `<div class="empty">${iconSvg("truck", "i-lg")}<b>No vehicles yet</b>Add a vehicle to assign drivers to it.</div>`;
@@ -1400,6 +1410,7 @@ async function selectTrip(id, prefetched = null) {
   drawSelectedRoute();
   setHeaderStatus(detail.status);
   updateRunFooter();
+  if (typeof dashHighlight === "function") dashHighlight();
 }
 
 function renderDetail() {
@@ -1465,16 +1476,17 @@ function renderManifest() {
     const isPickup = kind === "pickup";
     const p = parcels[s.parcelId];
     const e = etas[i];
+    const st = p ? parcelStateAt(p, typeof viewAt === "undefined" ? null : viewAt) : null;
     const done = p && (isPickup
-      ? ["picked_up", "delivered"].includes(p.status)
-      : p.status === "delivered");
+      ? ["picked_up", "delivered"].includes(st)
+      : st === "delivered");
     const status = done
       ? `<span class="done-tag">${iconSvg("check")} ${isPickup ? "collected" : (p.deadlineMissed ? "late" : "done")}</span>`
       : (e && e.atRisk ? `<span class="risk-tag">at risk</span>` : "");
     const eta = e ? new Date(e.eta * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
     const sub = isPickup ? (p && p.pickup ? p.pickup.label : s.label)
                          : (p ? p.destination.label : "");
-    const drag = p && !done && !isPickup && detail.status !== "completed" ? ` draggable="true" data-parcel="${p.id}"` : "";
+    const drag = p && !done && !isPickup && detail.status !== "completed" && (typeof viewAt === "undefined" || viewAt == null) ? ` draggable="true" data-parcel="${p.id}"` : "";
     return `<tr${drag}>
       <td class="leg-route">${isPickup ? "Collect" : "Deliver"} — ${p ? p.name : s.label}<small>${sub}</small></td>
       <td class="num">${eta}</td>
@@ -1497,7 +1509,8 @@ function drawSelectedRoute() {
     stopMarker(map, s, i, detail.route.orderedStops.length, s.kind));
   const bounds = new google.maps.LatLngBounds();
   path.forEach(p => bounds.extend(p));
-  map.fitBounds(bounds, { top: 80, bottom: 60, left: 60, right: 410 });
+  const docked = document.body.dataset.page === "dashboard";
+  map.fitBounds(bounds, docked ? { top: 40, bottom: 40, left: 40, right: 40 } : { top: 80, bottom: 60, left: 60, right: 410 });
 }
 
 function deselectTrip() {
@@ -1512,6 +1525,7 @@ function deselectTrip() {
   $("trip-status").className = "";
   $("trip-status-text").textContent = "No run";
   renderTripList();
+  if (typeof dashHighlight === "function") dashHighlight();
 }
 
 async function deleteSelected() {
@@ -1542,6 +1556,10 @@ function removeTripLocal(id) {
 }
 
 function updateVehicle(id) {
+  if (document.body.dataset.page === "dashboard") {        // the dashboard draws its own ride markers
+    if (vehicles[id]) { vehicles[id].setMap(null); delete vehicles[id]; }
+    return;
+  }
   const t = trips[id];
   const active = t && t.lastPosition && LIVE.includes(t.status);
   if (!active) {
@@ -1621,6 +1639,7 @@ function openStream() {
     const s = JSON.parse(e.data);
     trips[s.tripId] = { ...trips[s.tripId], ...s, id: s.tripId };
     renderTripList();
+    if (typeof dashRefreshSoon === "function") dashRefreshSoon();
   });
 
   es.addEventListener("removed", e => {
@@ -1633,6 +1652,7 @@ function openStream() {
     if (!t) return;
     t.lastPosition = p;
     updateVehicle(p.tripId);
+    if (typeof dashOnPosition === "function") dashOnPosition(p);
   });
 
   es.addEventListener("status", e => {
@@ -1642,6 +1662,7 @@ function openStream() {
     t.status = s.status;
     renderTripList();
     updateVehicle(s.tripId);
+    if (typeof dashRefreshSoon === "function") dashRefreshSoon();
     if (s.tripId === selectedId) {
       if (detail) detail.status = s.status;
       setHeaderStatus(s.status);
@@ -1725,6 +1746,11 @@ function flashBanner(msg, sticky = false, tripId = "") {
 function setHeaderStatus(status) {
   const el = $("trip-status");
   el.className = "status-" + status;
-  $("trip-status-text").textContent =
-    { planned: "Scheduled", active: "En route", deviating: "Deviation", completed: "Completed" }[status] || status;
+  const text = { planned: "Scheduled", active: "En route", deviating: "Off route", completed: "Finished" }[status] || status;
+  $("trip-status-text").textContent = text;
+  const chip = $("detail-state");
+  if (chip) {
+    chip.textContent = text;
+    chip.className = "state-chip " + ({ planned: "scheduled", active: "en_route", deviating: "deviating", completed: "finished" }[status] || "");
+  }
 }

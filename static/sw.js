@@ -1,5 +1,5 @@
 // Minimal network-first service worker — just enough for PWA installability.
-const CACHE = "fleetops-v13";
+const CACHE = "fleetops-v14";
 const SHELL = [
   "/static/driver.html",
   "/static/js/driver.js",
