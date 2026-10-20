@@ -56,11 +56,12 @@ def _parcel_facts(parcels: list[dict]) -> dict:
             tid = e.get("tripId")
             if not tid:
                 continue
-            f = facts.setdefault(tid, {"delivered": {}, "failed": []})
+            f = facts.setdefault(tid, {"delivered": {}, "failed": [], "failed_ids": {}})
             if e["type"] == "delivered":
                 f["delivered"][p["id"]] = e["ts"]
             elif e["type"] == "failed":
                 f["failed"].append(e["ts"])
+                f["failed_ids"][p["id"]] = e["ts"]
     return facts
 
 
@@ -71,7 +72,9 @@ def rides_at(at: float | None = None) -> dict:
     start = day_start(at)
     drivers = {d["id"]: d for d in db.all_entities("drivers")}
     vehicles = {v["id"]: v for v in db.all_entities("vehicles")}
-    facts = _parcel_facts(db.all_entities("parcels"))
+    all_parcels = db.all_entities("parcels")
+    by_id = {p["id"]: p for p in all_parcels}
+    facts = _parcel_facts(all_parcels)
 
     rides = []
     for t in store.list_trips():
@@ -83,7 +86,7 @@ def rides_at(at: float | None = None) -> dict:
         if not started and not live and created < start - 86400:
             continue                                   # a stale never-started run
         state = _state_at(t, at, live)
-        f = facts.get(t["id"], {"delivered": {}, "failed": []})
+        f = facts.get(t["id"], {"delivered": {}, "failed": [], "failed_ids": {}})
         delivered_ids = {pid for pid, ts in f["delivered"].items() if ts <= at}
         failed = sum(1 for ts in f["failed"] if ts <= at)
         stops = t["route"]["orderedStops"]
@@ -102,6 +105,18 @@ def rides_at(at: float | None = None) -> dict:
 
         driver = drivers.get(t.get("driverId"), {})
         vehicle = vehicles.get(t.get("vehicleId"), {})
+
+        # what is still on the van (or still to be loaded) at this moment, and how full that makes it
+        off_board = delivered_ids | {pid for pid, ts in f["failed_ids"].items() if ts <= at}
+        on_board = [] if state == "finished" else [
+            by_id[pid] for pid in (t.get("parcelIds") or [])
+            if pid in by_id and pid not in off_board and by_id[pid].get("status") != "returned"]
+        load_pct = round(delivery.load_fraction(vehicle, on_board) * 100) if vehicle and on_board else 0
+        # delayed = deadline passed, or the planned arrival is after the deadline (Onfleet's definition)
+        at_risk_ids = {e["parcelId"] for e in t.get("plannedEtaPerStop") or []
+                       if e.get("kind") == "delivery" and e.get("atRisk")}
+        overdue = sum(1 for p in on_board if p["deadline"] < at)
+        at_risk = sum(1 for p in on_board if p["id"] in at_risk_ids and p["deadline"] >= at)
         rides.append({
             "id": t["id"], "label": _label(stops), "state": state,
             "driverId": t.get("driverId"), "driverName": driver.get("name"),
@@ -113,6 +128,7 @@ def rides_at(at: float | None = None) -> dict:
             "nextStop": ({"label": nxt.get("place") or nxt.get("label"), "parcel": nxt.get("parcelName")}
                          if nxt else None),
             "nextEta": eta, "position": pos,
+            "loadPct": load_pct, "onBoard": len(on_board), "overdue": overdue, "atRisk": at_risk,
             "distanceKm": round((t["route"].get("totalDistanceMeters") or 0) / 1000, 1),
             "polyline": t["route"].get("polyline"),
         })
@@ -124,6 +140,10 @@ def rides_at(at: float | None = None) -> dict:
         "dayStart": start, "dayEnd": start + 86400,
         "counts": {s: sum(1 for r in rides if r["state"] == s)
                    for s in ("en_route", "deviating", "scheduled", "finished")},
+        # the day's exceptions at a glance (shown as chips above the table)
+        "exceptions": {"failed": sum(r["failed"] for r in rides),
+                       "delayed": sum(r["overdue"] + r["atRisk"] for r in rides if r["state"] != "finished"),
+                       "ridesAtRisk": sum(1 for r in rides if (r["overdue"] or r["atRisk"]) and r["state"] != "finished")},
         "rides": rides,
     }
 

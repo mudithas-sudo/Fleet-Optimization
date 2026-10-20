@@ -2,7 +2,7 @@
 // "needs attention" queue. Reads the globals owned by admin.js (parcels, trips,
 // driversReg, vehiclesReg …) at call time, so this file loads before it.
 
-const FILTERS = { status: null, q: "", driverId: "", when: "" };
+const FILTERS = { status: null, q: "", driverId: "", when: "", sort: "deadline" };
 
 const HOUR = 3600;
 const SIZE_RANK = { small: 0, medium: 1, large: 2 };
@@ -245,6 +245,7 @@ function refreshOverview() {
     syncDriverFilter();
     renderStats();
     renderAttention();
+    if (typeof renderDock === "function") renderDock();
   } catch (e) { console.warn("overview refresh failed", e); }
 }
 
@@ -270,6 +271,7 @@ function setupOverview() {
   $("btn-bell").onclick = () => switchTab("attention");
   $("flt-driver").addEventListener("change", e => { FILTERS.driverId = e.target.value; renderParcels(); });
   $("flt-when").addEventListener("change", e => { FILTERS.when = e.target.value; renderParcels(); });
+  $("flt-sort").addEventListener("change", e => { FILTERS.sort = e.target.value; renderParcels(); });
   $("flt-status").addEventListener("change", e => { FILTERS.status = e.target.value || null; renderStats(); renderParcels(); });
   $("quick-add").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); };
   $("quick-suggest").onclick = () => { switchTab("parcels"); autoAssign("rules"); };

@@ -60,6 +60,10 @@ selects its model (gemini-3.5-flash recommended).
   table (status, parcels delivered, next stop, a day timeline), the vehicle
   markers and the selected run's panel all go back to that time; **Live** returns.
   Extra detail lives in accordions (stops, briefing, alerts, customer updates).
+- **Dispatcher workflow** (from [docs/ui-research.md](docs/ui-research.md)) — an unassigned queue
+  and "needs attention" list beside the live board, drag a parcel onto a ride, per-ride load
+  meter and overdue/at-risk badges, a sortable rides table, a command palette (Ctrl/Cmd+K) with
+  single-key shortcuts, compact view, and a first-run checklist.
 - **Priorities and time windows** — parcels can be Standard, Priority or
   Express and can have a "not before" delivery time. Runs that contain any of
   these are sequenced deterministically (express first, windows respected, pickups

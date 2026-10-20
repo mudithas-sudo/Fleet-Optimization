@@ -113,6 +113,17 @@ def test_finished_runs_stay_on_the_board_for_that_day():
     assert out["dayStart"] <= out["at"] < out["dayEnd"]
 
 
+def test_load_meter_and_exception_counts():
+    ride, out = _ride(T0 + 900)
+    assert 0 < ride["loadPct"] <= 100 and ride["onBoard"] == 2, ride
+    ride2, out2 = _ride(T0 + 2000)
+    assert ride2["onBoard"] == 1 and ride2["loadPct"] < ride["loadPct"], "load drops as parcels are delivered"
+    assert out["exceptions"]["failed"] == 0
+    _, late = _ride(T0 + 2500)
+    assert late["exceptions"]["failed"] == 1
+    assert set(ride) >= {"overdue", "atRisk"} and out["exceptions"]["ridesAtRisk"] >= 0
+
+
 def test_live_uses_the_current_status():
     out = rides.rides_at(None)
     assert out["live"] is True

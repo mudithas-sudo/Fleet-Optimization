@@ -8,6 +8,7 @@ const dash = {
   data: null, seq: 0, timer: null, soon: null,
   show: new Set(["en_route", "deviating", "scheduled", "finished"]),
   open: new Set(),                // ride ids whose parcel list is expanded
+  sort: { key: "state", dir: 1 }, // sortable table, like Onfleet's one-click sort by status
 };
 let viewAt = null;                // what the rest of the console should show: null = live
 let rideMarkers = {}, ridePolys = {}, trailLine = null;
@@ -120,6 +121,7 @@ async function loadRides() {
   if (seq !== dash.seq) return;                       // a newer request overtook this one
   dash.data = d;
   renderRides();
+  renderDock();
   drawRideMap();
   updateViewBanner();
   if (dash.at != null && selectedId) drawTrail(selectedId);
@@ -147,6 +149,26 @@ function visibleRides() {
   return dash.data ? dash.data.rides.filter(r => dash.show.has(r.state)) : [];
 }
 
+const STATE_ORDER = { deviating: 0, en_route: 1, scheduled: 2, finished: 3 };
+
+function sortedRides(rides) {
+  const { key, dir } = dash.sort;
+  const val = r => ({
+    driver: (r.driverName || "").toLowerCase(),
+    state: STATE_ORDER[r.state] * 10 - Math.min(9, r.overdue + r.atRisk),   // trouble first within a state
+    progress: r.parcelCount ? r.delivered / r.parcelCount : 0,
+    next: (r.nextStop && r.nextStop.label || "zzz").toLowerCase(),
+  })[key];
+  return [...rides].sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+}
+
+function riskChip(r) {
+  if (r.state === "finished") return "";
+  if (r.overdue) return `<span class="risk-chip bad" title="Parcels already past their deadline">${r.overdue} overdue</span>`;
+  if (r.atRisk) return `<span class="risk-chip" title="The planned arrival is after the deadline">${r.atRisk} at risk</span>`;
+  return "";
+}
+
 function renderRides() {
   const d = dash.data;
   if (!d) return;
@@ -161,8 +183,17 @@ function renderRides() {
     };
   });
   $("hour-ticks").innerHTML = ["00", "06", "12", "18", "24"].map(h => `<span>${h}</span>`).join("");
+  $("ride-cols").querySelectorAll("[data-sort]").forEach(b => {
+    b.setAttribute("aria-sort", dash.sort.key === b.dataset.sort ? (dash.sort.dir === 1 ? "ascending" : "descending") : "none");
+  });
+  // the day's exceptions at a glance (manage by exception)
+  const ex = d.exceptions || { failed: 0, delayed: 0 };
+  $("exc-chips").innerHTML =
+    (ex.delayed ? `<span class="exc bad">${ex.delayed} delayed</span>` : "") +
+    (ex.failed ? `<span class="exc warn">${ex.failed} failed</span>` : "") +
+    (!ex.delayed && !ex.failed && d.rides.length ? `<span class="exc ok">No exceptions</span>` : "");
 
-  const rides = visibleRides();
+  const rides = sortedRides(visibleRides());
   const span = d.dayEnd - d.dayStart;
   const pct = ts => Math.max(0, Math.min(100, (ts - d.dayStart) / span * 100));
   const list = $("rides-list");
@@ -183,8 +214,8 @@ function renderRides() {
       <div class="ride-row s-${r.state}${r.id === selectedId ? " selected" : ""}" role="button" tabindex="0" data-id="${r.id}" aria-label="Open ride ${pdEsc(r.driverName || r.id)}">
         <div class="ride-who"><span class="avatar">${pdEsc(initials)}</span>
           <div style="min-width:0"><b>${pdEsc(r.driverName || "No driver")}</b><span>${pdEsc(r.vehicleName || r.vehicleType)}${r.vehiclePlate ? " · " + pdEsc(r.vehiclePlate) : ""}</span></div></div>
-        <div><span class="state-chip ${r.state}">${STATE_LABEL[r.state]}</span></div>
-        <div class="prog"><span>${r.delivered} of ${total} delivered${r.failed ? ` · ${r.failed} failed` : ""}</span>
+        <div class="state-cell"><span class="state-chip ${r.state}">${STATE_LABEL[r.state]}</span>${riskChip(r)}</div>
+        <div class="prog"><span>${r.delivered} of ${total} delivered${r.failed ? ` · ${r.failed} failed` : ""}</span>${r.state !== "finished" && r.onBoard ? `<span class="load${r.loadPct > 90 ? " full" : ""}" title="How much of the vehicle's capacity (count, weight or volume) is in use">${r.loadPct}% full</span>` : ""}
           <div class="prog-bar" aria-hidden="true"><i style="width:${total ? r.delivered / total * 100 : 0}%"></i><i class="bad" style="width:${total ? r.failed / total * 100 : 0}%"></i></div></div>
         <div class="next-stop">${r.nextStop && r.state !== "finished"
           ? `<b>${pdEsc(r.nextStop.label)}</b><span>${r.nextEta ? "due " + clock(r.nextEta) : pdEsc(r.nextStop.parcel || "")}</span>`
@@ -198,6 +229,8 @@ function renderRides() {
   }).join("");
 
   list.querySelectorAll(".ride-row").forEach(row => {
+    const ride = rides.find(r => r.id === row.dataset.id);
+    if (ride && ride.state !== "finished" && typeof makeDropTarget === "function") makeDropTarget(row, ride.id);
     row.onclick = () => dashSelect(row.dataset.id);
     row.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); dashSelect(row.dataset.id); } };
   });
@@ -356,6 +389,12 @@ function setupDashboard() {
     clearTimeout(dash.slide);
     dash.slide = setTimeout(setAtFromControls, 120);         // fetch once the slider settles
   };
+  $("ride-cols").querySelectorAll("[data-sort]").forEach(b => {
+    b.onclick = () => {
+      dash.sort = dash.sort.key === b.dataset.sort ? { key: b.dataset.sort, dir: -dash.sort.dir } : { key: b.dataset.sort, dir: 1 };
+      renderRides();
+    };
+  });
   $("dash-back").onclick = () => stepMinutes(-15);
   $("dash-fwd").onclick = () => stepMinutes(15);
   $("btn-change-hub").onclick = () => { switchTab("parcels"); if (!depotEditing) startDepotEdit(); };
@@ -374,4 +413,95 @@ function setupDashboard() {
    ["alerts", "alerts-count", el => el.children.length]].forEach(([id, countId, count]) => {
     new MutationObserver(() => { $(countId).textContent = count($(id)); }).observe($(id), { childList: true });
   });
+}
+
+
+// ---------------------------------------------------------------- dock: what needs doing
+
+const PRIORITY_RANK_UI = { express: 0, priority: 1, standard: 2 };
+
+function unassignedParcels() {
+  return Object.values(parcels)
+    .filter(p => PLANNABLE.includes(p.status))
+    .sort((a, b) => (PRIORITY_RANK_UI[a.priority || "standard"] - PRIORITY_RANK_UI[b.priority || "standard"]) || a.deadline - b.deadline);
+}
+
+function dueText(p) {
+  const mins = Math.round((p.deadline - Date.now() / 1000) / 60);
+  if (mins < 0) return { text: `${fmtMins(mins)} overdue`, tone: "bad" };
+  if (mins < 60) return { text: `due in ${mins} min`, tone: "warn" };
+  return { text: `due ${clock(p.deadline)}`, tone: "" };
+}
+
+function renderDock() {
+  const box = $("dock-body");
+  if (!box || !dashPage()) return;
+  const queue = unassignedParcels();
+  const attn = typeof attentionItems === "function" ? attentionItems() : [];
+  const fresh = !vehiclesReg.length && !driversReg.length && !Object.keys(parcels).length;
+
+  if (fresh) {
+    box.innerHTML = startChecklist();
+    box.querySelectorAll("[data-go]").forEach(b => { b.onclick = () => goStep(b.dataset.go); });
+    return;
+  }
+
+  const attnHtml = attn.length ? attn.slice(0, 5).map((i, n) => `
+    <button type="button" class="dock-item level-${i.level}" data-attn="${n}">
+      <span class="di-top"><b>${pdEsc(i.tag)}</b><span>${i.kind === "run" ? "Run" : "Parcel"}</span></span>
+      <span class="di-title">${pdEsc(i.title)}</span><span class="di-sub">${pdEsc(i.detail)}</span></button>`).join("") +
+    (attn.length > 5 ? `<button type="button" class="link-action" data-all-attn>See all ${attn.length}</button>` : "")
+    : `<div class="hint" style="padding:4px 0 8px">Nothing needs attention right now.</div>`;
+
+  const queueHtml = queue.length ? queue.slice(0, 8).map(p => {
+    const due = dueText(p);
+    return `<div class="dock-parcel" draggable="true" data-pid="${p.id}" tabindex="0" role="button" aria-label="Open ${pdEsc(p.trackingNumber || p.name)}">
+      <span class="grip" aria-hidden="true"></span>
+      <span class="dp-main"><b>${pdEsc(p.trackingNumber || p.name)}</b> ${pdEsc(p.name)}
+        <span class="di-sub">${pdEsc(p.destination.label)}</span></span>
+      <span class="dp-side">${p.priority && p.priority !== "standard" ? `<span class="p-chip${p.priority === "express" ? " fragile" : ""}">${p.priority}</span>` : ""}
+        <span class="due ${due.tone}">${due.text}</span></span></div>`;
+  }).join("") + (queue.length > 8 ? `<button type="button" class="link-action" data-all-queue>See all ${queue.length} on the Parcels page</button>` : "")
+    : `<div class="hint" style="padding:4px 0 8px">Every parcel is on a run.</div>`;
+
+  box.innerHTML =
+    accHtml("Needs attention", attnHtml, { open: true, count: attn.length, warn: attn.some(i => i.level === 0) }) +
+    accHtml("Unassigned parcels", `<div class="hint" style="margin-bottom:6px">Drag a parcel onto a ride in the table to add it to that run.</div>${queueHtml}
+      <div class="row" style="margin-top:10px"><button type="button" class="btn btn-ghost" id="dock-add">Add parcel</button>
+        <button type="button" class="btn btn-primary" id="dock-suggest"${queue.length ? "" : " disabled"}>Suggest runs</button></div>`,
+      { open: true, count: queue.length });
+
+  box.querySelectorAll("[data-attn]").forEach(b => { b.onclick = () => openAttentionItem(attn[Number(b.dataset.attn)]); });
+  const all = box.querySelector("[data-all-attn]"); if (all) all.onclick = () => switchTab("attention");
+  const allq = box.querySelector("[data-all-queue]"); if (allq) allq.onclick = () => { setStatusFilter("pending"); };
+  box.querySelectorAll(".dock-parcel").forEach(el => {
+    makeDraggable(el, el.dataset.pid);
+    el.onclick = () => openParcelDetail(el.dataset.pid);
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParcelDetail(el.dataset.pid); } };
+  });
+  $("dock-add") && ($("dock-add").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); });
+  $("dock-suggest") && ($("dock-suggest").onclick = () => { switchTab("parcels"); autoAssign("rules"); });
+}
+
+// first-run guidance: what to do, in order, with the finished steps ticked
+function startChecklist() {
+  const steps = [
+    ["Add a vehicle", "Set its type, cargo size and payload.", vehiclesReg.length > 0, "vehicle"],
+    ["Add a driver", "Link them to a vehicle and set their shift.", driversReg.length > 0, "driver"],
+    ["Set your hub", "The start point for every run.", false, "hub"],
+    ["Add or import parcels", "One by one, or import a CSV or Excel manifest.", Object.keys(parcels).length > 0, "parcel"],
+    ["Suggest runs", "Fit parcels onto the fewest vehicles, then approve.", Object.keys(trips).length > 0, "suggest"],
+  ];
+  return `<h2 style="margin-bottom:4px">Get started</h2><div class="hint" style="margin-bottom:10px">Five steps from an empty system to the first run.</div>` +
+    steps.map(([t, d, done, key], i) => `
+      <button type="button" class="step${done ? " done" : ""}" data-go="${key}"><span class="n">${done ? "✓" : i + 1}</span>
+        <span><b>${t}</b><span class="di-sub">${d}</span></span></button>`).join("");
+}
+
+function goStep(key) {
+  if (key === "vehicle") { switchTab("registry"); $("btn-add-vehicle").click(); }
+  else if (key === "driver") { switchTab("registry"); $("btn-add-driver").click(); }
+  else if (key === "hub") { switchTab("parcels"); if (!depotEditing) startDepotEdit(); }
+  else if (key === "parcel") { switchTab("parcels"); toggleParcelForm(true); }
+  else if (key === "suggest") { switchTab("parcels"); autoAssign("rules"); }
 }

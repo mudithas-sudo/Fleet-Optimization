@@ -889,6 +889,8 @@
     <div id="trip-status" role="status" aria-live="polite"><span class="dot"></span><span id="trip-status-text">No run</span></div>
     <span id="stream-dot" title="Live updates: connecting…" aria-label="Live updates status"></span>
     <button id="btn-bell" class="top-btn" type="button" aria-label="Needs attention" title="Needs attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0"/></svg><span class="dot-badge" id="bell-badge" hidden>0</span></button>
+    <button id="btn-palette" class="top-btn" type="button" aria-label="Search and commands (Ctrl+K)" title="Search and commands (Ctrl+K)"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M5 5h14v14H5zM9 9h6v6H9z"/></svg></button>
+    <button id="density-toggle" class="top-btn" type="button" aria-label="Compact view" aria-pressed="false" title="Compact view"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg></button>
     <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme" aria-pressed="false"></button>
     <div class="top-user"><span class="avatar" id="top-avatar">–</span><div class="who"><b id="user-name">Local admin</b><span id="user-role">Administrator</span></div></div>
   </header>
@@ -986,7 +988,13 @@
       <div class="filter-row">
         <input id="flt-q" type="search" class="search-input" style="margin:0" autocomplete="off"
                placeholder="Search tracking no., receiver, address…" aria-label="Search parcels">
-        <div class="triple">
+        <div class="quad">
+          <select id="flt-sort" aria-label="Sort parcels">
+            <option value="deadline">Soonest deadline</option>
+            <option value="priority">Priority first</option>
+            <option value="newest">Newest first</option>
+            <option value="receiver">Receiver A–Z</option>
+          </select>
           <select id="flt-status" aria-label="Filter by status">
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
@@ -1264,11 +1272,17 @@
     </div>
 
     <section id="dash-rides" class="card" aria-label="Rides">
-      <div class="rides-head"><h2 id="rides-title">Rides now</h2><div class="filter-chips" id="rides-filter" role="group" aria-label="Show rides"></div></div>
-      <div class="ride-cols"><span>Ride</span><span>Status</span><span>Parcels</span><span>Next stop</span><div class="hour-ticks" id="hour-ticks" aria-hidden="true"></div></div>
+      <div class="rides-head"><h2 id="rides-title">Rides now</h2><div class="exc-chips" id="exc-chips" aria-live="polite"></div><div class="filter-chips" id="rides-filter" role="group" aria-label="Show rides"></div></div>
+      <div class="ride-cols" id="ride-cols">
+        <button type="button" data-sort="driver" aria-sort="none">Ride</button>
+        <button type="button" data-sort="state" aria-sort="ascending">Status</button>
+        <button type="button" data-sort="progress" aria-sort="none">Parcels</button>
+        <button type="button" data-sort="next" aria-sort="none">Next stop</button>
+        <div class="hour-ticks" id="hour-ticks" aria-hidden="true"></div>
+      </div>
       <div id="rides-list"></div>
     </section>
-    <div id="dock-empty" class="card"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="m3 11 18-8-8 18-2-8z"/></svg><b>Pick a ride</b><span>Select a ride in the table or on the map to see its route, parcels, alerts and driver link.</span></div>
+    <div id="dock-empty" class="card"><div id="dock-body"></div></div>
 
     <!-- parcel detail card -->
     <div id="parcel-detail" class="float-card" role="dialog" aria-label="Parcel detail">
@@ -1443,6 +1457,14 @@
   </div>
 </div>
 
+<div id="palette" role="dialog" aria-modal="true" aria-label="Search and commands" hidden>
+  <div class="pal-card">
+    <input id="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" placeholder="Search parcels, rides and drivers, or type a command…" autocomplete="off" spellcheck="false">
+    <ul id="pal-list" role="listbox"></ul>
+    <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span><span><kbd>/</kbd> search <kbd>n</kbd> new parcel <kbd>g</kbd> then <kbd>d</kbd><kbd>p</kbd><kbd>r</kbd><kbd>a</kbd><kbd>f</kbd> go to</span></div>
+  </div>
+</div>
+
 <div id="import-modal" role="dialog" aria-modal="true" aria-label="Import parcels">
   <div class="modal-card">
     <div class="panel-head">
@@ -1471,6 +1493,7 @@
 <script src="/static/js/parcel-detail.js"></script>
 <script src="/static/js/reports.js"></script>
 <script src="/static/js/users.js"></script>
+<script src="/static/js/palette.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>

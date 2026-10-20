@@ -107,7 +107,8 @@ function render(d) {
   const ok = d.status === "delivered";
   let lead = "";
   if (d.status === "delivered") lead = `<div class="sub">${d.deliveredAt ? "Delivered " + when(d.deliveredAt) : "Delivered"}${d.receivedBy ? " · received by " + esc(d.receivedBy) : ""}</div>`;
-  else if (d.eta && (d.status === "in_transit" || d.status === "picked_up")) lead = `<div class="eta">Arriving around ${clock(d.eta)}</div>`;
+  else if (d.eta && (d.status === "in_transit" || d.status === "picked_up")) lead = `<div class="eta">Arriving ${clock(d.eta - 900)}–${clock(d.eta + 900)}</div><div class="sub">Best estimate ${clock(d.eta)} · updated ${clock(Date.now() / 1000)}</div>`;
+  else if (d.status === "in_transit" || d.status === "picked_up") lead = `<div class="eta">On its way</div><div class="sub">We’ll show a time as soon as the driver’s route is confirmed.</div>`;
   else if (d.expectedBy && !bad) lead = `<div class="eta">Expected by ${when(d.expectedBy)}</div>`;
   else if (d.status === "awaiting_redelivery" && d.expectedBy) lead = `<div class="eta">Next attempt by ${when(d.expectedBy)}</div>`;
 

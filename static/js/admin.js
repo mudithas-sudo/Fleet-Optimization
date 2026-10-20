@@ -147,6 +147,7 @@ async function init() {
   setupDepotForm();
   setupOverview();
   setupDashboard();
+  setupPalette();
   setupParcelDetail();
   setupReports();
   setupPassword();
@@ -425,6 +426,18 @@ function parcelRow(p) {
   return row;
 }
 
+// list order: soonest deadline by default; or priority first / newest / receiver A-Z
+function parcelComparator(groupKey) {
+  const rank = { express: 0, priority: 1, standard: 2 };
+  if (groupKey === "done") return (a, b) => (b.deliveredAt || 0) - (a.deliveredAt || 0);
+  switch (FILTERS.sort) {
+    case "priority": return (a, b) => (rank[a.priority || "standard"] - rank[b.priority || "standard"]) || a.deadline - b.deadline;
+    case "newest": return (a, b) => (b.createdAt || 0) - (a.createdAt || 0);
+    case "receiver": return (a, b) => (a.receiverName || a.name).localeCompare(b.receiverName || b.name);
+    default: return (a, b) => a.deadline - b.deadline;
+  }
+}
+
 function renderParcels() {
   refreshOverview();
   const everything = Object.values(parcels);
@@ -446,10 +459,7 @@ function renderParcels() {
   }
 
   PARCEL_GROUPS.forEach(g => {
-    const items = all.filter(p => g.match(p.status)).sort((a, b) =>
-      g.key === "done"
-        ? (b.deliveredAt || 0) - (a.deliveredAt || 0)
-        : a.deadline - b.deadline);
+    const items = all.filter(p => g.match(p.status)).sort(parcelComparator(g.key));
     if (!items.length) return;
     wrap.append(parcelGroupHead(g.label, items.length, g.dot));
     items.forEach(p => wrap.append(parcelRow(p)));

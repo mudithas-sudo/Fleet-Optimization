@@ -312,3 +312,68 @@ body.role-dispatcher :is(#btn-change-hub, #nav-reports) { display: none !importa
 .filter-row .triple { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
 .filter-row .triple select { padding: 9px 8px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font: 500 var(--fs-sm) var(--font); min-width: 0; }
 body.role-viewer #quick-actions { display: none !important; }
+
+/* ---------- table: sortable header, risk and load ---------- */
+.ride-cols button { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; }
+.ride-cols button:hover { color: var(--text); }
+.ride-cols button[aria-sort="ascending"]::after { content: "▲"; font-size: 8px; color: var(--info); }
+.ride-cols button[aria-sort="descending"]::after { content: "▼"; font-size: 8px; color: var(--info); }
+.state-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.risk-chip { font: 600 11px var(--font); padding: 1px 6px; border-radius: 5px; background: var(--warning-soft); color: var(--warning); white-space: nowrap; }
+.risk-chip.bad { background: var(--danger-soft); color: var(--danger); }
+.load { font-size: 11.5px; color: var(--text-subtle); }
+.load.full { color: var(--danger); font-weight: 600; }
+.exc-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.exc { font: 600 12px var(--font); padding: 3px 9px; border-radius: 6px; background: var(--surface-3); color: var(--text-muted); }
+.exc.bad { background: var(--danger-soft); color: var(--danger); } .exc.warn { background: var(--warning-soft); color: var(--warning); } .exc.ok { background: var(--success-soft); color: var(--success); }
+
+/* ---------- dock: attention + queue ---------- */
+#dock-empty { align-items: stretch; justify-content: flex-start; text-align: left; padding: 14px 16px; gap: 0; min-height: 0; color: var(--text); }
+#dock-body { display: flex; flex-direction: column; }
+.dock-item { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warning); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font: inherit; color: var(--text); }
+.dock-item.level-0 { border-left-color: var(--danger); }
+.dock-item:hover, .dock-parcel:hover { background: var(--surface-2); }
+.di-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-subtle); }
+.di-top b { color: var(--warning); font-weight: 700; } .dock-item.level-0 .di-top b { color: var(--danger); }
+.di-title { font-weight: 600; font-size: 13px; } .di-sub { display: block; font-size: 12px; color: var(--text-muted); font-weight: 400; }
+.dock-parcel { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin-bottom: 6px; cursor: grab; font-size: 13px; }
+.dock-parcel.dragging { opacity: .45; }
+.dock-parcel .grip { width: 10px; height: 16px; background: radial-gradient(circle, var(--border-strong) 1.3px, transparent 1.6px) 0 0 / 5px 5px; }
+.dp-main b { font-weight: 600; } .dp-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11.5px; }
+.due { color: var(--text-muted); } .due.warn { color: var(--warning); font-weight: 600; } .due.bad { color: var(--danger); font-weight: 600; }
+.step { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; font: inherit; color: var(--text); }
+.step:hover { background: var(--surface-2); }
+.step .n { flex: 0 0 24px; height: 24px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; font: 700 12px var(--font); }
+.step.done .n { background: var(--success); color: #fff; } .step.done b { text-decoration: line-through; color: var(--text-muted); }
+.step b { font-weight: 600; font-size: 13.5px; }
+
+/* ---------- parcel filter row: four selects ---------- */
+.filter-row .quad { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+.filter-row .quad select { padding: 9px 8px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font: 500 var(--fs-sm) var(--font); min-width: 0; }
+
+/* ---------- command palette ---------- */
+#palette { position: fixed; inset: 0; z-index: 60; background: var(--scrim); display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; }
+#palette[hidden] { display: none; }
+.pal-card { width: min(620px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; }
+#pal-input { width: 100%; height: 52px; padding: 0 18px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font: 500 15px var(--font); }
+#pal-input:focus { outline: none; box-shadow: none; }
+#pal-list { list-style: none; margin: 0; padding: 6px; max-height: 46vh; overflow-y: auto; }
+#pal-list .pal-group { padding: 8px 10px 4px; font: 600 11.5px var(--font); color: var(--text-subtle); }
+#pal-list li[role="option"] { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+#pal-list li[aria-selected="true"] { background: var(--primary-soft); }
+#pal-list li .k { margin-left: auto; font-size: 11.5px; color: var(--text-subtle); }
+#pal-list li small { color: var(--text-muted); }
+#pal-list .pal-empty { padding: 18px; text-align: center; color: var(--text-muted); }
+.pal-foot { display: flex; gap: 14px; flex-wrap: wrap; padding: 9px 14px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-subtle); background: var(--surface-2); }
+kbd { font: 600 11px var(--font); padding: 1px 6px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface); color: var(--text); margin: 0 2px; }
+
+/* ---------- compact view: for operators who live in the console all day ---------- */
+body.compact .parcel-row, body.compact .reg-row, body.compact .trip-row, body.compact .driver-card { padding: 7px 10px; }
+body.compact .ride-row { padding-top: 6px; padding-bottom: 6px; }
+body.compact .kpi-card { padding: 8px 12px; gap: 4px; } body.compact .k-main b { font-size: 22px; }
+body.compact #panel, body.compact #stage { gap: 10px; }
+body.compact .attn-item, body.compact .dock-item, body.compact .dock-parcel { padding: 6px 9px; }
+body.compact .acc-head { padding: 7px 0; }
+
+/* the dock stays in view while the table scrolls, and scrolls inside itself */
+body[data-page="dashboard"] #dock-empty { position: sticky; top: 0; max-height: calc(100vh - 150px); overflow-y: auto; }

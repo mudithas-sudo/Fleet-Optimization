@@ -398,6 +398,15 @@
   .stop-radio { flex-direction: row !important; align-items: center; gap: 10px !important; min-height: 44px; padding: 0 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface); font-weight: 600 !important; font-size: 15px !important; }
   .stop-radio input { width: 20px; height: 20px; accent-color: var(--primary); }
   .stop-err { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; font-weight: 700; }
+
+  /* next stop: the biggest thing on the sheet (large, one-handed targets) */
+  .stop-card.next { border-left-width: 6px; border-color: var(--info); background: var(--primary-soft); }
+  .stop-next-tag { font: 700 12px var(--font); color: var(--info); }
+  .stop-card.next .stop-name { font-size: 17px; }
+  .stop-card.next .stop-line { font-size: 15px; color: var(--text); }
+  .stop-card.next .stop-btn { min-height: 56px; font-size: 16px; }
+  .stop-contact { display: flex; gap: 8px; margin-top: 6px; }
+  .stop-big { flex: 1; min-height: 48px; display: grid; place-items: center; border-radius: var(--radius); border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text) !important; font: 700 15px var(--font); text-decoration: none !important; }
 </style>
 </head>
 <body>

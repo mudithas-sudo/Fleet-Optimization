@@ -43,19 +43,26 @@ async function loadStops() {
   $("stops-count").textContent = !rows.length ? "No parcels on this run"
     : todo ? `${todo} to go` : "All stops handled";
   body.innerHTML = "";
-  rows.forEach((p, i) => body.append(stopCard(p, i + 1)));
+  const nextId = (rows.find(p => stopState(p) === "todo") || {}).id;      // the one thing to do next
+  rows.forEach((p, i) => body.append(stopCard(p, i + 1, p.id === nextId)));
 }
 
-function stopCard(p, n) {
-  const onRoad = ["in_transit", "picked_up", "assigned"].includes(p.status);
-  const state = p.status === "delivered" ? "done"
+function stopState(p) {
+  return p.status === "delivered" ? "done"
     : p.status === "awaiting_redelivery" || p.status === "returned" ? "failed"
     : p.collectFirst ? "collect" : "todo";
+}
+
+function stopCard(p, n, isNext = false) {
+  const onRoad = ["in_transit", "picked_up", "assigned"].includes(p.status);
+  const state = stopState(p);
   const chip = { done: "Delivered", failed: p.status === "returned" ? "Returned" : "Not delivered",
     collect: "Collect first", todo: "To deliver" }[state];
   const card = document.createElement("div");
-  card.className = `stop-card ${state}`;
+  card.className = `stop-card ${state}${isNext ? " next" : ""}`;
+  const ll = p.destination && typeof p.destination.lat === "number" ? `${p.destination.lat},${p.destination.lng}` : "";
   card.innerHTML = `
+    ${isNext ? `<div class="stop-next-tag">Next stop</div>` : ""}
     <div class="stop-top"><span class="stop-n">${n}</span>
       <b>${stopEsc(p.trackingNumber || p.name)}</b><span class="stop-chip">${chip}</span></div>
     <div class="stop-name">${stopEsc(p.name)}${p.fragile ? " · fragile" : ""}</div>
@@ -66,6 +73,9 @@ function stopCard(p, n) {
     ${p.status === "delivered" && p.pod ? `<div class="stop-note">${stopEsc(p.pod.label)}${
       p.pod.receivedBy ? ` — ${stopEsc(p.pod.receivedBy)}` : ""}</div>` : ""}
     ${state === "failed" && p.lastFailure ? `<div class="stop-note">${stopEsc(p.lastFailure.label)}</div>` : ""}
+    ${isNext && (p.recipientPhone || ll) ? `<div class="stop-contact">
+      ${p.recipientPhone ? `<a class="stop-big" href="tel:${stopEsc(p.recipientPhone)}">Call</a>` : ""}
+      ${ll ? `<a class="stop-big" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=driving">Navigate</a>` : ""}</div>` : ""}
     <div class="stop-actions"></div>`;
   const actions = card.querySelector(".stop-actions");
   if (onRoad && state === "todo") {
