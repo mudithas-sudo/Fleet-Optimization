@@ -90,7 +90,8 @@ One command starts the console on a separate, fully populated demo database (you
 normal `fleet.db` is untouched) at http://localhost:8001:
 
 ```powershell
-.\samples\start-demo.ps1            # add -Users for demo staff accounts
+.\samples\start-demo.bat            # add -Users for demo staff accounts
+# (or: powershell -ExecutionPolicy Bypass -File .\samples\start-demo.ps1)
 ```
 
 It loads a working day relative to *now*: 4 runs (2 finished earlier today, 1 live,
