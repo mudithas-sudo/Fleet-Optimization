@@ -113,10 +113,10 @@ normal `fleet.db` is untouched) at http://localhost:8001:
 ```
 
 It loads a working day relative to *now*: 4 runs (2 finished earlier today, 1 live,
-1 scheduled), 30 parcels (on-time and late deliveries, a failed delivery waiting
+1 scheduled), 38 parcels (on-time and late deliveries, a failed delivery waiting
 for review, one rescheduled for tomorrow after review, one returned to the sender,
 express / priority / window parcels, collect-and-deliver, one no vehicle can carry,
-three customer pickup requests that arrived during the day), receipt references and
+three customer pickup requests that arrived during the day, eight ready-to-assign pending parcels), receipt references and
 photos, customer messages, and vehicle position trails you can replay with the
 dashboard time bar. Re-run it before a demo so the times are fresh. Seeding makes
 no API calls. To load the same data into your normal database instead, run

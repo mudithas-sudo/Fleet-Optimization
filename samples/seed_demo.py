@@ -12,11 +12,12 @@ Options
 
 What you get (all times are relative to *now*, so re-run it before a demo):
     4 runs   2 finished earlier today, 1 live right now, 1 scheduled
-    30 parcels   delivered on time and late, a failed delivery waiting for review,
+    38 parcels   delivered on time and late, a failed delivery waiting for review,
                  one rescheduled for tomorrow after review, one returned to the sender,
                  express / priority / window parcels, a collect-and-deliver, one that
                  no vehicle can carry, and three customer pickup requests that arrived
-                 during the day (one already added to the live run, two still open)
+                 during the day (one already added to the live run, two still open),
+                 plus eight ready-to-assign pending parcels for trying out vehicles
     history  parcel timelines, receipt references and photos, customer messages,
              vehicle position trails (drag the dashboard time bar back to see them)
 """
@@ -132,6 +133,16 @@ parcel("p6", "FO-100125", "Refrigerator 190 L", "K. Perera", "+94 71 220 7712", 
 parcel("p7", "FO-100126", "Shipping pallet, machinery", "Colombo Dockyard", "+94 11 244 8000", None, "dockyard", "large", (600, 250, 250), 900)   # too big for any vehicle
 parcel("p8", "FO-100127", "Reading glasses", "Dr. Fernando", "+94 77 336 0912", "drf@example.com", "majestic", "small", (18, 8, 5), 0.2)
 
+
+# -- more pending parcels, ready to assign to vehicles (small/medium fit a bike, car or van; large needs a van or truck)
+parcel("p9", "FO-100131", "Pharmacy order", "Healthguard Pharmacy", "+94 11 269 1122", None, "borella", "small", (25, 20, 10), 1.5, priority="priority")
+parcel("p10", "FO-100132", "Gym equipment, dumbbell set", "FitZone Rajagiriya", "+94 11 288 4410", "fitzone@example.com", "rajagiriya", "medium", (50, 30, 25), 20)
+parcel("p11", "FO-100133", "Documents envelope", "Dr. S. Wickramasinghe", "+94 77 842 1190", "drsw@example.com", "kollupitiya", "small", (32, 24, 3), 0.3, priority="express")
+parcel("p12", "FO-100134", "Bookshelf flat-pack", "Hansini Books", "+94 11 273 9004", None, "nugegoda", "large", (180, 35, 30), 32)
+parcel("p13", "FO-100135", "Bakery cake boxes (x3)", "Sweet Crumbs", "+94 71 556 0917", "orders@sweetcrumbs.example.com", "dehiwala", "medium", (40, 40, 30), 5, fragile=True)
+parcel("p14", "FO-100136", "Laptop charger", "N. Gunasekara", "+94 76 330 2288", "ngunase@example.com", "battaramulla", "small", (20, 12, 6), 0.4)
+parcel("p15", "FO-100137", "Car battery", "Auto Care Malabe", "+94 11 241 7765", None, "malabe", "medium", (30, 20, 25), 14, notes="Heavy, lift with two hands.")
+parcel("p16", "FO-100138", "Blood pressure monitors (x6)", "City Clinic Wattala", "+94 11 293 5501", None, "wattala", "small", (35, 25, 15), 4)
 
 # -- customer pickup requests that arrived during the day (collected, then brought to the hub)
 parcel("q1", "FO-100128", "Tea samples (pickup request)", "Lanka Tea Exports", "+94 11 233 4410", "ship@lankatea.example.com", "union", "small", (40, 30, 20), 6, request=True, cutoff_h=0.5, by_h=2.5)
@@ -327,6 +338,7 @@ def main(reset: bool, with_users: bool):
         "n1": (3, 0.6), "n2": (3, 1.6), "n3": (3, 2.2), "n4": (3, 2.0), "n5": (3, 2.8), "n6": (3, 3.5),
         "d1": (1.5, 3.0), "d2": (1.5, 4.0), "d3": (1.5, 5.0),
         "p1": (6, -0.75), "p2": (2, 0.42), "p3": (1, 4.0), "p4": (2, 5.0), "p5": (2, 8.0), "p6": (2, 9.0), "p7": (4, 10.0), "p8": (1, 3.0),
+        "p9": (1.2, 2.5), "p10": (1.5, 6.0), "p11": (0.8, 1.5), "p12": (2, 8.0), "p13": (1, 4.5), "p14": (0.6, 5.5), "p15": (1.4, 7.0), "p16": (0.9, 3.5),
         "q1": (0.3, 2.5), "q2": (0.45, 1.6), "q3": (0.2, 5.0),
     }
     for key, (ago, due) in plan.items():
