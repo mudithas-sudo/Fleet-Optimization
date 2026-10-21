@@ -27,7 +27,7 @@ def list_pending_parcels(tool_context: ToolContext) -> dict:
     now = time.time()
     rows = []
     for p in delivery.flag_overdue(db.all_entities("parcels")):
-        if p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        if not delivery.is_plannable(p):
             continue
         if scope and p["id"] not in scope:
             continue
@@ -106,7 +106,7 @@ async def evaluate_route(driver_id: str, parcel_ids_json: str,
     parcels = []
     for pid in json.loads(parcel_ids_json):
         p = db.load_entity("parcels", pid)
-        if not p or p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        if not p or not delivery.is_plannable(p):
             return {"status": "error", "message": f"parcel {pid} not available"}
         parcels.append(p)
     if not parcels:

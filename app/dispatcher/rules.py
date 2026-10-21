@@ -55,7 +55,7 @@ def propose_by_rules(parcel_ids: list[str] | None = None) -> dict:
     now = time.time()
     scope = set(parcel_ids) if parcel_ids else None
     parcels = [p for p in delivery.flag_overdue(db.all_entities("parcels"))
-               if p["status"] in delivery.PARCEL_PLANNABLE_STATUSES
+               if delivery.is_plannable(p)
                and (scope is None or p["id"] in scope)]
     if not parcels:
         raise RuntimeError("No pending parcels to assign.")

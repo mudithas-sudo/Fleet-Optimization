@@ -119,6 +119,14 @@ def _flatten_steps(legs: list[dict], ordered_stops: list[dict]) -> list[dict]:
     return steps
 
 
+def hub_last(stops: list[dict]) -> list[dict]:
+    """Pickup requests are brought back to the hub: those drop-off stops always
+    close the run (stable otherwise). A no-op when the run has none."""
+    if not any(s.get("hubReturn") for s in stops):
+        return stops
+    return [s for s in stops if not s.get("hubReturn")] + [s for s in stops if s.get("hubReturn")]
+
+
 def _order_with_precedence(stops: list[dict]) -> list[dict]:
     """Nearest-neighbour order from the depot with one hard rule: a parcel's
     delivery stop is never visited before its pickup stop. Used instead of the
@@ -133,7 +141,7 @@ def _order_with_precedence(stops: list[dict]) -> list[dict]:
         ordered.append(nxt)
         rest.remove(nxt)
         cur = nxt
-    return [depot] + ordered
+    return [depot] + hub_last(ordered)
 
 
 PRIORITY_RANK = {"express": 0, "priority": 1, "standard": 2}
@@ -142,6 +150,7 @@ PRIORITY_RANK = {"express": 0, "priority": 1, "standard": 2}
 def has_special_handling(stops: list[dict]) -> bool:
     """Any express/priority parcel or delivery window on the run (depot excluded)?"""
     return any((s.get("priority") or "standard") != "standard" or s.get("windowStart")
+               or s.get("hubReturn") or s.get("requestType")
                for s in stops[1:])
 
 
@@ -162,15 +171,18 @@ def sequence_stops(stops: list[dict], now: float | None = None) -> list[dict]:
 
         def key(s):
             rank = PRIORITY_RANK.get(s.get("priority") or "standard", 2)
-            not_ready = bool(s.get("windowStart") and s["windowStart"] > now + 45 * 60
-                             and s.get("kind") != "pickup")
+            # a delivery window not yet open, or a pickup request before the customer's cut-off
+            # (unless the customer confirmed the shipment can go early), waits behind ready stops
+            opens = s.get("earliest") if s.get("kind") == "pickup" else s.get("windowStart")
+            not_ready = bool(opens and opens > now + 45 * 60
+                             and (s.get("kind") != "pickup" or s.get("requestType")))
             return (rank + (3 if not_ready else 0), _haversine_m(cur, s))
 
         nxt = min(cands, key=key)
         ordered.append(nxt)
         rest.remove(nxt)
         cur = nxt
-    return [depot] + ordered
+    return [depot] + hub_last(ordered)
 
 
 def repair_precedence(rest: list[dict]) -> list[dict]:
@@ -214,6 +226,7 @@ async def compute_route(stops: list[dict], avoid_tolls: bool = False,
     if len(stops) < 2:
         raise RoutingError("Need at least an origin and a destination.")
 
+    stops = hub_last(stops)
     if any(s.get("kind") == "pickup" for s in stops):
         if not presequenced:
             stops = _order_with_precedence(stops)

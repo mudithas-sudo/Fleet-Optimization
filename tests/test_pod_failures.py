@@ -100,42 +100,54 @@ def test_pod_validation():
     assert client.get(f"/api/parcels/{pid}").json()["status"] == "in_transit"   # nothing stuck half-way
 
 
-def test_failed_delivery_goes_back_to_hub_and_survives_trip_end():
+def test_failed_delivery_waits_for_review_and_survives_trip_end():
     a, b = _parcel("FailMe", 3), _parcel("DeliverMe", 4)
     trip = _live_run([a, b])
     assert client.post(f"/api/parcels/{a['id']}/fail", json={"reason": "nonsense"}).status_code == 400
     r = client.post(f"/api/parcels/{a['id']}/fail", json={"reason": "no_one_home", "note": "Gate locked"})
     assert r.status_code == 200
     got = r.json()
-    assert got["status"] == "awaiting_redelivery" and got["tripId"] is None
+    assert got["status"] == "failed" and got["tripId"] is None and got["review"]["state"] == "pending"
     assert got["failedAttempts"] == 1 and got["lastFailure"]["label"] == "Nobody home"
     # run arrives: the failed parcel must NOT be marked delivered with the rest
     client.post(f"/api/trips/{trip['id']}/end", json={"arrived": True})
-    assert db.load_entity("parcels", a["id"])["status"] == "awaiting_redelivery"
+    assert db.load_entity("parcels", a["id"])["status"] == "failed"
     assert db.load_entity("parcels", b["id"])["status"] == "delivered"
     assert store.get_trip(trip["id"])["failedCount"] == 1
     tl = client.get(f"/api/parcels/{a['id']}").json()["timeline"]
     assert any(e["type"] == "failed" and "Gate locked" in e["message"] for e in tl)
 
 
-def test_reschedule_return_and_attempt_limit():
+def test_review_reschedules_or_returns_nothing_automatic():
     p = _parcel("Stubborn", 5)
-    for attempt in range(1, delivery.MAX_DELIVERY_ATTEMPTS + 1):
+    for attempt in range(1, delivery.ESCALATE_AFTER + 1):
         _live_run([db.load_entity("parcels", p["id"])])
         r = client.post(f"/api/parcels/{p['id']}/fail", json={"reason": "no_one_home"})
-        assert r.status_code == 200
-        if attempt < delivery.MAX_DELIVERY_ATTEMPTS:
-            assert r.json()["status"] == "awaiting_redelivery"
-            when = time.time() + 5 * 3600
-            rs = client.post(f"/api/parcels/{p['id']}/reschedule", json={
-                "deadline": when, "destination": {"lat": 6.9, "lng": 79.9, "label": "Corrected St"}})
-            assert rs.status_code == 200 and rs.json()["destination"]["label"] == "Corrected St"
-    assert r.json()["status"] == "returned", "third failure returns the parcel to the sender"
-    assert client.post(f"/api/parcels/{p['id']}/reschedule", json={"deadline": time.time() + 99}).status_code == 409
+        assert r.status_code == 200 and r.json()["status"] == "failed", "never auto-returned or auto-requeued"
+        # a failed shipment is not plannable until it has been reviewed
+        assert not delivery.is_plannable(db.load_entity("parcels", p["id"]))
+        assert client.post(f"/api/parcels/{p['id']}/reschedule", json={"deadline": time.time() + 99}).status_code == 409
+        if attempt < delivery.ESCALATE_AFTER:
+            when = time.time() + 30 * 3600           # the customer asks for tomorrow
+            rv = client.post(f"/api/parcels/{p['id']}/review", json={
+                "decision": "reschedule", "note": "Customer asked for tomorrow", "scheduledFor": when,
+                "destination": {"lat": 6.9, "lng": 79.9, "label": "Corrected St"}})
+            assert rv.status_code == 200, rv.text
+            got = rv.json()
+            assert got["status"] == "awaiting_redelivery" and got["destination"]["label"] == "Corrected St"
+            assert got["review"]["state"] == "done" and got["holdUntil"], "held out of today's planning"
+            assert not delivery.is_plannable(got)
+            # reviewing twice is refused
+            assert client.post(f"/api/parcels/{p['id']}/review", json={"decision": "return"}).status_code == 409
+            db.save_entity("parcels", {**got, "holdUntil": None})   # tomorrow arrives
+    got = client.get(f"/api/parcels/{p['id']}").json()
+    assert got["status"] == "failed" and got["escalate"], "third failure is flagged, not returned"
+    assert client.post(f"/api/parcels/{p['id']}/review", json={"decision": "reschedule"}).status_code == 400
+    assert client.post(f"/api/parcels/{p['id']}/review", json={"decision": "return", "note": "Gave up"}).json()["status"] == "returned"
 
     q = _parcel("Refused", 6)
     _live_run([q])
-    assert client.post(f"/api/parcels/{q['id']}/fail", json={"reason": "refused"}).json()["status"] == "returned"
+    assert client.post(f"/api/parcels/{q['id']}/fail", json={"reason": "refused"}).json()["status"] == "failed"
 
     z = _parcel("Manual", 7)
     assert client.post(f"/api/parcels/{z['id']}/reschedule", json={"deadline": time.time() - 5}).status_code == 400

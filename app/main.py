@@ -148,6 +148,8 @@ class Dims(BaseModel):
 
 class ParcelIn(BaseModel):
     name: str
+    requestType: str = "delivery"       # delivery | pickup (customer asks us to collect; destination is the hub)
+    earlyOk: bool = False               # pickup: ready and the customer confirmed early collection
     priority: str = "standard"          # standard | priority | express
     windowStart: float | None = None    # earliest delivery time (epoch secs)
     receiverEmail: str | None = None    # optional — used for tracking notifications
@@ -156,9 +158,9 @@ class ParcelIn(BaseModel):
     dimensionsCm: Dims | None = None    # optional — package L×W×H in cm
     type: str = "general"
     size: str
-    destination: Stop
-    pickup: Pickup | None = None
-    deadline: float
+    destination: Stop | None = None     # not needed for a pickup request: it comes back to the hub
+    pickup: Pickup | None = None        # pickup request: earliest = customer cut-off, latest = collect by
+    deadline: float | None = None       # not needed for a pickup request: the collect-by time
     weightKg: float | None = None       # optional — parcel weight in kilograms
     fragile: bool = False               # optional — flag for careful handling
     recipientPhone: str | None = None   # optional — contact at the destination
@@ -169,7 +171,8 @@ class PodIn(BaseModel):
     method: str                          # handed_over | signature | photo | left_safe
     receivedBy: str | None = None
     note: str | None = None
-    signature: str | None = None         # data URL (png) drawn on the driver's screen
+    reference: str | None = None         # receipt / e-signature id from the existing signature process
+    signature: str | None = None         # optional data URL (png); the driver app doesn't capture it any more
     photo: str | None = None             # data URL (jpeg/webp), downscaled client-side
     lat: float | None = None
     lng: float | None = None
@@ -181,6 +184,13 @@ class FailIn(BaseModel):
     note: str | None = None
     retryAt: float | None = None         # new deadline for the next attempt (epoch secs)
     by: str = "driver"
+
+
+class ReviewIn(BaseModel):
+    decision: str                        # reschedule | return
+    note: str | None = None              # what the review found / what the customer asked for
+    scheduledFor: float | None = None    # new delivery (or pickup cut-off) time — required to reschedule
+    destination: Stop | None = None      # corrected address
 
 
 class RescheduleIn(BaseModel):
@@ -221,12 +231,38 @@ def _entity_or_404(table: str, entity_id: str) -> dict:
     return obj
 
 
+def _parcel_data(p: ParcelIn, exclude_id: str | None = None) -> dict:
+    """Validate a parcel and return the data to store. A pickup request is
+    collected at the customer and brought to the hub, so its destination is the
+    hub and its deadline is the collect-by time."""
+    _validate_parcel(p, exclude_id)
+    data = p.model_dump()
+    if p.requestType == "pickup":
+        hub = delivery.get_depot()
+        data["destination"] = {"lat": hub["lat"], "lng": hub["lng"], "label": hub["label"]}
+        pk = data["pickup"]
+        cutoff = pk.get("earliest")
+        if pk.get("latest") is None:
+            pk["latest"] = (cutoff or time.time()) + 2 * 3600
+        data["deadline"] = pk["latest"]
+    return data
+
+
 def _validate_parcel(p: ParcelIn, exclude_id: str | None = None):
+    if p.requestType not in ("delivery", "pickup"):
+        raise HTTPException(400, "requestType must be delivery or pickup")
+    if p.requestType == "pickup":
+        if not p.pickup:
+            raise HTTPException(400, "A pickup request needs the customer's address.")
+        if p.pickup.earliest and p.pickup.latest and p.pickup.earliest > p.pickup.latest:
+            raise HTTPException(400, "The collect-by time is before the customer's cut-off.")
+    elif not p.destination or p.deadline is None:
+        raise HTTPException(400, "A delivery needs a destination and a deadline.")
     if p.size not in delivery.SIZE_ORDER:
         raise HTTPException(400, f"size must be one of {delivery.SIZES}")
     if p.priority not in delivery.PRIORITIES:
         raise HTTPException(400, f"priority must be one of {list(delivery.PRIORITIES)}")
-    if p.windowStart and p.windowStart > p.deadline:
+    if p.windowStart and p.deadline is not None and p.windowStart > p.deadline:
         raise HTTPException(400, "The delivery window opens after the deadline.")
     if p.weightKg is not None and (p.weightKg <= 0 or p.weightKg > 2000):
         raise HTTPException(400, "weightKg must be between 0 and 2000")
@@ -267,8 +303,10 @@ async def list_parcels():
 
 @app.post("/api/parcels")
 async def add_parcel(p: ParcelIn):
-    _validate_parcel(p)
-    parcel = delivery.new_parcel(p.model_dump())
+    data = _parcel_data(p)
+    if p.requestType == "pickup" and data["deadline"] < time.time():
+        raise HTTPException(400, "The collect-by time is in the past.")
+    parcel = delivery.new_parcel(data)
     store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
     return parcel
 
@@ -278,8 +316,7 @@ async def bulk_parcels(req: BulkParcels):
     created, errors = [], []
     for i, p in enumerate(req.parcels):
         try:
-            _validate_parcel(p)   # also catches duplicates of earlier rows, which are saved first
-            parcel = delivery.new_parcel(p.model_dump())
+            parcel = delivery.new_parcel(_parcel_data(p))   # also catches duplicates of earlier rows, which are saved first
             store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
             created.append(parcel)
         except HTTPException as e:
@@ -312,7 +349,8 @@ async def parcel_detail(parcel_id: str):
     driver = trip and trip.get("driverId") and db.load_entity("drivers", trip["driverId"])
     return {**parcel, "timeline": delivery.timeline(parcel),
             "driverName": driver["name"] if driver else None,
-            "attemptsLeft": max(0, delivery.MAX_DELIVERY_ATTEMPTS - parcel.get("failedAttempts", 0))}
+            "attempts": parcel.get("failedAttempts", 0),
+            "escalate": parcel.get("failedAttempts", 0) >= delivery.ESCALATE_AFTER}
 
 
 @app.get("/api/parcels/{parcel_id}/pod")
@@ -337,16 +375,17 @@ async def parcel_pod(parcel_id: str, body: PodIn):
     _check_image(body.photo, "photo")
     received_by = (body.receivedBy or "").strip()[:80] or None
     note = (body.note or "").strip()[:300] or None
+    reference = (body.reference or "").strip()[:60] or None
     needs = {"signature": body.signature, "photo": body.photo,
-             "handed_over": received_by, "left_safe": note or body.photo}
+             "handed_over": received_by or reference, "left_safe": note or body.photo}
     if not needs[body.method]:
         raise HTTPException(400, {"signature": "Draw a signature.", "photo": "Add a photo.",
-                                  "handed_over": "Enter who received the parcel.",
+                                  "handed_over": "Enter who received the parcel, or the receipt reference.",
                                   "left_safe": "Say where it was left, or add a photo."}[body.method])
     trip = _trip_for(parcel)
     was_delivered = parcel["status"] == "delivered"
     delivery.save_pod(parcel, body.method, received_by, note, body.signature, body.photo,
-                      parcel.get("tripId"), body.lat, body.lng, actor=body.by)
+                      parcel.get("tripId"), body.lat, body.lng, actor=body.by, reference=reference)
     if not was_delivered:
         delivery.set_parcel_status(parcel, "delivered")
         if trip:
@@ -367,8 +406,6 @@ async def parcel_fail(parcel_id: str, body: FailIn):
         raise HTTPException(400, f"reason must be one of {list(delivery.FAIL_REASONS)}")
     if parcel["status"] not in ("in_transit", "picked_up"):
         raise HTTPException(409, "Only a parcel that is out for delivery can fail.")
-    if body.retryAt and body.retryAt < time.time():
-        raise HTTPException(400, "The new delivery time is in the past.")
     trip = _trip_for(parcel)
     note = (body.note or "").strip()[:300] or None
     delivery.record_failed_attempt(parcel, body.reason, note, parcel.get("tripId") or
@@ -381,6 +418,71 @@ async def parcel_fail(parcel_id: str, body: FailIn):
     return parcel
 
 
+class CollectIn(BaseModel):
+    note: str | None = None
+    by: str = "driver"
+
+
+@app.post("/api/parcels/{parcel_id}/collect")
+async def parcel_collect(parcel_id: str, body: CollectIn | None = None):
+    """The driver (or dispatch, on their behalf) has collected a pickup request."""
+    parcel = _entity_or_404("parcels", parcel_id)
+    if parcel.get("requestType") != "pickup":
+        raise HTTPException(409, "Only a pickup request is collected this way.")
+    trip = _trip_for(parcel)
+    try:
+        delivery.collect_pickup(parcel, trip and trip["id"], actor=(body.by if body else "driver"),
+                                note=((body.note or "").strip()[:300] or None) if body else None)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    if trip:
+        trip["collectedCount"] = trip.get("collectedCount", 0) + 1
+        _emit(trip, "collected", f"Collected: {parcel['name']}")
+        store.save_trip(trip)
+    return parcel
+
+
+@app.get("/api/parcels/{parcel_id}/fit")
+async def parcel_fit(parcel_id: str):
+    """Which run could take this parcel (or pickup request), and what it would cost."""
+    from . import fit
+    parcel = _entity_or_404("parcels", parcel_id)
+    if not delivery.is_plannable(parcel):
+        raise HTTPException(409, "This parcel isn't waiting to be planned.")
+    return {"parcelId": parcel_id, "runs": fit.suggest(parcel)}
+
+
+@app.post("/api/parcels/{parcel_id}/early")
+async def parcel_early(parcel_id: str):
+    """Record that the shipment is ready and the customer confirmed it can be collected
+    before their cut-off."""
+    parcel = _entity_or_404("parcels", parcel_id)
+    try:
+        return delivery.confirm_early(parcel)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/parcels/{parcel_id}/review")
+async def parcel_review(parcel_id: str, body: ReviewIn, request: Request):
+    """The separate rescheduling process: a dispatcher reviews why a delivery or pickup
+    failed, then reschedules it (typically for the next day, if the customer asks) or
+    returns it."""
+    parcel = _entity_or_404("parcels", parcel_id)
+    if body.decision not in ("reschedule", "return"):
+        raise HTTPException(400, "decision must be reschedule or return")
+    if parcel["status"] != "failed":
+        raise HTTPException(409, "Only a failed shipment waits for review.")
+    user = auth.current_user(request) if auth.enabled() else None
+    try:
+        delivery.review_failed(parcel, body.decision, body.note, body.scheduledFor,
+                               body.destination.model_dump() if body.destination else None,
+                               actor=(user or {}).get("username", "dispatcher"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return parcel
+
+
 @app.post("/api/parcels/{parcel_id}/reschedule")
 async def parcel_reschedule(parcel_id: str, body: RescheduleIn):
     """Set a new delivery time (and optionally a corrected address) for a
@@ -390,8 +492,7 @@ async def parcel_reschedule(parcel_id: str, body: RescheduleIn):
         raise HTTPException(409, "Only a pending parcel or one back at the hub can be rescheduled.")
     if body.deadline < time.time():
         raise HTTPException(400, "The new delivery time is in the past.")
-    parcel["deadline"] = body.deadline
-    parcel["deadlineMissed"] = False
+    delivery.apply_schedule(parcel, body.deadline)
     when = time.strftime("%d %b %H:%M", time.localtime(body.deadline))
     if body.destination:
         parcel["destination"] = body.destination.model_dump()
@@ -407,6 +508,9 @@ async def parcel_reschedule(parcel_id: str, body: RescheduleIn):
 async def parcel_return(parcel_id: str):
     """Give up on delivery: return the parcel to the sender."""
     parcel = _entity_or_404("parcels", parcel_id)
+    if parcel["status"] == "failed":
+        delivery.review_failed(parcel, "return", "Returned without further attempts")
+        return parcel
     if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
         raise HTTPException(409, "This parcel is on a run — it can't be returned yet.")
     delivery.set_parcel_status(parcel, "returned", trip_id=None,
@@ -417,18 +521,27 @@ async def parcel_return(parcel_id: str):
 # ---- customer tracking (public: no admin data, only what the customer should see)
 
 _TRACK_STEPS = ["Order received", "Scheduled", "Out for delivery", "Delivered"]
-_TRACK_STEP = {"pending": 0, "awaiting_redelivery": 0, "assigned": 1, "in_transit": 2,
+_TRACK_STEP = {"pending": 0, "awaiting_redelivery": 0, "failed": 2, "assigned": 1, "in_transit": 2,
                "picked_up": 2, "delivered": 3, "returned": 3}
 _TRACK_LABEL = {
     "pending": "We have your parcel", "assigned": "Scheduled for delivery",
     "in_transit": "Out for delivery", "picked_up": "Out for delivery",
     "delivered": "Delivered", "awaiting_redelivery": "We'll try delivering again",
+    "failed": "We couldn't deliver — we'll contact you",
     "returned": "Returned to sender",
+}
+_PICKUP_STEPS = ["Pickup requested", "Scheduled", "Driver on the way", "Collected"]
+_PICKUP_STEP = {"pending": 0, "failed": 2, "assigned": 1, "in_transit": 2, "picked_up": 3,
+                "delivered": 3, "returned": 3}
+_PICKUP_LABEL = {
+    "pending": "Pickup requested", "assigned": "Pickup scheduled", "in_transit": "Driver on the way to collect",
+    "picked_up": "Collected — on its way to our hub", "delivered": "Collected and at our hub",
+    "failed": "We couldn't collect — we'll contact you", "returned": "Pickup cancelled",
 }
 _TRACK_EVENT = {
     "created": "Order received", "assigned": "Scheduled for delivery",
     "out_for_delivery": "Out for delivery", "collected": "Collected from the sender",
-    "delivered": "Delivered", "returned_to_hub": "Back at our depot",
+    "delivered": "Delivered", "returned_to_hub": "Back at our hub",
     "rescheduled": "Delivery rescheduled", "returned": "Returned to the sender",
     "unassigned": "Waiting to be scheduled",
 }
@@ -468,7 +581,8 @@ async def track(tracking_number: str, request: Request):
             stops_away = pending.index(parcel["id"])
         eta = next((e["eta"] for e in trip.get("plannedEtaPerStop") or []
                     if e.get("parcelId") == parcel["id"] and e.get("kind") == "delivery"), None)
-    label = parcel["destination"].get("label") or ""
+    request = parcel.get("requestType") == "pickup"
+    label = ((parcel.get("pickup") or {}).get("label") if request else parcel["destination"].get("label")) or ""
     area = label.split(",", 1)[1].strip() if "," in label else label
     pod = parcel.get("pod") or {}
     failure = parcel.get("lastFailure")
@@ -481,9 +595,10 @@ async def track(tracking_number: str, request: Request):
     return {
         "trackingNumber": parcel["trackingNumber"],
         "status": parcel["status"],
-        "headline": _TRACK_LABEL.get(parcel["status"], "In progress"),
-        "step": _TRACK_STEP.get(parcel["status"], 0),
-        "steps": _TRACK_STEPS,
+        "headline": (_PICKUP_LABEL if request else _TRACK_LABEL).get(parcel["status"], "In progress"),
+        "step": (_PICKUP_STEP if request else _TRACK_STEP).get(parcel["status"], 0),
+        "steps": _PICKUP_STEPS if request else _TRACK_STEPS,
+        "kind": "pickup" if request else "delivery",
         "deliverTo": area,
         "expectedBy": parcel["deadline"] if parcel["status"] != "delivered" else None,
         "eta": eta,
@@ -491,7 +606,7 @@ async def track(tracking_number: str, request: Request):
         "driverFirstName": driver["name"].split()[0] if driver else None,
         "deliveredAt": parcel.get("deliveredAt"),
         "receivedBy": pod.get("receivedBy") if parcel["status"] == "delivered" else None,
-        "lastProblem": failure["label"] if failure and parcel["status"] in ("awaiting_redelivery", "returned") else None,
+        "lastProblem": failure["label"] if failure and parcel["status"] in ("failed", "awaiting_redelivery", "returned") else None,
         "history": history,
     }
 
@@ -583,15 +698,18 @@ async def recent_notifications(limit: int = 50):
 async def trip_parcels(trip_id: str):
     """The parcels of a run, in stop order, for the driver's stop list."""
     trip = _trip_or_404(trip_id)
-    order = {}
+    order, pickup_at = {}, {}
     for i, stop in enumerate(trip["route"]["orderedStops"]):
         if stop.get("parcelId") and delivery.stop_kind(stop) == "delivery":
             order.setdefault(stop["parcelId"], i)
+        elif stop.get("parcelId") and delivery.stop_kind(stop) == "pickup" and stop.get("requestType"):
+            pickup_at[stop["parcelId"]] = i
     out = []
     for pid in trip.get("parcelIds") or []:
         p = db.load_entity("parcels", pid)
         if p:
-            out.append({**p, "stopIndex": order.get(pid), "events": None,
+            at = pickup_at.get(pid) if p["status"] in ("assigned", "in_transit", "failed") else None
+            out.append({**p, "stopIndex": at if at is not None else order.get(pid), "events": None,
                         "collectFirst": delivery.route_has_pickup(trip["route"], pid)
                         and p["status"] != "picked_up" and p["status"] != "delivered"})
     return sorted(out, key=lambda p: (p["stopIndex"] is None, p["stopIndex"] or 0))
@@ -600,10 +718,9 @@ async def trip_parcels(trip_id: str):
 @app.put("/api/parcels/{parcel_id}")
 async def edit_parcel(parcel_id: str, p: ParcelIn):
     parcel = _entity_or_404("parcels", parcel_id)
-    if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+    if parcel["status"] not in (*delivery.PARCEL_PLANNABLE_STATUSES, "failed"):
         raise HTTPException(409, "This parcel is on a run — it can't be edited.")
-    _validate_parcel(p, exclude_id=parcel_id)
-    data = p.model_dump()
+    data = _parcel_data(p, exclude_id=parcel_id)
     if not (data.get("trackingNumber") or "").strip():
         data["trackingNumber"] = parcel.get("trackingNumber")   # blank keeps the existing one
     parcel.update(data)
@@ -893,10 +1010,10 @@ def _trip_or_404(trip_id: str) -> dict:
 
 
 def _run_label(stops: list[dict]) -> str:
-    """'<origin> → <final drop-off>'. Origin is 'Depot' for a delivery run;
+    """'<origin> → <final drop-off>'. Origin is 'Hub' for a delivery run;
     the end is the last stop's place (a drop-off address), never a parcel name."""
     first = stops[0]
-    origin = "Depot" if (first.get("depot") or first.get("kind") == "depot") \
+    origin = "Hub" if (first.get("depot") or first.get("kind") == "depot") \
         else first.get("label", "Start")
     end = stops[-1].get("place") or stops[-1].get("label", "destination")
     return f"{origin} → {end}"
@@ -1071,7 +1188,13 @@ async def end_trip(trip_id: str, req: EndRequest | None = None):
             continue
         if p.get("tripId") != trip_id:        # failed / returned during this run
             continue
-        if arrived:
+        if p.get("requestType") == "pickup":
+            if p["status"] == "picked_up":      # collected: it is at the hub now
+                delivery.set_parcel_status(p, "delivered")
+                trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
+            else:                               # never collected: back on the pickup queue
+                delivery.set_parcel_status(p, "pending", trip_id=None)
+        elif arrived:
             delivery.set_parcel_status(p, "delivered")
             trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
         elif p["status"] == "picked_up":
@@ -1162,6 +1285,8 @@ def _check_stop_progress(trip: dict, runtime: dict):
         if not p:
             continue
         kind = delivery.stop_kind(stop)
+        if kind == "pickup" and p.get("requestType") == "pickup":
+            continue            # a pickup request is collected by the driver (or fails), never by driving past
         if kind == "pickup" and p["status"] == "in_transit":
             delivery.set_parcel_status(p, "picked_up")
             trip["collectedCount"] = trip.get("collectedCount", 0) + 1
@@ -1175,7 +1300,8 @@ def _check_stop_progress(trip: dict, runtime: dict):
             delivery.set_parcel_status(p, "delivered")
             trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
             late = " (past deadline)" if p["deadlineMissed"] else ""
-            _emit(trip, "delivered", f"Delivered: {p['name']}{late}")
+            _emit(trip, "delivered", (f"Received at the hub: {p['name']}" if p.get("requestType") == "pickup"
+                                      else f"Delivered: {p['name']}{late}"))
 
 
 NEARBY_METERS = float(os.environ.get("NEARBY_METERS", "1500"))

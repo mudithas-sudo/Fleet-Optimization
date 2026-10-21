@@ -192,7 +192,7 @@ DRIVER_ROUTES = (
     ("GET", re.compile(r"^/api/trips/([^/]+)$"), "trip"),
     ("GET", re.compile(r"^/api/trips/([^/]+)/parcels$"), "trip"),
     ("POST", re.compile(r"^/api/trips/([^/]+)/(?:start|end|position)$"), "trip"),
-    ("POST", re.compile(r"^/api/parcels/([^/]+)/(?:pod|fail)$"), "parcel"),
+    ("POST", re.compile(r"^/api/parcels/([^/]+)/(?:pod|fail|collect)$"), "parcel"),
 )
 
 

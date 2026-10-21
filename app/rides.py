@@ -22,7 +22,7 @@ def day_start(ts: float) -> float:
 
 def _label(stops: list[dict]) -> str:
     first = stops[0]
-    origin = "Depot" if (first.get("depot") or first.get("kind") == "depot") else first.get("label", "Start")
+    origin = "Hub" if (first.get("depot") or first.get("kind") == "depot") else first.get("label", "Start")
     last = stops[-1]
     return f"{origin} → {last.get('place') or last.get('label', '')}"
 
@@ -90,12 +90,20 @@ def rides_at(at: float | None = None) -> dict:
         delivered_ids = {pid for pid, ts in f["delivered"].items() if ts <= at}
         failed = sum(1 for ts in f["failed"] if ts <= at)
         stops = t["route"]["orderedStops"]
-        nxt = next((s for s in stops[1:] if delivery.stop_kind(s) == "delivery"
-                    and s.get("parcelId") not in delivered_ids), None)
+        failed_ids = {pid for pid, ts in f["failed_ids"].items() if ts <= at}
+
+        def _todo(s):
+            pid = s.get("parcelId")
+            if delivery.stop_kind(s) == "delivery":
+                return pid not in delivered_ids
+            # a pickup request is a stop of its own until the driver has collected it
+            return (delivery.stop_kind(s) == "pickup" and s.get("requestType") and pid not in failed_ids
+                    and (by_id.get(pid) or {}).get("status") in ("assigned", "in_transit"))
+        nxt = next((s for s in stops[1:] if _todo(s)), None)
         eta = None
         if nxt and state in ("en_route", "deviating") and live:
             eta = next((e["eta"] for e in t.get("plannedEtaPerStop") or []
-                        if e.get("parcelId") == nxt.get("parcelId") and e.get("kind") == "delivery"), None)
+                        if e.get("parcelId") == nxt.get("parcelId") and e.get("kind") == delivery.stop_kind(nxt)), None)
 
         if state == "scheduled":
             pos = {"lat": stops[0]["lat"], "lng": stops[0]["lng"], "ts": None, "atStart": True}
@@ -115,8 +123,10 @@ def rides_at(at: float | None = None) -> dict:
         # delayed = deadline passed, or the planned arrival is after the deadline (Onfleet's definition)
         at_risk_ids = {e["parcelId"] for e in t.get("plannedEtaPerStop") or []
                        if e.get("kind") == "delivery" and e.get("atRisk")}
-        overdue = sum(1 for p in on_board if p["deadline"] < at)
-        at_risk = sum(1 for p in on_board if p["id"] in at_risk_ids and p["deadline"] >= at)
+        # a collected pickup is no longer waiting on its customer deadline
+        waiting = [p for p in on_board if not (p.get("requestType") == "pickup" and p["status"] == "picked_up")]
+        overdue = sum(1 for p in waiting if p["deadline"] < at)
+        at_risk = sum(1 for p in waiting if p["id"] in at_risk_ids and p["deadline"] >= at)
         rides.append({
             "id": t["id"], "label": _label(stops), "state": state,
             "driverId": t.get("driverId"), "driverName": driver.get("name"),

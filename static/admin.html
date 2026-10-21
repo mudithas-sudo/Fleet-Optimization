@@ -780,6 +780,9 @@
   .pd-status.bad { background: var(--danger-soft); color: var(--danger); }
   .pd-facts { display: flex; flex-direction: column; gap: 2px; }
   .pd-facts a, .pd-pod a { color: var(--primary); }
+  .fit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: var(--fs-sm); }
+  .fit-row:first-child { border-top: 0; }
+  .fit-row.no { opacity: .65; }
   .pd-fail { background: var(--danger-soft); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); padding: 9px 11px; font-size: var(--fs-sm); }
   .pd-pod { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
   .pd-images { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: 6px; }
@@ -972,13 +975,13 @@
         </button>
         <button id="btn-clear-delivered" class="link-danger" type="button">Clear delivered</button>
       </h2>
-      <div id="depot-chip" style="margin-top:10px" title="Depot — every delivery run starts here. Click to change it: search a place or click the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
+      <div id="depot-chip" style="margin-top:10px" title="Hub — every run starts here and pickups return here. Click to change it: search a place or click the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
         <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/></svg>
         <span id="depot-label">…</span><span id="depot-action"> · edit</span>
       </div>
       <div id="depot-form" class="form-card" style="display:none; margin-top:8px">
         <div class="field">
-          <label for="df-depot-search">Start point (depot)</label>
+          <label for="df-depot-search">Hub (start point)</label>
           <input id="df-depot-search" class="search-input" style="margin:0" placeholder="Search a place, e.g. Colombo Harbour, press Enter"
                  autocomplete="off" aria-describedby="df-depot-err">
           <div class="field-err" id="df-depot-err" role="alert" hidden></div>
@@ -1024,14 +1027,21 @@
       <div id="filter-note" class="hint" hidden></div>
 
       <div id="parcel-form" class="form-card" style="display:none; margin-top:12px">
+        <div class="field"><label id="pf-kind-label">What is this?</label>
+          <div class="seg" id="pf-kind" role="group" aria-labelledby="pf-kind-label">
+            <button type="button" data-k="delivery" class="active" aria-pressed="true">Delivery</button>
+            <button type="button" data-k="pickup" aria-pressed="false">Pickup request</button>
+          </div>
+          <div class="hint" id="pf-kind-hint" hidden style="margin-top:4px">The customer wants us to collect a shipment. It goes on a run with the deliveries and comes back to the hub.</div>
+        </div>
         <div class="field">
-          <label for="pf-name">Parcel name <span class="req">(required)</span></label>
+          <label for="pf-name" id="pf-name-lbl">Parcel name <span class="req">(required)</span></label>
           <input id="pf-name" class="search-input" style="margin:0" placeholder="e.g. Router #4411"
                  autocomplete="off" aria-describedby="pf-name-err">
           <div class="field-err" id="pf-name-err" role="alert" hidden></div>
         </div>
 
-        <div class="field">
+        <div class="field" id="pf-dest-field">
           <label for="pf-dest">Destination <span class="req">(required)</span></label>
           <div class="loc-field">
             <input id="pf-dest" class="search-input" style="margin:0" placeholder="Search a place, press Enter"
@@ -1094,7 +1104,7 @@
                    aria-describedby="pf-phone-err">
             <div class="field-err" id="pf-phone-err" role="alert" hidden></div>
           </div>
-          <div class="form-grid">
+          <div class="form-grid" id="pf-deliver-times">
             <div class="field"><label for="pf-window">Not before <span class="opt">(optional)</span></label>
               <input id="pf-window" type="datetime-local"></div>
             <div class="field"><label for="pf-deadline">Deliver by <span class="opt">(optional)</span></label>
@@ -1111,7 +1121,7 @@
             <textarea id="pf-notes" rows="2" placeholder="Gate code, floor, leave with neighbour…"></textarea></div>
         </div>
 
-        <label class="toggle-row" style="padding:10px 12px">
+        <label class="toggle-row" id="pf-pickup-toggle" style="padding:10px 12px">
           <span>Collect from a pickup location <span class="opt">(optional)</span></span>
           <input type="checkbox" id="pf-has-pickup">
           <span class="switch" aria-hidden="true"></span>
@@ -1129,9 +1139,14 @@
             <div class="hint" id="pf-pickup-label" style="margin-top:4px">No pickup set</div>
             <div class="field-err" id="pf-pickup-err" role="alert" hidden></div>
           </div>
-          <div class="field"><label for="pf-pickup-from">Collect from <span class="opt">(optional)</span></label><input id="pf-pickup-from" type="datetime-local"></div>
-          <div class="field"><label for="pf-pickup-until">Collect until <span class="opt">(optional)</span></label><input id="pf-pickup-until" type="datetime-local"></div>
+          <div class="field"><label for="pf-pickup-from" id="pf-from-lbl">Collect from <span class="opt">(optional)</span></label><input id="pf-pickup-from" type="datetime-local"></div>
+          <div class="field"><label for="pf-pickup-until" id="pf-until-lbl">Collect until <span class="opt">(optional)</span></label><input id="pf-pickup-until" type="datetime-local"></div>
           <div class="field-err" id="pf-pickup-win-err" role="alert" hidden></div>
+          <label class="toggle-row" id="pf-early-row" hidden style="padding:10px 12px">
+            <span>Ready now, and the customer confirmed we may collect before the cut-off</span>
+            <input type="checkbox" id="pf-early">
+            <span class="switch" aria-hidden="true"></span>
+          </label>
         </div>
 
         <div class="field-err form-err" id="pf-form-err" role="alert" hidden></div>

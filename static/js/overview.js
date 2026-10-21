@@ -12,7 +12,8 @@ function endOfToday() { return startOfToday() + 24 * HOUR; }
 const nowSec = () => Date.now() / 1000;
 
 const isOpen = p => p.status !== "delivered" && p.status !== "returned";
-const isPending = p => PLANNABLE.includes(p.status);
+const isHeld = p => !!(p.holdUntil && p.holdUntil > nowSec());
+const isPending = p => PLANNABLE.includes(p.status) && !isHeld(p);
 const isOut = p => ["assigned", "in_transit", "picked_up"].includes(p.status);
 const isLate = p => isOpen(p) && p.deadlineMissed;
 const driverOf = p => (p.tripId && trips[p.tripId] && trips[p.tripId].driverId) || "";
@@ -166,11 +167,12 @@ function attentionItems() {
     const who = [p.trackingNumber, p.name].filter(Boolean).join(" · ");
     const where = [p.receiverName, p.destination && p.destination.label].filter(Boolean).join(", ");
     const base = { kind: "parcel", id: p.id, title: who, where };
-    if (isLate(p)) {
-      items.push({ ...base, level: 0, tag: "Late", detail: `${fmtMins(mins)} past the deadline · ${p.status.replace(/_/g, " ")}`, sort: p.deadline });
-    } else if (p.status === "awaiting_redelivery") {
+    if (p.status === "failed") {
       const f = p.lastFailure;
-      items.push({ ...base, level: 1, tag: "Failed delivery", detail: `${f ? f.label : "Back at the hub"} — reschedule it or return it to the sender.`, sort: p.deadline });
+      items.push({ ...base, level: isLate(p) ? 0 : 1, tag: p.requestType === "pickup" ? "Failed pickup — review" : "Failed delivery — review",
+        detail: `${f ? f.label : "Attempt failed"} — review it, then reschedule (possibly another day) or ${p.requestType === "pickup" ? "cancel" : "return it"}.`, sort: p.deadline });
+    } else if (isLate(p)) {
+      items.push({ ...base, level: 0, tag: "Late", detail: `${fmtMins(mins)} past the deadline · ${p.status.replace(/_/g, " ")}`, sort: p.deadline });
     } else if (isPending(p) && !fitsAnyVehicle(p)) {
       items.push({ ...base, level: 1, tag: "Can’t be carried", detail: "No vehicle in the fleet can take this parcel — split it, or add a larger vehicle.", sort: p.deadline });
     } else if (atRisk.has(p.id)) {

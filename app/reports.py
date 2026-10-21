@@ -120,7 +120,7 @@ def summary(days: int | None = 7) -> dict:
             "onTimeRate": round(len(on_time) / len(delivered) * 100) if delivered else None,
             "failedAttempts": len(failures), "returned": len(returned),
             "created": sum(1 for p in parcels if _in(p.get("createdAt"), since, until)),
-            "pendingNow": sum(1 for p in parcels if p["status"] in delivery.PARCEL_PLANNABLE_STATUSES),
+            "pendingNow": sum(1 for p in parcels if delivery.is_plannable(p)),
             "firstAttemptRate": (round(sum(1 for p in delivered if p.get("failedAttempts", 0) == 0)
                                        / len(delivered) * 100) if delivered else None),
         },

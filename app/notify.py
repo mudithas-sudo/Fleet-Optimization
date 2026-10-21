@@ -42,6 +42,23 @@ def _compose(parcel: dict, event: str, **info) -> tuple[str, str]:
     first = (parcel.get("receiverName") or "").split()[:1]
     # "N. Silva" -> no first name to use
     who = f"Hi {first[0]}, " if first and not first[0].endswith(".") and len(first[0]) > 1 else "Hello, "
+    if parcel.get("requestType") == "pickup":
+        if event == "out_for_delivery":
+            eta = f" Expect them around {_clock(info['eta'])}." if info.get("eta") else ""
+            return (f"We're on our way to collect {tn}",
+                    f"{who}our driver is on the way to collect shipment {tn}.{eta} {url}")
+        if event == "nearby":
+            return (f"Your driver is nearby", f"{who}our driver is nearby to collect shipment {tn}. {url}")
+        if event == "delivered":
+            return (f"Shipment {tn} collected", f"{who}we collected shipment {tn} and it is back at our hub. {url}")
+        if event == "failed":
+            return (f"We couldn't collect shipment {tn}",
+                    f"{who}we couldn't collect shipment {tn} ({info.get('reason', 'pickup problem').lower()}). "
+                    f"We'll contact you to arrange another pickup. {url}")
+        if event == "rescheduled":
+            when = time.strftime("%d %b %H:%M", time.localtime(info["deadline"])) if info.get("deadline") else "soon"
+            return (f"Pickup {tn} rescheduled", f"{who}the pickup of shipment {tn} is rescheduled for {when}. {url}")
+        return (f"Pickup {tn} cancelled", f"{who}the pickup of shipment {tn} has been cancelled. {url}")
     if event == "out_for_delivery":
         eta = f" It should arrive around {_clock(info['eta'])}." if info.get("eta") else ""
         return (f"Your parcel {tn} is out for delivery",
@@ -54,10 +71,9 @@ def _compose(parcel: dict, event: str, **info) -> tuple[str, str]:
         by = f" Received by {info['receivedBy']}." if info.get("receivedBy") else ""
         return (f"Your parcel {tn} was delivered", f"{who}your parcel {tn} was delivered.{by} {url}")
     if event == "failed":
-        again = (f" We'll try again by {time.strftime('%d %b', time.localtime(info['retryAt']))}."
-                 if info.get("retryAt") else " We'll be in touch to arrange another attempt.")
         return (f"We couldn't deliver parcel {tn}",
-                f"{who}we couldn't deliver parcel {tn} ({info.get('reason', 'delivery problem').lower()}).{again} {url}")
+                f"{who}we couldn't deliver parcel {tn} ({info.get('reason', 'delivery problem').lower()}). "
+                f"We'll contact you to arrange another delivery. {url}")
     if event == "rescheduled":
         when = time.strftime("%d %b %H:%M", time.localtime(info["deadline"])) if info.get("deadline") else "soon"
         return (f"Parcel {tn} rescheduled", f"{who}delivery of parcel {tn} is rescheduled for {when}. {url}")

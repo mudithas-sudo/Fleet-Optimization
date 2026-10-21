@@ -168,7 +168,7 @@ def test_run_label_and_agent_view():
     route = asyncio.run(routing.compute_route(stops, presequenced=True, vehicle_type="van"))
 
     # trip label: depot origin, drop-off address as the end (never the parcel name)
-    assert _run_label(route["orderedStops"]) == "Depot → 45 Marine Drive, Colombo 03"
+    assert _run_label(route["orderedStops"]) == "Hub → 45 Marine Drive, Colombo 03"
     # legs read from the drop-off place, not "Glassware"
     assert route["legs"][-1]["to"] == "45 Marine Drive, Colombo 03"
 

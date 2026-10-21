@@ -30,6 +30,7 @@ let selStopMarkers = [];
 let trafficLines = [];
 
 // parcel form state
+let pfKind = "delivery";    // delivery | pickup (a customer's pickup request)
 let pfSize = "small";
 let pfPrio = "standard";
 let editingDriverId = null;
@@ -113,6 +114,7 @@ async function init() {
   setupDestSearch();
   setupPickupSearch();
   $("pf-has-pickup").onchange = onPickupToggle;
+  document.querySelectorAll("#pf-kind button").forEach(b => { b.onclick = () => setPfKind(b.dataset.k); });
   $("pf-dest").addEventListener("focus", () => armMapTarget("dest"));
   $("pf-pickup").addEventListener("focus", () => armMapTarget("pickup"));
   $("pf-dest-pin").onclick = () => armMapTarget("dest", true);
@@ -351,6 +353,8 @@ function fmtDeadline(p) {
 // the run was aborted) is plannable again.
 const PLANNABLE = ["pending", "awaiting_redelivery"];
 const PARCEL_GROUPS = [
+  { key: "review",   label: "Failed — needs review", dot: "g-active",
+    match: s => s === "failed" },
   { key: "pending",  label: "Pending",          dot: "g-planned",
     match: s => PLANNABLE.includes(s) },
   { key: "transit",  label: "Out for delivery", dot: "g-active",
@@ -377,16 +381,21 @@ function parcelRow(p) {
   const statusText = p.status.replace(/_/g, " ");
   const chips = [
     p.status === "delivered" && p.deadlineMissed ? `<span class="late-tag">late</span>` : "",
-    p.pickup && p.status !== "awaiting_redelivery" ? `<span class="p-chip" title="Collect at ${p.pickup.label}">P</span>` : "",
+    p.requestType === "pickup" ? `<span class="p-chip" title="Customer pickup request — collected, then brought to the hub">pickup</span>` : "",
+    p.requestType === "pickup" && p.earlyOk ? `<span class="p-chip" title="Ready — the customer confirmed early collection">early ok</span>` : "",
+    p.holdUntil && p.holdUntil > Date.now() / 1000 ? `<span class="p-chip" title="Rescheduled — held until ${new Date(p.holdUntil * 1000).toLocaleDateString()}">held</span>` : "",
+    p.requestType !== "pickup" && p.pickup && p.status !== "awaiting_redelivery" ? `<span class="p-chip" title="Collect at ${p.pickup.label}">P</span>` : "",
     p.priority === "express" ? `<span class="p-chip fragile" title="Express — scheduled first">express</span>` : "",
     p.priority === "priority" ? `<span class="p-chip" title="Priority — scheduled ahead of standard parcels">priority</span>` : "",
     p.windowStart && p.windowStart > Date.now() / 1000 ? `<span class="p-chip" title="Not before ${new Date(p.windowStart * 1000).toLocaleString()}">window</span>` : "",
     p.fragile ? `<span class="p-chip fragile" title="Fragile — handle with care">fragile</span>` : "",
-    p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the depot">redeliv</span>` : "",
+    p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the hub">redeliv</span>` : "",
   ].join(" ");
-  const where = p.pickup && p.status !== "awaiting_redelivery"
-    ? `Collect · ${p.pickup.label} → ${p.destination.label}`
-    : p.destination.label;
+  const where = p.requestType === "pickup"
+    ? `Collect · ${p.pickup.label}${p.pickup.earliest ? " · cut-off " + new Date(p.pickup.earliest * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}`
+    : p.pickup && p.status !== "awaiting_redelivery"
+      ? `Collect · ${p.pickup.label} → ${p.destination.label}`
+      : p.destination.label;
   const dims = p.dimensionsCm ? `${p.dimensionsCm.l}×${p.dimensionsCm.w}×${p.dimensionsCm.h} cm` : "";
   const extra = [
     p.trackingNumber || "",
@@ -540,9 +549,17 @@ function validateParcelForm() {
   let ok = true;
   if (!readDimensions().ok) ok = false;
   if (!$("pf-name").value.trim()) { pfErr("pf-name-err", "Give the parcel a name."); ok = false; }
-  if (!pfDest) { pfErr("pf-dest-err", "Search a place or use “Pin on map”."); ok = false; }
+  if (pfKind === "delivery" && !pfDest) { pfErr("pf-dest-err", "Search a place or use “Pin on map”."); ok = false; }
   if (!validateWeightField()) ok = false;
   if (!validatePhoneField()) ok = false;
+  if (pfKind === "pickup") {
+    if (!pfPickup) { pfErr("pf-pickup-err", "Set the customer’s address."); ok = false; }
+    const from = toEpoch($("pf-pickup-from").value), until = toEpoch($("pf-pickup-until").value);
+    if (!from) { pfErr("pf-pickup-win-err", "Enter the customer’s cut-off time."); ok = false; }
+    else if (until && from > until) { pfErr("pf-pickup-win-err", "The collect-by time is before the cut-off."); ok = false; }
+    else if ((until || from) < Date.now() / 1000) { pfErr("pf-pickup-win-err", "That time is in the past."); ok = false; }
+    return ok;
+  }
   if ($("pf-has-pickup").checked) {
     if (!pfPickup) { pfErr("pf-pickup-err", "Set the pickup location, or turn this off."); ok = false; }
     const from = toEpoch($("pf-pickup-from").value), until = toEpoch($("pf-pickup-until").value);
@@ -605,17 +622,47 @@ function toggleParcelForm(show) {
     "pf-window", "pf-email", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
     "pf-deadline", "pf-pickup", "pf-pickup-from", "pf-pickup-until"].forEach(id => { $(id).value = ""; });
   $("pf-fragile").checked = false;
+  $("pf-early").checked = false;
   $("pf-dest-label").textContent = "No destination set";
   $("pf-pickup-label").textContent = "No pickup set";
   $("pf-has-pickup").checked = false;
   $("pf-pickup-fields").hidden = true;
   $("pf-more").hidden = true;
   $("pf-more-btn").setAttribute("aria-expanded", "false");
+  setPfKind("delivery");
   disarmMapTargets();
   pfClearErrors();
   const save = $("pf-save");
   save.disabled = false;
   save.textContent = "Add parcel";
+}
+
+// A pickup request is collected at the customer's address and brought back to
+// the hub, so the destination and delivery times go away and the pickup fields
+// carry the customer's cut-off (collect from) and the collect-by time.
+function setPfKind(kind) {
+  pfKind = kind;
+  const pickup = kind === "pickup";
+  document.querySelectorAll("#pf-kind button").forEach(b => {
+    const on = b.dataset.k === kind;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  $("pf-kind-hint").hidden = !pickup;
+  ["pf-dest-field", "pf-pickup-toggle", "pf-deliver-times", "pf-window-err"].forEach(id => { $(id).hidden = pickup; });
+  $("pf-early-row").hidden = !pickup;
+  $("pf-name-lbl").innerHTML = pickup ? `Shipment name <span class="req">(required)</span>` : `Parcel name <span class="req">(required)</span>`;
+  $("pf-pickup-fields").hidden = !pickup && !$("pf-has-pickup").checked;
+  $("pf-from-lbl").innerHTML = pickup ? `Customer cut-off <span class="req">(required)</span>` : `Collect from <span class="opt">(optional)</span>`;
+  $("pf-until-lbl").innerHTML = pickup ? `Collect by <span class="opt">(default: 2 h after the cut-off)</span>` : `Collect until <span class="opt">(optional)</span>`;
+  $("pf-save").textContent = pickup ? "Add pickup request" : "Add parcel";
+  if (pickup) {
+    $("pf-has-pickup").checked = true;
+    armMapTarget("pickup", true);
+  } else if ($("pf-has-pickup").checked) {
+    $("pf-has-pickup").checked = false;
+    onPickupToggle();
+  }
 }
 
 function onPickupToggle() {
@@ -711,7 +758,8 @@ async function saveParcel() {
   save.disabled = true;
   save.textContent = "Adding…";
 
-  const deadline = toEpoch($("pf-deadline").value) || Date.now() / 1000 + 4 * 3600;
+  const request = pfKind === "pickup";
+  const deadline = request ? null : (toEpoch($("pf-deadline").value) || Date.now() / 1000 + 4 * 3600);
   let pickup = null;
   if ($("pf-has-pickup").checked && pfPickup) {
     pickup = {
@@ -736,7 +784,9 @@ async function saveParcel() {
         dimensionsCm: dims,
         type: $("pf-type").value.trim() || "general",
         size: pfSize,
-        destination: pfDest,
+        requestType: pfKind,
+        earlyOk: request && $("pf-early").checked,
+        destination: request ? null : pfDest,
         pickup,
         deadline,
         weightKg: weight ? Number(weight) : null,
@@ -1305,7 +1355,7 @@ async function saveDriver() {
 
 function runLabel(stops) {
   const first = stops[0], last = stops[stops.length - 1];
-  const origin = (first.depot || first.kind === "depot") ? "Depot" : (first.label || "Start");
+  const origin = (first.depot || first.kind === "depot") ? "Hub" : (first.label || "Start");
   return `${origin} → ${last.place || last.label || "destination"}`;
 }
 

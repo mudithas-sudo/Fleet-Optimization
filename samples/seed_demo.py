@@ -12,10 +12,12 @@ Options
 
 What you get (all times are relative to *now*, so re-run it before a demo):
     4 runs   2 finished earlier today, 1 live right now, 1 scheduled
-    27 parcels   delivered on time and late, a failed attempt waiting to be
-                 rescheduled, one returned to the sender, express / priority /
-                 window parcels, a collect-and-deliver, one that no vehicle can carry
-    history  parcel timelines, signatures and photos, customer messages,
+    30 parcels   delivered on time and late, a failed delivery waiting for review,
+                 one rescheduled for tomorrow after review, one returned to the sender,
+                 express / priority / window parcels, a collect-and-deliver, one that
+                 no vehicle can carry, and three customer pickup requests that arrived
+                 during the day (one already added to the live run, two still open)
+    history  parcel timelines, receipt references and photos, customer messages,
              vehicle position trails (drag the dashboard time bar back to see them)
 """
 
@@ -131,6 +133,12 @@ parcel("p7", "FO-100126", "Shipping pallet, machinery", "Colombo Dockyard", "+94
 parcel("p8", "FO-100127", "Reading glasses", "Dr. Fernando", "+94 77 336 0912", "drf@example.com", "majestic", "small", (18, 8, 5), 0.2)
 
 
+# -- customer pickup requests that arrived during the day (collected, then brought to the hub)
+parcel("q1", "FO-100128", "Tea samples (pickup request)", "Lanka Tea Exports", "+94 11 233 4410", "ship@lankatea.example.com", "union", "small", (40, 30, 20), 6, request=True, cutoff_h=0.5, by_h=2.5)
+parcel("q2", "FO-100129", "Signed contracts (pickup request)", "Havelock Legal", "+94 11 258 7720", None, "kollupitiya", "small", (35, 25, 5), 0.8, request=True, cutoff_h=0.1, by_h=1.6)
+parcel("q3", "FO-100130", "Sample fabric roll (pickup request)", "Ceylon Weavers", "+94 71 330 8821", "orders@weavers.example.com", "dematagoda", "medium", (120, 25, 25), 9, request=True, cutoff_h=3.0, by_h=5.0)
+
+
 # ---------------------------------------------------------------- small PNG maker (no dependencies)
 def _png(width, height, rows):
     raw = b"".join(b"\x00" + bytes(r) for r in rows)
@@ -185,6 +193,19 @@ def new_parcel(key, created_ago_h, deadline_in_h):
     d = P[key]
     label, lat, lng = PLACES[d["place"]]
     x = d["extra"]
+    if x.get("request"):                         # a pickup request: the customer's address, back to the hub
+        hub = delivery.get_depot()
+        latest = NOW + x["by_h"] * HOUR
+        with at(NOW - created_ago_h * HOUR):
+            p = delivery.new_parcel({
+                "name": d["name"], "trackingNumber": d["tracking"], "receiverName": d["receiver"],
+                "recipientPhone": d["phone"], "receiverEmail": d["email"], "size": d["size"], "weightKg": d["kg"],
+                "dimensionsCm": dict(zip("lwh", d["dims"])), "deadline": latest, "requestType": "pickup",
+                "destination": {"lat": hub["lat"], "lng": hub["lng"], "label": hub["label"]},
+                "pickup": {"lat": lat, "lng": lng, "label": label,
+                           "earliest": NOW + x["cutoff_h"] * HOUR, "latest": latest}})
+        P[key]["id"] = p["id"]
+        return p
     with at(NOW - created_ago_h * HOUR):
         p = delivery.new_parcel({
             "name": d["name"], "trackingNumber": d["tracking"], "receiverName": d["receiver"],
@@ -258,9 +279,11 @@ def deliver(trip, key, ts, how, who, *, note=None, late=False):
     p = load(key)
     label, lat, lng = PLACES[P[key]["place"]]
     with at(ts):
-        sig = signature_image(sum(map(ord, key))) if how == "signature" else None
+        # signatures are captured by the separate e-signature process: we keep its reference
+        ref = f"ESIG-{sum(map(ord, key)) * 37 % 900000 + 100000}" if how == "signature" else None
+        how = "handed_over" if how == "signature" else how
         pho = photo_image(sum(map(ord, key)) % 50) if how in ("photo", "left_safe") else None
-        delivery.save_pod(p, how, who, note, sig, pho, trip["id"], lat, lng)
+        delivery.save_pod(p, how, who, note, None, pho, trip["id"], lat, lng, reference=ref)
         delivery.set_parcel_status(p, "delivered")
     trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
     alert(trip, ts, "delivered", f"Delivered: {p['name']}" + (" (past deadline)" if late else ""))
@@ -304,6 +327,7 @@ def main(reset: bool, with_users: bool):
         "n1": (3, 0.6), "n2": (3, 1.6), "n3": (3, 2.2), "n4": (3, 2.0), "n5": (3, 2.8), "n6": (3, 3.5),
         "d1": (1.5, 3.0), "d2": (1.5, 4.0), "d3": (1.5, 5.0),
         "p1": (6, -0.75), "p2": (2, 0.42), "p3": (1, 4.0), "p4": (2, 5.0), "p5": (2, 8.0), "p6": (2, 9.0), "p7": (4, 10.0), "p8": (1, 3.0),
+        "q1": (0.3, 2.5), "q2": (0.45, 1.6), "q3": (0.2, 5.0),
     }
     for key, (ago, due) in plan.items():
         new_parcel(key, ago, due)
@@ -334,12 +358,8 @@ def main(reset: bool, with_users: bool):
     deliver(t, "k6", NOW - 2.9 * HOUR, "handed_over", "Workshop foreman")
     fail(t, "k7", NOW - 2.6 * HOUR, "refused", "Receiver said they no longer need it")      # 3rd failure + refusal -> returned
     finish(t, NOW - 2.3 * HOUR)
-    with at(NOW - 2 * HOUR):                    # dispatch gives the gift hamper another go this evening
-        k5 = load("k5")
-        k5["deadline"] = NOW + 3.5 * HOUR
-        k5["deadlineMissed"] = False
-        delivery.add_event(k5, "rescheduled", "Rescheduled for delivery this evening")
-        db.save_entity("parcels", k5)
+    with at(NOW - 2 * HOUR):                    # dispatch reviews the refused cake: return it to the sender
+        delivery.review_failed(load("k7"), "return", "Receiver no longer needs it — returned to sender", actor="dispatcher1")
 
     # ---- run 3: Van 01 (Nuwan) — live right now
     started = NOW - 50 * MIN
@@ -359,13 +379,30 @@ def main(reset: bool, with_users: bool):
     t["lastPosition"] = {**path_point(t["route"], frac), "ts": NOW}
     store.save_trip(t)
 
+    # a pickup request came in after this run had left the hub: dispatch added it to the live run
+    from app import replan
+    with at(NOW - 12 * MIN):
+        asyncio.run(replan.replan(t["id"], add_ids=[P["q2"]["id"]]))
+    t = store.get_trip(t["id"])
+    t["lastPosition"] = {**path_point(t["route"], frac), "ts": NOW}
+    store.save_trip(t)
+
     # ---- run 4: Car 01 (Dilani) — planned, not started
     make_run("Dilani Fernando", ["d1", "d2", "d3"], created=NOW - 20 * MIN)
 
-    # ---- the failed hamper waits at the hub; the returned cake shows under "Returned"
-    p = load("k7")
-    assert p["status"] == "returned", p["status"]
-    assert load("k5")["status"] == "awaiting_redelivery"
+    # ---- an earlier failed delivery was reviewed: the customer asked for tomorrow morning
+    tomorrow = delivery.day_start(NOW) + 86400 + 9 * HOUR
+    with at(NOW - 0.8 * HOUR):
+        delivery.record_failed_attempt(load("p8"), "no_one_home", "Surgery closed", None)
+    with at(NOW - 0.6 * HOUR):
+        delivery.review_failed(load("p8"), "reschedule", "Spoke to the surgery: deliver tomorrow morning",
+                               tomorrow, actor="dispatcher1")
+
+    # ---- the failed hamper waits for review; the cake shows under "Returned"; the glasses are held until tomorrow
+    assert load("k7")["status"] == "returned", load("k7")["status"]
+    assert load("k5")["status"] == "failed" and load("k5")["review"]["state"] == "pending"
+    assert load("p8")["status"] == "awaiting_redelivery" and load("p8")["holdUntil"]
+    assert load("q2")["status"] == "in_transit" and load("q1")["status"] == "pending"
 
     if with_users:
         from app import auth
@@ -377,6 +414,7 @@ def main(reset: bool, with_users: bool):
     counts = {k: len(db.all_entities(k)) for k in ("vehicles", "drivers", "parcels", "notifications")}
     print(f"Added {counts['vehicles']} vehicles, {counts['drivers']} drivers, {counts['parcels']} parcels, "
           f"4 runs and {counts['notifications']} customer messages.")
+    print("Pickup requests: FO-100129 is on the live run, FO-100128 and FO-100130 are open (open one to see the best-run suggestions).")
     print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando.")
     print("Try the tracking page with FO-100112 (delivered) or FO-100114 (out for delivery).")
     if with_users:

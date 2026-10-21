@@ -8,7 +8,7 @@ const ROLE_ORDER = ["viewer", "dispatcher", "supervisor", "admin"];
 const ROLE_HELP = {
   viewer: "Can look, can’t change anything",
   dispatcher: "Plans and changes deliveries",
-  supervisor: "Dispatcher + fleet, depot, reports",
+  supervisor: "Dispatcher + fleet, hub, reports",
   admin: "Everything, including people",
 };
 

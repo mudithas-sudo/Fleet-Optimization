@@ -71,7 +71,7 @@ async def replan(trip_id: str, add_ids: list[str] | None = None,
     for p in added:
         if p["id"] in by_id:
             raise RunError(f"'{p['name']}' is already on this run.")
-        if p["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        if not delivery.is_plannable(p):
             raise RunError(f"'{p['name']}' is not available to add (it is {p['status'].replace('_', ' ')}).")
 
     open_now = [p for p in members if p["status"] in OPEN and p["id"] not in remove_ids]

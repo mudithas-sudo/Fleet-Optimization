@@ -17,6 +17,7 @@ function palCommands() {
   if (dispatcher) {
     list.push(
       { group: "Do", label: "Add a parcel", key: "n", run: () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); } },
+      { group: "Do", label: "Add a pickup request", key: "", run: () => { switchTab("parcels"); toggleParcelForm(true); setPfKind("pickup"); $("pf-name").focus(); } },
       { group: "Do", label: "Suggest runs for pending parcels", key: "", run: () => { switchTab("parcels"); autoAssign("rules"); } },
       { group: "Do", label: "Import a manifest (CSV or Excel)", key: "", run: () => { switchTab("parcels"); $("btn-import").click(); } },
     );

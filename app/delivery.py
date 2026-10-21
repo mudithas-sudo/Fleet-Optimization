@@ -40,15 +40,22 @@ PARCEL_ACTIVE_STATUSES = ("assigned", "in_transit", "picked_up")
 # a parcel that can be selected for a (new) run
 PARCEL_PLANNABLE_STATUSES = ("pending", "awaiting_redelivery")
 
-# why a delivery attempt failed (code -> label shown to drivers and dispatchers)
+# why an attempt failed (code -> label shown to drivers and dispatchers)
 FAIL_REASONS = {
     "no_one_home": "Nobody home",
     "wrong_address": "Wrong or incomplete address",
     "refused": "Receiver refused the parcel",
     "damaged": "Parcel damaged",
     "access_problem": "Couldn't get access (gate, road, security)",
+    "not_ready": "Shipment not ready for pickup",
+    "customer_unavailable": "Customer unavailable",
+    "cancelled": "Customer cancelled the pickup",
     "other": "Other reason",
 }
+DELIVERY_FAIL_REASONS = ("no_one_home", "wrong_address", "refused", "damaged", "access_problem", "other")
+PICKUP_FAIL_REASONS = ("not_ready", "customer_unavailable", "wrong_address", "access_problem", "cancelled", "other")
+# a shipment that has failed this many times is flagged in review as a candidate for return
+ESCALATE_AFTER = 3
 # how proof of delivery was captured
 POD_METHODS = {
     "handed_over": "Handed to the receiver",
@@ -56,8 +63,18 @@ POD_METHODS = {
     "photo": "Photo taken",
     "left_safe": "Left in a safe place",
 }
-# after this many failed attempts a parcel is returned to the sender
-MAX_DELIVERY_ATTEMPTS = 3
+
+
+def day_start(ts: float) -> float:
+    t = time.localtime(ts)
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def is_plannable(p: dict, now: float | None = None) -> bool:
+    """Can this parcel go on a run right now? Pending or back at the hub, and not
+    held for a later day (a reviewed failure rescheduled for tomorrow waits)."""
+    now = now or time.time()
+    return p["status"] in PARCEL_PLANNABLE_STATUSES and not (p.get("holdUntil") and p["holdUntil"] > now)
 
 
 def _new_id(prefix: str) -> str:
@@ -113,6 +130,8 @@ def new_parcel(data: dict) -> dict:
         "fragile": bool(data.get("fragile")),
         "recipientPhone": (data.get("recipientPhone") or "").strip() or None,
         "notes": (data.get("notes") or "").strip() or None,
+        "requestType": data.get("requestType") or "delivery",   # delivery | pickup (a customer's pickup request)
+        "earlyOk": bool(data.get("earlyOk")),   # pickup: shipment is ready AND the customer confirmed it may be collected before their cut-off
         "status": "pending",
         "deadlineMissed": False,
         "tripId": None,
@@ -120,6 +139,8 @@ def new_parcel(data: dict) -> dict:
         "createdAt": time.time(),
         "failedAttempts": 0,
         "lastFailure": None,    # {reason, label, note, ts, tripId}
+        "review": None,         # {state: pending|done, decision, note, by, ts} — the separate rescheduling process
+        "holdUntil": None,      # epoch: not plannable before this (rescheduled for a later day)
         "pod": None,            # proof-of-delivery meta; images live in the pods table
         "events": [],
     }
@@ -228,7 +249,8 @@ def estimate_run_minutes(parcels: list[dict]) -> float:
     straight-line legs from the hub × 1.35 road factor at 28 km/h, plus 6 min per
     stop (8 for a collect-and-deliver parcel)."""
     from . import routing
-    cur, rest, metres = get_depot(), [p["destination"] for p in parcels], 0.0
+    cur, metres = get_depot(), 0.0
+    rest = [p["pickup"] if p.get("requestType") == "pickup" and p.get("pickup") else p["destination"] for p in parcels]
     while rest:
         nxt = min(rest, key=lambda d: routing._haversine_m(cur, d))
         metres += routing._haversine_m(cur, nxt)
@@ -315,13 +337,17 @@ _STATUS_EVENT = {
 def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None, note=None) -> dict:
     previous = parcel["status"]
     parcel["status"] = status
-    if trip_id is not None or status in ("pending", "awaiting_redelivery", "returned"):
+    if trip_id is not None or status in ("pending", "awaiting_redelivery", "returned", "failed"):
         parcel["tripId"] = trip_id
+    request = parcel.get("requestType") == "pickup"
     if status == "picked_up":
         parcel["pickedUpAt"] = ts or time.time()
+        if request:
+            parcel["deadlineMissed"] = parcel["pickedUpAt"] > parcel["deadline"]
     if status == "delivered":
         parcel["deliveredAt"] = ts or time.time()
-        parcel["deadlineMissed"] = parcel["deliveredAt"] > parcel["deadline"]
+        if not request:
+            parcel["deadlineMissed"] = parcel["deliveredAt"] > parcel["deadline"]
     if status != previous and status in _STATUS_EVENT:
         kind, message = _STATUS_EVENT[status]
         if note:
@@ -331,7 +357,10 @@ def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None, note=Non
             driver = trip and trip.get("driverId") and db.load_entity("drivers", trip["driverId"])
             message = f"Assigned to run {trip_id}" + (f" ({driver['name']})" if driver else "")
         elif status == "in_transit" and trip_id:
-            message = f"Out for delivery on run {trip_id}"
+            message = (f"Driver on the way to collect on run {trip_id}" if request
+                       else f"Out for delivery on run {trip_id}")
+        elif status == "delivered" and request:
+            message = "Received at the hub"
         elif status == "delivered" and parcel["deadlineMissed"]:
             message = "Delivered after the deadline"
         add_event(parcel, kind, message, tripId=trip_id or parcel.get("tripId"))
@@ -360,48 +389,109 @@ def _notify_for_status(parcel: dict, status: str) -> None:
 def record_failed_attempt(parcel: dict, reason: str, note: str | None,
                           trip_id: str | None, retry_at: float | None = None,
                           actor: str = "driver") -> dict:
-    """A delivery attempt failed. The parcel goes back to the hub for another
-    try (awaiting_redelivery), or is returned to the sender once it has used up
-    MAX_DELIVERY_ATTEMPTS or the receiver refused it."""
+    """A delivery (or pickup) attempt failed. The shipment stops in `failed` and
+    waits for a dispatcher to review the reason; nothing reschedules or returns it
+    automatically. `retry_at` is accepted for compatibility and ignored — a date is
+    only set in the review."""
     label = FAIL_REASONS[reason]
     parcel["failedAttempts"] = parcel.get("failedAttempts", 0) + 1
     parcel["lastFailure"] = {"reason": reason, "label": label, "note": note or None,
                              "ts": time.time(), "tripId": trip_id, "by": actor}
+    parcel["review"] = {"state": "pending", "since": time.time()}
     attempt = parcel["failedAttempts"]
-    add_event(parcel, "failed", f"Delivery attempt {attempt} failed: {label}"
+    what = "Pickup" if parcel.get("requestType") == "pickup" else "Delivery"
+    add_event(parcel, "failed", f"{what} attempt {attempt} failed: {label}"
               + (f" — {note}" if note else ""), tripId=trip_id, reason=reason, by=actor)
-    if reason == "refused" or attempt >= MAX_DELIVERY_ATTEMPTS:
-        why = "the receiver refused it" if reason == "refused" else f"{attempt} failed attempts"
-        set_parcel_status(parcel, "returned", trip_id=None, note=f"Returned to sender — {why}")
-    else:
-        if retry_at:
-            parcel["deadline"] = retry_at
-            parcel["deadlineMissed"] = False
-            add_event(parcel, "rescheduled", "Redelivery scheduled for "
-                      + time.strftime("%d %b %H:%M", time.localtime(retry_at)))
-        set_parcel_status(parcel, "awaiting_redelivery", trip_id=None)
-        try:
-            notify.notify(parcel, "failed", reason=label, retryAt=retry_at)
-        except Exception:
-            notify.log.exception("notification failed")
+    set_parcel_status(parcel, "failed", trip_id=None)
+    try:
+        notify.notify(parcel, "failed", reason=label)
+    except Exception:
+        notify.log.exception("notification failed")
+    return parcel
+
+
+def collect_pickup(parcel: dict, trip_id: str | None, actor: str = "driver",
+                   note: str | None = None) -> dict:
+    """The driver has the shipment from the customer. Lateness is judged now."""
+    if parcel["status"] not in ("in_transit", "assigned"):
+        raise ValueError("This pickup isn't out on a run.")
+    set_parcel_status(parcel, "picked_up", note="Collected from the customer"
+                      + (f" — {note}" if note else ""))
+    return parcel
+
+
+def confirm_early(parcel: dict, actor: str = "dispatcher", note: str | None = None) -> dict:
+    """Allow collecting before the customer's cut-off: only when the shipment is
+    ready AND the customer has confirmed it (the dispatcher records that)."""
+    if parcel.get("requestType") != "pickup":
+        raise ValueError("Only a pickup request has a customer cut-off.")
+    if parcel["status"] in ("picked_up", "delivered", "returned"):
+        raise ValueError("This pickup has already been collected or closed.")
+    parcel["earlyOk"] = True
+    add_event(parcel, "edited", "Early collection confirmed with the customer" + (f": {note}" if note else ""), by=actor)
+    db.save_entity("parcels", parcel)
+    store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return parcel
+
+
+def apply_schedule(parcel: dict, when: float) -> None:
+    """Give a parcel a new delivery (or collection cut-off) time. A time on a later
+    day also holds the parcel out of today's planning."""
+    parcel["deadline"] = when
+    parcel["deadlineMissed"] = False
+    if parcel.get("requestType") == "pickup" and parcel.get("pickup"):
+        parcel["pickup"]["latest"] = when
+    parcel["holdUntil"] = day_start(when) if day_start(when) > time.time() else None
+
+
+def review_failed(parcel: dict, decision: str, note: str | None, scheduled_for: float | None = None,
+                  destination: dict | None = None, actor: str = "dispatcher") -> dict:
+    """The review of a failed shipment: reschedule it (the date comes from the
+    customer, e.g. the next day) or return it. Only a parcel in `failed` can be reviewed."""
+    if parcel["status"] != "failed":
+        raise ValueError("Only a failed shipment can be reviewed.")
+    note = (note or "").strip() or None
+    parcel["review"] = {"state": "done", "decision": decision, "note": note, "by": actor, "ts": time.time()}
+    add_event(parcel, "review", "Reviewed" + (f": {note}" if note else ""), by=actor)
+    if decision == "return":
+        what = "Pickup cancelled" if parcel.get("requestType") == "pickup" else "Returned to sender"
+        set_parcel_status(parcel, "returned", trip_id=None, note=what + " after review")
+        return parcel
+    if not scheduled_for or scheduled_for < time.time():
+        raise ValueError("Choose a new time in the future.")
+    if destination and parcel.get("requestType") != "pickup":
+        parcel["destination"] = destination
+        add_event(parcel, "edited", f"Delivery address changed to {destination['label']}")
+    apply_schedule(parcel, scheduled_for)
+    add_event(parcel, "rescheduled", "Rescheduled for " + time.strftime("%d %b %H:%M", time.localtime(scheduled_for)),
+              by=actor)
+    # a failed pickup is attempted again from scratch; a failed delivery waits at the hub
+    set_parcel_status(parcel, "pending" if parcel.get("requestType") == "pickup" else "awaiting_redelivery", trip_id=None)
+    try:
+        notify.notify(parcel, "rescheduled", deadline=scheduled_for)
+    except Exception:
+        notify.log.exception("notification failed")
     return parcel
 
 
 def save_pod(parcel: dict, method: str, received_by: str | None, note: str | None,
              signature: str | None, photo: str | None, trip_id: str | None,
-             lat: float | None, lng: float | None, actor: str = "driver") -> dict:
+             lat: float | None, lng: float | None, actor: str = "driver",
+             reference: str | None = None) -> dict:
     """Attach proof of delivery. Images go to the pods table so parcel lists
     and live updates stay small."""
     parcel["pod"] = {
         "method": method, "label": POD_METHODS[method],
         "receivedBy": received_by or None, "note": note or None,
+        "reference": reference or None,        # id of the signature/receipt in the existing e-signature process
         "hasSignature": bool(signature), "hasPhoto": bool(photo),
         "ts": time.time(), "tripId": trip_id, "by": actor,
         "position": {"lat": lat, "lng": lng} if lat is not None and lng is not None else None,
     }
     db.save_entity("pods", {"id": parcel["id"], "createdAt": time.time(),
                             "signature": signature, "photo": photo})
-    detail = POD_METHODS[method] + (f" — {received_by}" if received_by else "")
+    detail = (POD_METHODS[method] + (f" — {received_by}" if received_by else "")
+              + (f" (ref {reference})" if reference else ""))
     add_event(parcel, "pod", "Proof of delivery: " + detail, tripId=trip_id, by=actor)
     return parcel
 
@@ -410,7 +500,8 @@ def flag_overdue(parcels: list[dict]) -> list[dict]:
     """Lazily mark undelivered, overdue parcels; persists + broadcasts changes."""
     now = time.time()
     for p in parcels:
-        if p["status"] != "delivered" and not p["deadlineMissed"] and now > p["deadline"]:
+        collected = p.get("requestType") == "pickup" and p["status"] in ("picked_up", "delivered")
+        if p["status"] != "delivered" and not collected and not p["deadlineMissed"] and now > p["deadline"]:
             p["deadlineMissed"] = True
             db.save_entity("parcels", p)
             store.broadcast_global("parcel", {"parcel": p, "deleted": False})
@@ -434,7 +525,7 @@ def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) 
             w = p.get("pickup") or {}
             earliest, latest = w.get("earliest"), w.get("latest")
             at_risk = (latest is not None and eta > latest) or \
-                      (earliest is not None and eta < earliest)
+                      (earliest is not None and eta < earliest and not p.get("earlyOk"))
             etas.append({"stopIndex": i, "parcelId": pid, "kind": "pickup",
                          "eta": eta, "earliest": earliest, "latest": latest,
                          "atRisk": at_risk})
@@ -443,7 +534,8 @@ def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) 
             etas.append({"stopIndex": i, "parcelId": pid, "kind": "delivery",
                          "eta": eta, "deadline": p["deadline"], "windowStart": ws,
                          "early": bool(ws and eta < ws),
-                         "atRisk": eta > p["deadline"]})
+                         # a pickup request's hub drop has no customer deadline
+                         "atRisk": eta > p["deadline"] and p.get("requestType") != "pickup"})
     return etas
 
 
@@ -458,11 +550,21 @@ def build_run_stops(parcels: list[dict]) -> list[dict]:
     stops = [{**depot, "depot": True, "kind": "depot"}]
     for p in parcels:
         pk = p.get("pickup")
+        request = p.get("requestType") == "pickup"
         if pk and p["status"] not in ("awaiting_redelivery", "picked_up"):
             stops.append({"lat": pk["lat"], "lng": pk["lng"], "label": pk["label"],
                           "parcelId": p["id"], "parcelName": p["name"], "kind": "pickup",
                           "place": pk["label"], "priority": p.get("priority", "standard"),
-                          "earliest": pk.get("earliest"), "latest": pk.get("latest")})
+                          # a pickup request is collected from the customer's cut-off; earlier only when confirmed
+                          "earliest": None if p.get("earlyOk") else pk.get("earliest"),
+                          "latest": pk.get("latest"),
+                          **({"requestType": "pickup", "earlyOk": bool(p.get("earlyOk"))} if request else {})})
+        if request:
+            stops.append({"lat": depot["lat"], "lng": depot["lng"], "label": depot["label"],
+                          "parcelId": p["id"], "parcelName": p["name"], "place": depot["label"],
+                          "kind": "delivery", "hubReturn": True,
+                          "priority": p.get("priority", "standard"), "deadline": p["deadline"]})
+            continue
         dest_label = (p["destination"].get("label") or "").strip() or p["name"]
         stops.append({"lat": p["destination"]["lat"], "lng": p["destination"]["lng"],
                       # the stop label is the drop-off place, not the parcel name —
@@ -522,7 +624,7 @@ async def create_run(parcel_ids: list[str], driver_id: str,
         p = db.load_entity("parcels", pid)
         if not p:
             raise RunError(f"Parcel {pid} not found", 404)
-        if p["status"] not in PARCEL_PLANNABLE_STATUSES:
+        if not is_plannable(p):
             raise RunError(f"Parcel '{p['name']}' is not available to plan")
         parcels.append(p)
     if not parcels:
@@ -556,11 +658,14 @@ async def create_run(parcel_ids: list[str], driver_id: str,
 
 def get_depot() -> dict:
     depot = db.get_setting("depot")
+    if depot and depot.get("label") == "Colombo Depot":      # renamed: every run starts at the local hub
+        depot["label"] = "Colombo Hub"
+        db.set_setting("depot", depot)
     if not depot:
         depot = {
             "lat": float(os.environ.get("DEPOT_LAT", "6.9344")),
             "lng": float(os.environ.get("DEPOT_LNG", "79.8428")),
-            "label": os.environ.get("DEPOT_LABEL", "Colombo Depot"),
+            "label": os.environ.get("DEPOT_LABEL", "Colombo Hub"),
         }
         db.set_setting("depot", depot)
     return depot

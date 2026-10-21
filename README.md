@@ -6,7 +6,7 @@ import with client-side parsing and geocoding). A persistent Registry holds
 vehicles (type, capacity, max parcel size) and drivers (with per-driver queue
 links). Selecting pending parcels opens a driver picker that enforces
 size/capacity eligibility; a **delivery run** is planned from a configurable
-depot through the parcel destinations by the ADK agent. Parcels flow
+hub through the parcel destinations by the ADK agent. Parcels flow
 pending → assigned → in transit → delivered, ticked off per-stop as the
 vehicle's on-route progress passes each destination (late deliveries flagged
 against deadlines); manifests in the run detail card show per-stop ETAs with
@@ -43,13 +43,27 @@ selects its model (gemini-3.5-flash recommended).
   late / on-time %), parcel search and driver/date filters, and an Attention
   tab listing late, at-risk, off-route, failed and un-carriable items by urgency.
 - **Proof of delivery** — the driver's **My stops** sheet (list button in the
-  navigator) confirms a drop with who received it, a drawn signature and/or a
-  photo, or "left in a safe place". Evidence is stored apart from the parcel so
-  lists stay light; dispatch can also record a delivery by hand.
-- **Failed deliveries** — the driver picks a reason (nobody home, wrong address,
-  refused, damaged, no access). The parcel returns to the hub for redelivery
-  (reschedule it with a new time or corrected address) and is returned to the
-  sender after 3 failed attempts or a refusal.
+  navigator) confirms a drop with who received it, a photo and/or the **receipt
+  reference** from the existing e-signature process (signatures are captured
+  there, not in this app), or "left in a safe place". Evidence is stored apart from
+  the parcel so lists stay light; dispatch can also record a delivery by hand.
+- **Pickup requests** — customers ask for a collection during the day. A pickup
+  request is a parcel with the customer's address, their **cut-off time** and a
+  collect-by time; it is collected and brought back to the **hub** (the last stop
+  of the run), on the same vehicle and route as the deliveries. Pickups follow the
+  customer's cut-off: before it they wait behind ready stops, unless dispatch records
+  that the shipment is ready *and* the customer confirmed early collection. The
+  parcel detail suggests the best run (extra minutes, arrival time, cut-off and
+  vehicle limits, deliveries it would push late); "Add to run" re-plans a live
+  run from the vehicle's position. Drivers tick **Collected** themselves — driving
+  past never collects a pickup. All last-mile work starts at the local hub.
+- **Failed deliveries and pickups** — the driver picks a reason (nobody home, wrong
+  address, refused, damaged, no access; for pickups: not ready, customer
+  unavailable, cancelled…). The shipment stops in **Failed — needs review**; nothing
+  is rescheduled or returned automatically. A dispatcher reviews it, then
+  reschedules it (typically for the next day if the customer asks, with an
+  optional corrected address — a later day keeps it out of today's runs) or
+  returns/cancels it. A third failure only flags it as a candidate for return.
 - **Parcel timeline** — every parcel keeps a history (created, assigned, out for
   delivery, collected, failed, rescheduled, proof recorded, delivered); open it
   by clicking a parcel in the admin list.
@@ -84,7 +98,7 @@ selects its model (gemini-3.5-flash recommended).
   failures by reason, per-driver productivity, distance, cost per delivery
   (editable per-km / per-hour rates) and CSV exports for parcels, runs, drivers.
 - **Users and roles** — set `AUTH_ENABLED=1` to require sign-in. Roles: viewer
-  (read), dispatcher (plan and change deliveries), supervisor (+ fleet, depot,
+  (read), dispatcher (plan and change deliveries), supervisor (+ fleet, hub,
   reports), admin (+ people). Driver links carry a secret key (`&k=…`), so the
   driver app needs no login but guessed ids can't mark deliveries.
 
@@ -99,9 +113,10 @@ normal `fleet.db` is untouched) at http://localhost:8001:
 ```
 
 It loads a working day relative to *now*: 4 runs (2 finished earlier today, 1 live,
-1 scheduled), 27 parcels (on-time and late deliveries, a failed attempt waiting to
-be rescheduled, one returned to the sender, express / priority / window parcels,
-collect-and-deliver, one no vehicle can carry), proof-of-delivery signatures and
+1 scheduled), 30 parcels (on-time and late deliveries, a failed delivery waiting
+for review, one rescheduled for tomorrow after review, one returned to the sender,
+express / priority / window parcels, collect-and-deliver, one no vehicle can carry,
+three customer pickup requests that arrived during the day), receipt references and
 photos, customer messages, and vehicle position trails you can replay with the
 dashboard time bar. Re-run it before a demo so the times are fresh. Seeding makes
 no API calls. To load the same data into your normal database instead, run

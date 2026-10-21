@@ -79,8 +79,9 @@ def test_delivery_failure_and_reschedule_messages():
     failed = [m for m in notify.for_parcel(p["id"]) if m["event"] == "failed"]
     assert len(failed) == 1 and "nobody home" in failed[0]["message"].lower()
     assert "neighbour" not in failed[0]["message"]
-    r = client.post(f"/api/parcels/{p['id']}/reschedule", json={"deadline": time.time() + 86400})
-    assert r.status_code == 200
+    assert "contact you" in failed[0]["message"]
+    r = client.post(f"/api/parcels/{p['id']}/review", json={"decision": "reschedule", "scheduledFor": time.time() + 86400})
+    assert r.status_code == 200, r.text
     assert [m["event"] for m in notify.for_parcel(p["id"])][-1] == "rescheduled"
 
 
