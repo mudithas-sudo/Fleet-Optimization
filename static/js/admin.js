@@ -139,6 +139,7 @@ async function init() {
   setupDragAndDrop();
   setupReassign();
   setupBreakdown();
+  if (typeof setupRoutes === "function") setupRoutes();
   $("btn-auto").onclick = () => autoAssign("rules");
   $("btn-auto-ai").onclick = () => autoAssign("ai");
   $("btn-close-dispatch").onclick = closeDispatch;
@@ -186,6 +187,7 @@ async function init() {
   $("df-save").onclick = saveDriver;
 
   await Promise.all([loadDepot(), loadParcels(), loadRegistry(), loadTrips(), loadUsers()]);
+  if (typeof loadRouteTemplates === "function") loadRouteTemplates();
   openStream();
   switchTab("dashboard");
   if (typeof renderHero === "function") renderHero();
@@ -375,6 +377,23 @@ function parcelGroupHead(label, count, dotMod) {
   return head;
 }
 
+// ---- card helpers: initials, the progress line with a truck on it, parcel progress
+function initialsOf(name) {
+  return String(name || "?").replace(/[^\p{L}\p{N}\s.]/gu, "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+}
+
+function progressLine(pct, tone = "") {
+  const at = Math.max(0, Math.min(100, pct));
+  return `<div class="pc-route ${tone}" role="img" aria-label="${Math.round(at)}% of the way">
+    <span class="pc-dot start"></span>
+    <span class="pc-line"><i style="width:${at}%"></i><span class="pc-truck" style="left:${at}%">${iconSvg("truck")}</span></span>
+    <span class="pc-dot end ${at >= 100 ? "done" : ""}"></span></div>`;
+}
+
+function parcelProgressPct(p) {
+  return { pending: 0, awaiting_redelivery: 8, assigned: 25, in_transit: 60, picked_up: 70, failed: 60, delivered: 100, returned: 40 }[p.status] ?? 0;
+}
+
 function parcelRow(p) {
   const row = document.createElement("div");
   row.className = "parcel-row";
@@ -406,16 +425,37 @@ function parcelRow(p) {
     p.weightKg ? `${(+p.weightKg).toLocaleString()} kg` : "",
     p.recipientPhone || "",
   ].filter(Boolean).join(" · ");
+  const hub = (typeof depot !== "undefined" && depot && depot.label) || "Hub";
+  const from = p.requestType === "pickup" || (p.pickup && p.status !== "awaiting_redelivery") ? p.pickup.label : hub;
+  const to = p.destination.label;
+  const pct = parcelProgressPct(p);
+  const tone = (typeof PD_STATUS_TONE !== "undefined" && PD_STATUS_TONE[p.status]) || "";
+  const label = (typeof PD_STATUS !== "undefined" && PD_STATUS[p.status]) || statusText;
+  const metaBits = [p.type, dims, p.weightKg ? `${(+p.weightKg).toLocaleString()} kg` : "",
+    p.requestType === "pickup" && p.pickup.earliest ? "cut-off " + new Date(p.pickup.earliest * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""].filter(Boolean).join(" · ");
+  row.classList.add("pcard", `st-${p.status}`);
   row.innerHTML = `
-    ${plannable
-      ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
-      : `<span class="p-dot ${p.status}" title="${statusText}"></span>`}
-    <div class="info">
-      <div class="label">${p.name} <span class="size-chip">${p.size[0]}</span> ${chips}</div>
-      <div class="meta">${where} · ${p.type} · ${statusText}${extra ? " · " + extra : ""}</div>
+    <div class="pc-head">
+      ${plannable
+        ? `<input type="checkbox" aria-label="Select ${p.name}" ${selectedParcels.has(p.id) ? "checked" : ""}>`
+        : `<span class="p-dot ${p.status}" title="${statusText}"></span>`}
+      <div class="info">
+        <div class="pc-id">${p.trackingNumber || p.name}</div>
+        <div class="pc-name">${p.name} <span class="size-chip">${p.size[0]}</span> ${chips}</div>
+      </div>
+      <span class="pill ${tone}">${label}</span>
+      ${plannable ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}
     </div>
-    <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
-    ${plannable ? `<button class="del" type="button" aria-label="Delete ${p.name}">${iconSvg("trash")}</button>` : ""}`;
+    ${progressLine(pct, p.status === "failed" || p.status === "returned" ? "bad" : p.status === "delivered" ? "done" : "")}
+    <div class="pc-addr"><span title="${from}">${from}</span><span title="${to}">${to}</span></div>
+    <div class="pc-foot">
+      <span class="avatar sm">${initialsOf(p.receiverName || p.name)}</span>
+      <div class="pc-who"><b>${p.receiverName || "Receiver not set"}</b><small>${p.requestType === "pickup" ? "Customer" : "Receiver"}${p.recipientPhone ? " · " + p.recipientPhone : ""}</small></div>
+      <div class="deadline ${dl.cls}">${dl.cls ? iconSvg("clock") : ""}${dl.text}</div>
+      ${p.recipientPhone ? `<a class="icon-btn" href="tel:${p.recipientPhone}" aria-label="Call ${p.receiverName || p.name}" title="Call">${iconSvg("phone")}</a>` : ""}
+      ${p.receiverEmail ? `<a class="icon-btn" href="mailto:${p.receiverEmail}" aria-label="Email ${p.receiverName || p.name}" title="Email">${iconSvg("mail")}</a>` : ""}
+    </div>
+    ${metaBits ? `<div class="pc-meta">${metaBits}</div>` : ""}`;
   if (plannable || ["assigned", "in_transit", "picked_up"].includes(p.status)) makeDraggable(row, p.id);
   const info = row.querySelector(".info");
   info.setAttribute("role", "button");
@@ -1456,21 +1496,33 @@ function groupHeader(g, count) {
 }
 
 function tripRow(t) {
-  const row = document.createElement("button");
-  row.type = "button";
-  row.className = `trip-row status-${t.status}` + (t.id === selectedId ? " selected" : "");
+  const row = document.createElement("div");
+  row.setAttribute("role", "button");
+  row.tabIndex = 0;
+  row.className = `trip-row tcard status-${t.status}` + (t.id === selectedId ? " selected" : "");
   if (t.id === selectedId) row.setAttribute("aria-current", "true");
-  const drv = t.driverName ? ` · ${t.driverName}` : "";
-  const del = t.parcelCount ? ` · ${t.deliveredCount}/${t.parcelCount} delivered` : "";
+  const drv = driversReg.find(d => d.id === t.driverId);
+  const [from, to] = String(t.label || "").split("→").map(x => x.trim());
+  const pct = t.parcelCount ? Math.round((t.deliveredCount / t.parcelCount) * 100) : (t.status === "completed" ? 100 : 0);
+  const tone = { planned: "warn", active: "info", deviating: "bad", completed: "ok" }[t.status] || "";
+  const word = { planned: "Planned", active: "Under way", deviating: "Off route", completed: "Finished" }[t.status] || t.status;
   row.innerHTML = `
-    <span class="veh-ico">${vehIconSvg(t.vehicleType)}</span>
-    <div class="info">
-      <div class="label">${t.label}</div>
-      <div class="meta">${t.id}${drv} · ${fmtKm(t.totalDistanceMeters)}${del}</div>
+    <div class="pc-head">
+      <span class="veh-ico">${vehIconSvg(t.vehicleType)}</span>
+      <div class="info"><div class="pc-id">${t.id}</div><div class="pc-name">${t.templateCode ? `<span class="p-chip" title="${t.templateName || ""}">${t.templateCode}</span> ` : ""}${t.parcelCount || 0} parcel${t.parcelCount === 1 ? "" : "s"} · ${fmtKm(t.totalDistanceMeters)}</div></div>
+      <span class="pill ${tone}">${word}</span>
     </div>
-    ${t.risk ? `<span class="dev-badge risk">${iconSvg("alert")} ${t.risk}</span>` : ""}
-    ${t.deviations ? `<span class="dev-badge">${iconSvg("alert")} ${t.deviations}</span>` : ""}`;
-  row.onclick = () => selectTrip(t.id);
+    ${progressLine(pct, t.status === "deviating" ? "bad" : t.status === "completed" ? "done" : "")}
+    <div class="pc-addr"><span title="${from || ""}">${from || "Hub"}</span><span title="${to || ""}">${to || ""}</span></div>
+    <div class="pc-foot">
+      <span class="avatar sm">${initialsOf(t.driverName || "–")}</span>
+      <div class="pc-who"><b>${t.driverName || "No driver"}</b><small>${t.parcelCount ? `${t.deliveredCount}/${t.parcelCount} delivered` : "Driver"}</small></div>
+      ${t.risk ? `<span class="dev-badge risk">${iconSvg("alert")} ${t.risk}</span>` : ""}
+      ${t.deviations ? `<span class="dev-badge">${iconSvg("alert")} ${t.deviations}</span>` : ""}
+      ${drv && drv.phone ? `<a class="icon-btn" href="tel:${drv.phone}" aria-label="Call ${drv.name}" title="Call">${iconSvg("phone")}</a>` : ""}
+    </div>`;
+  row.onclick = e => { if (!e.target.closest("a")) selectTrip(t.id); };
+  row.onkeydown = e => { if ((e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); selectTrip(t.id); } };
   if (t.status !== "completed") makeDropTarget(row, t.id);
   return row;
 }

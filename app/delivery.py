@@ -610,7 +610,7 @@ class RunError(Exception):
 
 
 async def create_run(parcel_ids: list[str], driver_id: str,
-                     avoid_tolls: bool = False) -> dict:
+                     avoid_tolls: bool = False, deterministic: bool = False) -> dict:
     """Create a delivery run: depot → optimized parcel drop-offs, planned by
     the existing ADK planner. Factored here so phase 2's dispatch agent can
     call it programmatically."""
@@ -640,7 +640,7 @@ async def create_run(parcel_ids: list[str], driver_id: str,
 
     stops = build_run_stops(parcels)
 
-    if routing.has_special_handling(stops):
+    if deterministic or routing.has_special_handling(stops):
         route = await plan_with_priorities(stops, avoid_tolls, vehicle["type"])
     else:
         route = await plan_route(stops, avoid_tolls=avoid_tolls,

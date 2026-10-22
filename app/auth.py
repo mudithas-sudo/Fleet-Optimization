@@ -172,6 +172,8 @@ def required_role(method: str, path: str) -> int:
         return ROLES["admin"]
     if path.startswith(("/api/reports", "/api/impact", "/api/settings/costs", "/api/settings/fuel")):
         return ROLES["supervisor"]
+    if write and path.startswith("/api/route-templates") and not path.endswith("/run"):
+        return ROLES["supervisor"]                          # editing standing routes is a supervisor job; running one is dispatch
     if write and (path.startswith(("/api/vehicles", "/api/drivers", "/api/settings"))
                   or (path == "/api/trips" and method == "DELETE")):
         return ROLES["supervisor"]

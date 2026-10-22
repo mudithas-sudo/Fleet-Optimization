@@ -90,6 +90,17 @@ DRIVERS = [   # name, phone, vehicle, extras
     ("Chaminda Rathnayake", "+94 75 318 2290", "Truck 01", {"onLeave": True}),
 ]
 
+# ---------------------------------------------------------------- predefined routes
+# code, name, zone centre, radius km, default driver, start time, recurring pickups (place, customer, cut-off, collect by)
+ROUTE_TEMPLATES = [
+    ("R-01", "Colombo Central", "union", 5, None, "08:00",
+     [("galleface", "Hotel linen returns", "16:00", "17:30"), ("pettah", "Pettah wholesale dispatch", "15:00", "17:00")]),
+    ("R-02", "Southern Corridor", "dehiwala", 7, "Kamal Silva", "08:30",
+     [("lavinia", "Seaside Pharmacy", "14:00", "16:00")]),
+    ("R-03", "Northern Corridor", "wattala", 7, None, "09:00",
+     [("kiribathgoda", "Kiribathgoda Mart", "13:00", "15:00")]),
+]
+
 # ---------------------------------------------------------------- parcels
 # key: (tracking, parcel, receiver, phone, email, place, size, (L,W,H) cm, kg, extras)
 P = {}
@@ -336,7 +347,7 @@ def main(reset: bool, with_users: bool):
     if existing and not reset:
         sys.exit("Data already exists. Re-run with --reset to replace it (staff accounts are kept).")
     if reset:
-        for table in ("parcels", "vehicles", "drivers", "pods", "notifications"):
+        for table in ("parcels", "vehicles", "drivers", "pods", "notifications", "route_templates"):
             for e in db.all_entities(table):
                 db.delete_entity(table, e["id"])
         db.clear_trips()
@@ -344,6 +355,18 @@ def main(reset: bool, with_users: bool):
     vehicles = {v["name"]: delivery.new_vehicle(v) for v in VEHICLES}
     for name, phone, vehicle, extra in DRIVERS:
         delivery.new_driver({"name": name, "phone": phone, "vehicleId": vehicles[vehicle]["id"], **extra})
+
+    # predefined routes: standing zones with a default driver and recurring pickups
+    from app import route_templates
+    by_name = {d["name"]: d for d in db.all_entities("drivers")}
+    for code, name, centre, radius, driver, start, pickups in ROUTE_TEMPLATES:
+        label, lat, lng = PLACES[centre]
+        route_templates.save({
+            "code": code, "name": name, "zone": {"lat": lat, "lng": lng, "label": label, "radiusKm": radius},
+            "driverId": by_name[driver]["id"] if driver else None, "days": [0, 1, 2, 3, 4, 5] if code != "R-03" else [0, 1, 2, 3, 4],
+            "startTime": start,
+            "pickups": [{"label": PLACES[pl][0], "lat": PLACES[pl][1], "lng": PLACES[pl][2], "name": who, "readyBy": ready,
+                         "collectBy": by, "size": "small"} for pl, who, ready, by in pickups]})
 
     # parcels: (key, created hours ago, deadline hours from now)
     plan = {
@@ -442,6 +465,7 @@ def main(reset: bool, with_users: bool):
     counts = {k: len(db.all_entities(k)) for k in ("vehicles", "drivers", "parcels", "notifications")}
     print(f"Added {counts['vehicles']} vehicles, {counts['drivers']} drivers, {counts['parcels']} parcels, "
           f"4 runs and {counts['notifications']} customer messages.")
+    print("Predefined routes: R-01 Colombo Central, R-02 Southern Corridor, R-03 Northern Corridor (Runs page > Run today's route).")
     print("Pickup requests: FO-100129 is on the live run, FO-100128 and FO-100130 are open (open one to see the best-run suggestions).")
     print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando.")
     print("Try the tracking page with FO-100112 (delivered) or FO-100114 (out for delivery).")

@@ -32,12 +32,13 @@ CREATE TABLE IF NOT EXISTS drivers  (id TEXT PRIMARY KEY, created_at REAL, data 
 CREATE TABLE IF NOT EXISTS pods     (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
 CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
 CREATE TABLE IF NOT EXISTS users    (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
+CREATE TABLE IF NOT EXISTS route_templates (id TEXT PRIMARY KEY, created_at REAL, data TEXT);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 """)
 
 # ---- generic JSON-blob entities (parcels / vehicles / drivers) ----
 
-_ENTITY_TABLES = {"parcels", "vehicles", "drivers", "pods", "notifications", "users"}
+_ENTITY_TABLES = {"parcels", "vehicles", "drivers", "pods", "notifications", "users", "route_templates"}
 
 
 def _table(table: str) -> str:

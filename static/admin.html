@@ -887,9 +887,9 @@
   /* ---------- who is signed in; role-based hiding ---------- */
   body.role-viewer :is(#btn-add-parcel, #btn-import, #btn-auto, #btn-auto-ai, #btn-clear-delivered, #btn-clear-all,
     #run-footer, #depot-chip, #depot-form, #btn-add-vehicle, #btn-add-driver, .edit-driver, .del, #btn-delete,
-    #btn-reassign, #btn-breakdown, #breakdown-form, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports, #btn-impact) { display: none !important; }
+    #btn-reassign, #btn-breakdown, #breakdown-form, .rc-run, .rc-driver, #btn-new-route, .rc-tools, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports, #btn-impact) { display: none !important; }
   body.role-dispatcher :is(#btn-add-vehicle, #btn-add-driver, .edit-driver, .reg-row .del, #depot-chip, #depot-form,
-    #btn-clear-all, #btn-reports, #btn-impact) { display: none !important; }
+    #btn-clear-all, #btn-reports, #btn-impact, #btn-new-route, .rc-tools) { display: none !important; }
   body.role-supervisor #users-section { display: none !important; }
   #users-section[hidden] { display: none; }
   #users-section .reg-row.off { opacity: .6; }
@@ -900,6 +900,7 @@
 </style>
 <link rel="stylesheet" href="/static/css/console.css">
 <link rel="stylesheet" href="/static/css/modern.css">
+<link rel="stylesheet" href="/static/css/tracking.css">
 </head>
 <body data-page="dashboard">
 <a class="skip-link" href="#stage">Skip to content</a>
@@ -1003,6 +1004,7 @@
         </button>
         <button id="btn-clear-delivered" class="link-danger" type="button">Clear delivered</button>
       </h2>
+      <p class="page-sub">Everything waiting, on the road or done. Pick parcels to plan a run, or let “Suggest runs” do it.</p>
       <div id="depot-chip" style="margin-top:10px" title="Hub — every run starts here and pickups return here. Click to change it: search a place or click the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
         <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/></svg>
         <span id="depot-label">…</span><span id="depot-action"> · edit</span>
@@ -1190,6 +1192,38 @@
     <!-- ================= RUNS (fleet) ================= -->
     <section id="tab-fleet" role="tabpanel" aria-label="Runs" hidden>
       <h2>Delivery runs <span class="spacer"></span><button id="btn-clear-all" class="link-danger" type="button">Clear all</button></h2>
+      <p class="page-sub">Today’s runs and the standing routes they come from.</p>
+      <section id="routes-section" class="routes" aria-label="Predefined routes">
+        <div class="routes-head"><div><h3>Predefined routes</h3><span class="hint">Standing routes: a zone, a driver, service days and recurring pickups.</span></div>
+          <button id="btn-new-route" class="link-action" type="button"><svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> New route</button></div>
+        <div id="route-form" class="form-card" hidden>
+          <h4 id="rt-title">New predefined route</h4>
+          <div class="form-grid">
+            <div class="field"><label for="rt-code">Route code</label><input id="rt-code" maxlength="20" placeholder="R-01" autocomplete="off"></div>
+            <div class="field"><label for="rt-name">Name</label><input id="rt-name" maxlength="60" placeholder="Colombo Central" autocomplete="off"></div>
+          </div>
+          <div class="field"><label for="rt-zone">Zone centre</label><input id="rt-zone" class="search-input" style="margin:0" placeholder="Search a place, press Enter" autocomplete="off">
+            <div class="hint" id="rt-zone-label" style="margin-top:4px">No zone centre set</div><div class="field-err" id="rt-zone-err" role="alert" hidden></div></div>
+          <div class="form-grid">
+            <div class="field"><label for="rt-radius">Zone radius (km)</label><input id="rt-radius" type="number" min="0.5" max="100" step="0.5" value="5" inputmode="decimal"></div>
+            <div class="field"><label for="rt-start">Start time</label><input id="rt-start" type="time" value="08:00"></div>
+          </div>
+          <div class="field"><label for="rt-driver">Default driver</label><select id="rt-driver"></select></div>
+          <div class="field"><label id="rt-days-label">Service days</label><div id="rt-days" class="days" role="group" aria-labelledby="rt-days-label"></div></div>
+          <div class="field"><label>Recurring pickups</label><div id="rt-pickups"></div>
+            <div class="rt-pk">
+              <input id="rt-pk-search" class="search-input" style="margin:0" placeholder="Pickup address, press Enter" autocomplete="off" aria-label="Pickup address">
+              <div class="hint" id="rt-pk-label">No place found yet</div>
+              <div class="form-grid"><input id="rt-pk-name" placeholder="Customer or job" maxlength="60" aria-label="Customer or job" autocomplete="off">
+                <input id="rt-pk-ready" type="time" aria-label="Customer cut-off"><input id="rt-pk-by" type="time" aria-label="Collect by"></div>
+              <div class="hint">Cut-off (ready from) and collect-by times are optional.</div>
+              <div class="field-err" id="rt-pk-err" role="alert" hidden></div>
+              <button id="rt-pk-add" class="btn btn-ghost" type="button">Add pickup</button></div></div>
+          <div class="field-err form-err" id="rt-err" role="alert" hidden></div>
+          <div class="row"><button id="rt-cancel" class="btn btn-ghost" type="button">Cancel</button><button id="rt-save" class="btn btn-primary" type="button">Save route</button></div>
+        </div>
+        <div id="route-list"></div>
+      </section>
       <div id="trip-list" style="margin-top:12px"></div>
     </section>
 
@@ -1589,6 +1623,7 @@
 <script src="/static/js/dashboard.js"></script>
 <script src="/static/js/parcel-detail.js"></script>
 <script src="/static/js/reports.js"></script>
+<script src="/static/js/routes.js"></script>
 <script src="/static/js/impact.js"></script>
 <script src="/static/js/users.js"></script>
 <script src="/static/js/palette.js"></script>

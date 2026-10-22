@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, db, delivery, deviation, impact, notify, replan, reports, rides, routing, store  # noqa: E402
+from . import auth, db, delivery, deviation, impact, notify, replan, reports, rides, route_templates, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -617,6 +617,113 @@ async def parcel_notifications(parcel_id: str):
     return {"trackingUrl": notify.tracking_url(parcel), "messages": notify.for_parcel(parcel_id)}
 
 
+# ---- predefined routes (route templates)
+
+class ZoneIn(BaseModel):
+    lat: float
+    lng: float
+    radiusKm: float
+    label: str | None = None
+
+
+class TemplatePickupIn(BaseModel):
+    id: str | None = None
+    label: str
+    lat: float
+    lng: float
+    name: str | None = None            # who is collected, e.g. the customer
+    readyBy: str | None = None         # "HH:MM" customer cut-off
+    collectBy: str | None = None       # "HH:MM"
+    size: str = "small"
+    note: str | None = None
+
+
+class TemplateIn(BaseModel):
+    code: str
+    name: str
+    zone: ZoneIn
+    driverId: str | None = None
+    days: list[int] | None = None      # Monday = 0
+    startTime: str | None = None
+    pickups: list[TemplatePickupIn] = []
+    notes: str | None = None
+
+
+class TemplateRunIn(BaseModel):
+    driverId: str | None = None
+
+
+def _validate_template(t: TemplateIn, exclude_id: str | None = None):
+    if not t.code.strip() or not t.name.strip():
+        raise HTTPException(400, "Give the route a code and a name.")
+    if any(x["code"].lower() == t.code.strip().lower() and x["id"] != exclude_id for x in route_templates.list_templates()):
+        raise HTTPException(409, f"Route code {t.code.strip()} already exists.")
+    if not 0.5 <= t.zone.radiusKm <= route_templates.MAX_RADIUS_KM:
+        raise HTTPException(400, f"The zone radius must be between 0.5 and {route_templates.MAX_RADIUS_KM:g} km.")
+    if any(d not in range(7) for d in t.days or []):
+        raise HTTPException(400, "Service days are 0 (Monday) to 6 (Sunday).")
+    for label, value in (("startTime", t.startTime), *[(f"pickup {p.label} readyBy", p.readyBy) for p in t.pickups],
+                         *[(f"pickup {p.label} collectBy", p.collectBy) for p in t.pickups]):
+        if value and delivery._hhmm(value) is None:
+            raise HTTPException(400, f"{label} must look like 08:00")
+    if t.driverId and not db.load_entity("drivers", t.driverId):
+        raise HTTPException(404, "Driver not found")
+    if any(p.size not in delivery.SIZE_ORDER for p in t.pickups):
+        raise HTTPException(400, f"size must be one of {delivery.SIZES}")
+
+
+@app.get("/api/route-templates")
+async def list_route_templates():
+    out = []
+    for t in route_templates.list_templates():
+        out.append({**t, "zoneParcelCount": len(route_templates.zone_parcels(t)), "runsToday": route_templates.runs_today(t)})
+    return out
+
+
+@app.post("/api/route-templates")
+async def add_route_template(t: TemplateIn):
+    _validate_template(t)
+    return route_templates.save(t.model_dump())
+
+
+@app.put("/api/route-templates/{template_id}")
+async def edit_route_template(template_id: str, t: TemplateIn):
+    if not route_templates.get(template_id):
+        raise HTTPException(404, "Route not found")
+    _validate_template(t, exclude_id=template_id)
+    return route_templates.save(t.model_dump(), template_id)
+
+
+@app.delete("/api/route-templates/{template_id}")
+async def delete_route_template(template_id: str):
+    if not route_templates.get(template_id):
+        raise HTTPException(404, "Route not found")
+    route_templates.delete(template_id)
+    return {"ok": True}
+
+
+@app.get("/api/route-templates/{template_id}/preview")
+async def preview_route_template(template_id: str):
+    t = route_templates.get(template_id)
+    if not t:
+        raise HTTPException(404, "Route not found")
+    return route_templates.preview(t)
+
+
+@app.post("/api/route-templates/{template_id}/run")
+async def run_route_template(template_id: str, req: TemplateRunIn | None = None):
+    """Create today's run from a predefined route."""
+    t = route_templates.get(template_id)
+    if not t:
+        raise HTTPException(404, "Route not found")
+    try:
+        trip = await route_templates.run_today(t, req.driverId if req else None)
+    except delivery.RunError as e:
+        raise HTTPException(e.code, str(e))
+    store.broadcast(trip["id"], "trip", _summary(trip))
+    return trip
+
+
 # ---- reports
 
 class CostsIn(BaseModel):
@@ -1069,6 +1176,7 @@ def _summary(t: dict) -> dict:
         "vehicleId": t.get("vehicleId"),
         "driverName": (db.load_entity("drivers", t["driverId"]) or {}).get("name")
                       if t.get("driverId") else None,
+        "templateCode": t.get("templateCode"), "templateName": t.get("templateName"),
         "parcelCount": len(t.get("parcelIds") or []),
         "deliveredCount": t.get("deliveredCount", 0),
         "collectedCount": t.get("collectedCount", 0),

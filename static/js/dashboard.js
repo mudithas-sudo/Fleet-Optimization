@@ -364,6 +364,7 @@ function clearRideLayer() {
 
 function onPageChange(page) {
   if (window.google && map) setTimeout(() => google.maps.event.trigger(map, "resize"), 60);
+  if (page === "fleet" && typeof loadRouteTemplates === "function") loadRouteTemplates();
   if (page === "dashboard") {
     Object.keys(vehicles || {}).forEach(id => { vehicles[id].setMap(null); delete vehicles[id]; });
     _fitted = false;

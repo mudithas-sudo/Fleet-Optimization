@@ -55,6 +55,12 @@ selects its model (gemini-3.5-flash recommended).
   runs. Fuel price, CO₂ per litre and litres/100 km per vehicle type are editable, and the
   screen states exactly how each figure is worked out. Planned ETAs include time at each stop
   and are re-based on the real departure when the driver starts.
+- **Predefined routes** — standing routes like a courier's service areas: a code and name, a zone
+  (centre + radius), a default driver, service days, a start time and recurring pickups. On the Runs
+  page, "What's included" previews what would go on today's run and "Run today's route" builds it:
+  today's recurring pickups are created once per day, pending parcels inside the zone are added, and
+  the run is planned deterministically with the usual capacity and driver checks. Supervisors edit
+  routes; dispatchers run them.
 - **Vehicle breakdown** — on a run, "Vehicle broke down" previews where each remaining parcel
   would go (best-fit run, extra minutes, deadline and vehicle limits checked), then hands them
   over and re-plans every receiving run; anything already collected is recovered to the hub, and
