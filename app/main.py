@@ -1112,6 +1112,9 @@ async def dispatch_approve(req: ApproveRequest):
             created.append(trip["id"])
         except (delivery.RunError, RuntimeError) as e:
             errors.append({"index": i, "message": str(e)})
+        except Exception as e:            # never a bare HTTP 500: say what failed
+            logging.getLogger(__name__).exception("approve failed for batch %s", i)
+            errors.append({"index": i, "message": f"Couldn't plan this run: {type(e).__name__}: {e}"})
     return {"created": created, "errors": errors}
 
 
@@ -1123,6 +1126,9 @@ async def create_run(req: RunRequest):
         raise HTTPException(e.code, str(e))
     except RuntimeError as e:
         raise HTTPException(502, str(e))
+    except Exception as e:
+        logging.getLogger(__name__).exception("create_run failed")
+        raise HTTPException(502, f"Couldn't plan this run: {type(e).__name__}: {e}")
     store.broadcast(trip["id"], "trip", _summary(trip))
     return trip
 
