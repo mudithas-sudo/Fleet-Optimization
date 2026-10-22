@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, db, delivery, deviation, notify, replan, reports, rides, routing, store  # noqa: E402
+from . import auth, db, delivery, deviation, impact, notify, replan, reports, rides, routing, store  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -638,6 +638,25 @@ def _period(days: str | None) -> int | None:
     raise HTTPException(400, "days must be today, a number of days, or all")
 
 
+class FuelIn(BaseModel):
+    pricePerL: float
+    co2PerL: float | None = None
+    l100: dict[str, float] | None = None
+
+
+@app.get("/api/impact")
+async def impact_summary(days: str | None = None):
+    """What the optimisation is worth: savings vs the as-entered order, fuel, CO2, plan vs actual."""
+    return impact.summary(_period(days))
+
+
+@app.put("/api/settings/fuel")
+async def set_fuel(f: FuelIn):
+    if f.pricePerL < 0 or any(v < 0 for v in (f.l100 or {}).values()):
+        raise HTTPException(400, "Fuel price and consumption can't be negative.")
+    return impact.set_fuel(f.pricePerL, f.l100, f.co2PerL)
+
+
 @app.get("/api/reports/summary")
 async def report_summary(days: str | None = None):
     return reports.summary(_period(days))
@@ -856,6 +875,19 @@ async def run_add_parcels(trip_id: str, req: AddToRun):
         _replan_error(e)
     store.broadcast(trip_id, "trip", _summary(trip))
     return _summary(trip)
+
+
+class BreakdownIn(BaseModel):
+    apply: bool = False
+
+
+@app.post("/api/runs/{trip_id}/breakdown")
+async def run_breakdown(trip_id: str, req: BreakdownIn | None = None):
+    """A vehicle broke down: preview (default) or apply handing its remaining parcels to other runs."""
+    try:
+        return await replan.breakdown(trip_id, apply=bool(req and req.apply))
+    except delivery.RunError as e:
+        _replan_error(e)
 
 
 @app.delete("/api/runs/{trip_id}/parcels/{parcel_id}")
@@ -1152,6 +1184,9 @@ async def start_trip(trip_id: str):
     trip = _trip_or_404(trip_id)
     trip["status"] = "active"
     trip["startedAt"] = time.time()
+    # promise times from the real departure, not from when the run was planned
+    members = {p["id"]: p for p in (db.load_entity("parcels", i) for i in trip.get("parcelIds") or []) if p}
+    trip["plannedEtaPerStop"] = delivery.compute_planned_etas(trip["route"], members, trip["startedAt"])
     store.runtime(trip_id).update(
         consecutive=0, alerting=False, along=0.0,
         pickup_risk_fired=set(), stall_along=0.0,

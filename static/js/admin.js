@@ -138,6 +138,7 @@ async function init() {
   $("btn-add-to-run").onclick = addSelectedToRun;
   setupDragAndDrop();
   setupReassign();
+  setupBreakdown();
   $("btn-auto").onclick = () => autoAssign("rules");
   $("btn-auto-ai").onclick = () => autoAssign("ai");
   $("btn-close-dispatch").onclick = closeDispatch;
@@ -152,6 +153,7 @@ async function init() {
   setupPalette();
   setupParcelDetail();
   setupReports();
+  setupImpact();
   setupPassword();
   setupUsers();
 
@@ -995,6 +997,44 @@ async function addSelectedToRun() {
   }
 }
 
+// A vehicle breaks down: preview where each remaining parcel would go, then hand them over.
+function setupBreakdown() {
+  const preview = $("breakdown-preview"), err = $("breakdown-err"), apply = $("breakdown-apply");
+  const show = r => {
+    const rows = [
+      ...r.moved.map(m => `<div class="bd-row ok"><b>${pdEsc(m.name)}</b> → ${pdEsc(m.toLabel || m.toTripId)}${m.toDriver ? " · " + pdEsc(m.toDriver) : ""}<small>+${m.extraMinutes} min on that run${m.collected ? " · already collected, back at the hub first" : ""}</small></div>`),
+      ...r.unplaced.map(u => `<div class="bd-row bad"><b>${pdEsc(u.name)}</b> — ${pdEsc(u.reason)}</div>`),
+      ...r.recovered.map(x => `<div class="bd-row"><b>${pdEsc(x.name)}</b> — already collected: ${pdEsc(x.note)}</div>`),
+    ];
+    preview.innerHTML = rows.length ? rows.join("") : `<div class="hint">Nothing left on this run.</div>`;
+  };
+  $("btn-breakdown").onclick = async () => {
+    const box = $("breakdown-form");
+    if (!box.hidden) { box.hidden = true; return; }
+    err.hidden = true; apply.disabled = true;
+    preview.innerHTML = `<div class="hint">Checking the other runs…</div>`;
+    box.hidden = false;
+    try {
+      const r = await api(`/api/runs/${selectedId}/breakdown`, { method: "POST", body: JSON.stringify({ apply: false }) });
+      show(r);
+      apply.disabled = false;
+    } catch (e) { err.textContent = e.message; err.hidden = false; preview.innerHTML = ""; }
+  };
+  $("breakdown-cancel").onclick = () => { $("breakdown-form").hidden = true; };
+  apply.onclick = async () => {
+    apply.disabled = true;
+    try {
+      const r = await api(`/api/runs/${selectedId}/breakdown`, { method: "POST", body: JSON.stringify({ apply: true }) });
+      show(r);
+      await Promise.all([loadTrips(), loadParcels()]);
+      await selectTrip(selectedId);
+      $("breakdown-form").hidden = false;
+      preview.insertAdjacentHTML("afterbegin", `<div class="hint"><b>Done.</b> ${r.moved.length} parcel${r.moved.length === 1 ? "" : "s"} reassigned${r.unplaced.length ? `, ${r.unplaced.length} back on the pending list` : ""}.</div>`);
+      apply.disabled = true;
+    } catch (e) { err.textContent = e.message; err.hidden = false; apply.disabled = false; }
+  };
+}
+
 function setupReassign() {
   $("btn-reassign").onclick = async () => {
     const box = $("reassign-form");
@@ -1477,6 +1517,8 @@ function renderDetail() {
   closeParcelDetail();
   $("trip-detail").style.display = "flex";
   $("btn-reassign").hidden = detail.status !== "planned";
+  $("btn-breakdown").hidden = detail.status === "completed";
+  $("breakdown-form").hidden = true;
   $("reassign-form").hidden = true;
   $("detail-id").textContent = detail.id;
   const r = detail.route;

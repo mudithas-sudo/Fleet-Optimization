@@ -391,8 +391,6 @@ function setupDashboard() {
       renderRides();
     };
   });
-  $("dash-back").onclick = () => stepMinutes(-15);
-  $("dash-fwd").onclick = () => stepMinutes(15);
   $("btn-change-hub").onclick = () => { switchTab("parcels"); if (!depotEditing) startDepotEdit(); };
   syncControls();
   renderHero();

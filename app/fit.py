@@ -8,7 +8,7 @@ current position on a live run)."""
 
 import time
 
-from . import db, delivery, routing, store
+from . import db, delivery, rides, routing, store
 
 ROAD_FACTOR = 1.3          # straight line -> road distance
 SPEED_KMH = 28.0           # urban average
@@ -35,7 +35,7 @@ def _remaining(trip: dict, by_id: dict) -> list[dict]:
     return out
 
 
-def suggest(parcel: dict, now: float | None = None) -> list[dict]:
+def suggest(parcel: dict, now: float | None = None, exclude: str | None = None) -> list[dict]:
     now = now or time.time()
     request = parcel.get("requestType") == "pickup"
     point = parcel.get("pickup") if request else parcel["destination"]
@@ -45,7 +45,7 @@ def suggest(parcel: dict, now: float | None = None) -> list[dict]:
     latest = pk.get("latest") if request else parcel["deadline"]
     out = []
     for trip in store.list_trips():
-        if trip["status"] not in ("planned", "active", "deviating"):
+        if trip["status"] not in ("planned", "active", "deviating") or trip["id"] == exclude:
             continue
         vehicle = db.load_entity("vehicles", trip.get("vehicleId") or "")
         driver = db.load_entity("drivers", trip.get("driverId") or "")
@@ -54,7 +54,7 @@ def suggest(parcel: dict, now: float | None = None) -> list[dict]:
         parcels = [p for pid in trip.get("parcelIds") or [] if (p := db.load_entity("parcels", pid))]
         by_id = {p["id"]: p for p in parcels}
         live = trip["status"] in ("active", "deviating")
-        row = {"tripId": trip["id"], "label": trip.get("label") or trip["id"],
+        row = {"tripId": trip["id"], "label": rides._label(trip["route"]["orderedStops"]).replace("Current location", "Hub (re-planned)"),
                "driverName": (driver or {}).get("name"), "vehicleName": vehicle.get("name"),
                "state": "under way" if live else "planned"}
         reason = delivery.check_eligibility(vehicle, [p for p in parcels if p["status"] in

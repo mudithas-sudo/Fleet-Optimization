@@ -47,6 +47,18 @@ selects its model (gemini-3.5-flash recommended).
   reference** from the existing e-signature process (signatures are captured
   there, not in this app), or "left in a safe place". Evidence is stored apart from
   the parcel so lists stay light; dispatch can also record a delivery by hand.
+- **Impact (the business case)** — the **Impact** screen shows what the optimisation is
+  worth: km, driver hours, fuel, CO₂ and operating cost saved against the same parcels
+  visited in the order they were entered (one yardstick for both, so the saving is purely
+  routing), a yearly projection, vehicle fill, ETA accuracy (share of stops within ±15 min),
+  on-time and first-attempt rates, and **planned vs actual** distance and time for finished
+  runs. Fuel price, CO₂ per litre and litres/100 km per vehicle type are editable, and the
+  screen states exactly how each figure is worked out. Planned ETAs include time at each stop
+  and are re-based on the real departure when the driver starts.
+- **Vehicle breakdown** — on a run, "Vehicle broke down" previews where each remaining parcel
+  would go (best-fit run, extra minutes, deadline and vehicle limits checked), then hands them
+  over and re-plans every receiving run; anything already collected is recovered to the hub, and
+  anything that fits nowhere goes back on the pending list.
 - **Pickup requests** — customers ask for a collection during the day. A pickup
   request is a parcel with the customer's address, their **cut-off time** and a
   collect-by time; it is collected and brought back to the **hub** (the last stop

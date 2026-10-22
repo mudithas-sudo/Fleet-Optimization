@@ -821,9 +821,33 @@
   .nt.bad { background: var(--danger-soft); color: var(--danger); }
 
   /* ---------- reports ---------- */
-  #reports { display: none; position: fixed; inset: 0; z-index: 30; background: var(--scrim); align-items: flex-start; justify-content: center; padding: var(--space-5) var(--space-4); overflow-y: auto; }
-  #reports .rp-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(1040px, 100%); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
-  #reports h3 { font: 700 var(--fs-md) var(--display); margin-bottom: var(--space-2); }
+  #reports, #impact { display: none; position: fixed; inset: 0; z-index: 30; background: var(--scrim); align-items: flex-start; justify-content: center; padding: var(--space-5) var(--space-4); overflow-y: auto; }
+  #reports .rp-card, #impact .rp-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(1040px, 100%); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
+  #reports h3, #impact h3 { font: 700 var(--fs-md) var(--display); margin-bottom: var(--space-2); }
+  /* impact screen */
+  .im-hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-5); display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--space-5); align-items: center; }
+  .im-lead b { display: block; font: 700 40px/1.1 var(--display); letter-spacing: -.02em; color: var(--primary); }
+  .im-lead b small { font: 600 14px var(--font); color: var(--text-muted); letter-spacing: 0; margin-left: 8px; }
+  .im-lead p { margin-top: 6px; font-size: var(--fs-base); color: var(--text-muted); line-height: 1.5; }
+  .im-lead p b { display: inline; font: 700 var(--fs-base) var(--font); letter-spacing: 0; color: var(--text); }
+  .im-eyebrow { font: 600 var(--fs-sm) var(--font); color: var(--text-muted); }
+  .im-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .im-stats div { background: var(--primary-soft); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .im-stats b { font: 700 22px var(--display); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .im-stats span { font-size: var(--fs-sm); color: var(--text-muted); }
+  .im-pair { display: flex; flex-direction: column; gap: 3px; min-width: 130px; }
+  .im-pair i { display: block; height: 7px; border-radius: 4px; }
+  .im-pair .before { background: var(--border-strong); } .im-pair .after { background: var(--primary); }
+  #im-runs td small, .im-table td small { display: block; color: var(--text-muted); font-size: 11px; }
+  .im-pva-sum { font-size: var(--fs-base); line-height: 1.55; margin-bottom: var(--space-2); }
+  .im-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  .im-table th, .im-table td, #im-runs th, #im-runs td { padding: 8px 10px; text-align: left; border-top: 1px solid var(--border); }
+  .im-table th, #im-runs th { font-weight: 700; color: var(--text-muted); border-top: 0; font-size: var(--fs-xs); }
+  .im-table .n, #im-runs .n { text-align: right; font-variant-numeric: tabular-nums; }
+  #im-runs { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  .im-fuel { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--space-3); align-items: end; }
+  @media (max-width: 760px) { .im-hero { grid-template-columns: 1fr; } .im-lead b { font-size: 32px; } }
+  .bd-row { padding: 7px 0; border-top: 1px solid var(--border); font-size: var(--fs-sm); } .bd-row small { display: block; color: var(--text-muted); } .bd-row.ok b { color: var(--primary); } .bd-row.bad { color: var(--danger); }
   .rp-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
   .rp-head h2 { flex: 1; font-size: var(--fs-xl); }
   .rp-head select { padding: 9px 10px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text); font: 600 var(--fs-sm) var(--font); }
@@ -858,14 +882,14 @@
   .rp-exports a { text-decoration: none; }
   #rp-notes { display: flex; flex-direction: column; gap: var(--space-2); }
   #rp-status { color: var(--text-muted); font-weight: 600; min-height: 1.2em; }
-  @media (max-width: 760px) { .rp-grid { grid-template-columns: 1fr; } #reports { padding: var(--space-3); } }
+  @media (max-width: 760px) { .rp-grid { grid-template-columns: 1fr; } #reports, #impact { padding: var(--space-3); } }
 
   /* ---------- who is signed in; role-based hiding ---------- */
   body.role-viewer :is(#btn-add-parcel, #btn-import, #btn-auto, #btn-auto-ai, #btn-clear-delivered, #btn-clear-all,
     #run-footer, #depot-chip, #depot-form, #btn-add-vehicle, #btn-add-driver, .edit-driver, .del, #btn-delete,
-    #btn-reassign, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports) { display: none !important; }
+    #btn-reassign, #btn-breakdown, #breakdown-form, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports, #btn-impact) { display: none !important; }
   body.role-dispatcher :is(#btn-add-vehicle, #btn-add-driver, .edit-driver, .reg-row .del, #depot-chip, #depot-form,
-    #btn-clear-all, #btn-reports) { display: none !important; }
+    #btn-clear-all, #btn-reports, #btn-impact) { display: none !important; }
   body.role-supervisor #users-section { display: none !important; }
   #users-section[hidden] { display: none; }
   #users-section .reg-row.off { opacity: .6; }
@@ -940,6 +964,7 @@
     <button type="button" class="nav-item" id="tab-btn-fleet"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg><span class="label">Runs</span><span class="badge" id="fleet-badge">0</span></button>
     <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-registry"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg><span class="label">Fleet</span></button>
+    <button type="button" class="nav-item" id="btn-impact"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span class="label">Impact</span></button>
     <button type="button" class="nav-item" id="btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
     </nav>
 
@@ -948,9 +973,7 @@
       <span class="bar-label">Show rides at</span>
       <button id="dash-live" class="live-btn" type="button" aria-pressed="true" title="Show rides as they are right now"><span class="pulse"></span>Live</button>
       <input id="dash-date" type="date" aria-label="Day" title="Pick a day to look back at">
-      <button id="dash-back" class="step-btn" type="button" aria-label="15 minutes earlier" title="Go back 15 minutes">−15 min</button>
       <input id="dash-slider" type="range" min="0" max="1439" step="1" value="0" aria-label="Time of day" title="Drag to see where every ride was at that time">
-      <button id="dash-fwd" class="step-btn" type="button" aria-label="15 minutes later" title="Go forward 15 minutes">+15 min</button>
       <span id="dash-time" aria-live="polite">--:--</span>
       <span id="dash-hint" class="bar-note">Drag back to replay the day</span>
     </div>
@@ -1378,7 +1401,17 @@
             <button class="btn btn-primary" id="reassign-save" type="button">Change driver</button>
           </div>
         </div>
+        <div id="breakdown-form" class="form-card" hidden>
+          <div class="hint">If this vehicle can’t continue, its remaining parcels are handed to the other runs that can take them, best fit first.</div>
+          <div id="breakdown-preview"></div>
+          <div class="field-err form-err" id="breakdown-err" role="alert" hidden></div>
+          <div class="row">
+            <button class="btn btn-ghost" id="breakdown-cancel" type="button">Cancel</button>
+            <button class="btn btn-primary" id="breakdown-apply" type="button" disabled>Reassign parcels</button>
+          </div>
+        </div>
         <div class="row">
+          <button id="btn-breakdown" class="btn btn-ghost" type="button" hidden>Vehicle broke down</button>
           <button id="btn-reassign" class="btn btn-ghost" type="button" hidden>Change driver</button>
           <button id="btn-delete" class="btn btn-ghost danger" type="button">Delete run</button>
         </div>
@@ -1468,6 +1501,41 @@
   </div>
 </div>
 
+<div id="impact" role="dialog" aria-modal="true" aria-label="Impact">
+  <div class="rp-card">
+    <div class="rp-head">
+      <h2>Impact</h2>
+      <select id="im-days" aria-label="Period">
+        <option value="today">Today</option>
+        <option value="7" selected>Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
+      <button id="im-close" class="close-btn" type="button" aria-label="Close impact">
+        <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="im-status" role="status"></div>
+    <div id="im-hero" class="im-hero"></div>
+    <div id="im-kpis" class="rp-kpis"></div>
+    <div><h3>Run by run: before and after optimisation</h3><div class="rp-tablewrap"><table id="im-runs"></table></div></div>
+    <div><h3>Plan vs what actually happened</h3><div id="im-pva" class="rp-panel"></div></div>
+    <div class="rp-panel">
+      <h3>How these figures are worked out</h3>
+      <div class="hint" id="im-method" style="margin-bottom:10px"></div>
+      <div class="im-fuel">
+        <div class="field"><label for="im-price">Fuel price per litre (<span id="im-cur"></span>)</label><input id="im-price" type="number" min="0" step="1" inputmode="decimal"></div>
+        <div class="field"><label for="im-co2">kg CO₂ per litre</label><input id="im-co2" type="number" min="0" step="0.01" inputmode="decimal"></div>
+        <div class="field"><label for="im-l-bike">Bike L/100 km</label><input id="im-l-bike" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="im-l-car">Car L/100 km</label><input id="im-l-car" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="im-l-van">Van L/100 km</label><input id="im-l-van" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="im-l-truck">Truck L/100 km</label><input id="im-l-truck" type="number" min="0" step="0.1"></div>
+        <button id="im-fuel-save" class="btn btn-primary" type="button">Save fuel settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="pw-modal" role="dialog" aria-modal="true" aria-label="Change password">
   <div class="modal-card">
     <h2>Change password</h2>
@@ -1516,6 +1584,7 @@
 <script src="/static/js/dashboard.js"></script>
 <script src="/static/js/parcel-detail.js"></script>
 <script src="/static/js/reports.js"></script>
+<script src="/static/js/impact.js"></script>
 <script src="/static/js/users.js"></script>
 <script src="/static/js/palette.js"></script>
 <script src="/static/js/admin.js"></script>

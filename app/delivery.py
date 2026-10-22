@@ -508,6 +508,10 @@ def flag_overdue(parcels: list[dict]) -> list[dict]:
     return parcels
 
 
+# time the driver spends at each stop (parking, hand-over, signature), added to every promised ETA
+SERVICE_SECONDS = float(os.environ.get("STOP_SERVICE_MIN", "4")) * 60
+
+
 def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) -> list[dict]:
     """Per parcel-stop ETA (cumulative leg durations). Delivery stops are at
     risk when the ETA is past the deadline; pickup stops when it falls outside
@@ -515,7 +519,7 @@ def compute_planned_etas(route: dict, parcels_by_id: dict, departure_ts: float) 
     etas, elapsed = [], 0.0
     for i, stop in enumerate(route["orderedStops"]):
         if i > 0:
-            elapsed += route["legs"][i - 1]["durationSeconds"]
+            elapsed += route["legs"][i - 1]["durationSeconds"] + (SERVICE_SECONDS if i > 1 else 0)
         pid = stop.get("parcelId")
         if not pid or pid not in parcels_by_id:
             continue

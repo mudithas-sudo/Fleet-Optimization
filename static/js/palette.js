@@ -13,7 +13,8 @@ function palCommands() {
     goto("Attention queue", "attention", "a"), goto("Fleet and drivers", "registry", "f"),
     { group: "Do", label: "Show rides live", key: "l", run: () => { switchTab("dashboard"); goLive(); } },
   ];
-  if (supervisor) list.splice(5, 0, { group: "Go to", label: "Reports", key: "", run: () => $("btn-reports").click() });
+  if (supervisor) list.splice(5, 0, { group: "Go to", label: "Impact: savings, fuel and CO2", key: "", run: () => $("btn-impact").click() });
+  if (supervisor) list.splice(6, 0, { group: "Go to", label: "Reports", key: "", run: () => $("btn-reports").click() });
   if (dispatcher) {
     list.push(
       { group: "Do", label: "Add a parcel", key: "n", run: () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); } },

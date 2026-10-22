@@ -193,3 +193,76 @@ async def move_parcel(parcel_id: str, to_trip_id: str) -> tuple[dict, dict | Non
                 pass
         raise
     return target, source
+
+
+async def breakdown(trip_id: str, apply: bool = False) -> dict:
+    """A vehicle breaks down: give its remaining parcels to the other runs that can
+    take them (best fit first, express first), or report what can't be placed.
+    With apply=False it only previews; with apply=True it does it, re-planning every
+    run that receives a parcel. A parcel already collected is assumed recovered to
+    the hub by dispatch: a pickup request is received there, a delivery is put back
+    in the queue and re-planned like the rest."""
+    from . import fit
+    trip = store.get_trip(trip_id)
+    if not trip:
+        raise RunError("Run not found", 404)
+    if trip["status"] == "completed":
+        raise RunError("This run is already finished.")
+    members = _load_parcels(trip.get("parcelIds") or [])
+    on_van = [p for p in members if p["status"] == "picked_up"]
+    movable = [p for p in members if p["status"] in ("assigned", "in_transit")]
+    collected = {p["id"] for p in on_van}
+    recovered = [{"parcelId": p["id"], "name": p["name"], "note": "received at the hub"}
+                 for p in on_van if p.get("requestType") == "pickup"]
+    to_place = movable + [p for p in on_van if p.get("requestType") != "pickup"]
+    rank = lambda p: routing.PRIORITY_RANK.get(p.get("priority") or "standard", 2)
+    to_place.sort(key=lambda p: (rank(p), p["deadline"]))
+
+    if not apply:
+        moved, unplaced = [], []
+        for p in to_place:
+            best = next((o for o in fit.suggest(p, exclude=trip_id) if o["feasible"]), None)
+            if best:
+                moved.append({"parcelId": p["id"], "name": p["name"], "toTripId": best["tripId"],
+                              "toLabel": best["label"], "toDriver": best["driverName"],
+                              "extraMinutes": best["extraMinutes"], "collected": p["id"] in collected})
+            else:
+                unplaced.append({"parcelId": p["id"], "name": p["name"],
+                                 "reason": "No other run can take it in time"})
+        return {"tripId": trip_id, "applied": False, "moved": moved, "unplaced": unplaced,
+                "recovered": recovered,
+                "note": "Preview only. Each parcel is checked against the runs as they are now."}
+
+    # apply: close this run first so it is never offered as a destination
+    for p in on_van:
+        if p.get("requestType") == "pickup":
+            delivery.set_parcel_status(p, "delivered", note="Recovered to the hub after a vehicle breakdown")
+        else:
+            delivery.set_parcel_status(p, "awaiting_redelivery", trip_id=None,
+                                       note=f"Back at the hub after the breakdown on run {trip_id}")
+    for p in movable:
+        delivery.set_parcel_status(p, "pending", trip_id=None, note=f"Vehicle breakdown on run {trip_id}")
+    trip["status"], trip["endedAt"] = "completed", time.time()
+    alert = _alert(trip_id, "breakdown", f"Vehicle breakdown — {len(to_place)} parcel(s) being reassigned")
+    trip["alerts"].append(alert)
+    store.save_trip(trip)
+    store.broadcast(trip_id, "alert", alert)
+    store.broadcast(trip_id, "status", {"status": "completed"})
+
+    moved, unplaced = [], []
+    for p in to_place:
+        placed = False
+        for o in [o for o in fit.suggest(db.load_entity("parcels", p["id"]), exclude=trip_id) if o["feasible"]]:
+            try:
+                await replan(o["tripId"], add_ids=[p["id"]])
+            except RunError:
+                continue
+            moved.append({"parcelId": p["id"], "name": p["name"], "toTripId": o["tripId"], "toLabel": o["label"],
+                          "toDriver": o["driverName"], "extraMinutes": o["extraMinutes"],
+                          "collected": p["id"] in collected})
+            placed = True
+            break
+        if not placed:
+            unplaced.append({"parcelId": p["id"], "name": p["name"],
+                             "reason": "No other run could take it — it is back on the pending list"})
+    return {"tripId": trip_id, "applied": True, "moved": moved, "unplaced": unplaced, "recovered": recovered}

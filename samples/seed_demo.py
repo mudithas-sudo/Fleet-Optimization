@@ -263,7 +263,8 @@ def make_run(driver_name, keys, *, created, started=None, ended=None, live_frac=
     parcels = [load(k) for k in keys]
     with at(created):
         stops = delivery.build_run_stops(parcels)
-        route = asyncio.run(routing.compute_route(stops, vehicle_type=vehicle["type"]))
+        stops = routing.sequence_stops(stops)            # the planner's visiting order (nearest next, pickups first)
+        route = asyncio.run(routing.compute_route(stops, vehicle_type=vehicle["type"], presequenced=True))
         trip = store.new_trip(stops, route, vehicle_type=vehicle["type"])
         trip.update({
             "vehicleId": vehicle["id"], "driverId": driver["id"], "parcelIds": [p["id"] for p in parcels],
@@ -308,11 +309,24 @@ def fail(trip, key, ts, reason, note=None):
     alert(trip, ts, "failed", f"Couldn't deliver {p['name']}: {delivery.FAIL_REASONS[reason]}")
 
 
-def finish(trip, ended):
+def stop_time(trip, key, factor):
+    """When the vehicle reaches this parcel's stop: the promised time stretched by `factor`
+    (a bit of real-world slack), so the seeded day has believable plan-vs-actual numbers."""
+    etas = {e["parcelId"]: e["eta"] for e in trip["plannedEtaPerStop"] if e["kind"] == "delivery"}
+    return trip["startedAt"] + (etas[P[key]["id"]] - trip["startedAt"]) * factor
+
+
+def run_length(trip, factor):
+    etas = [e["eta"] for e in trip["plannedEtaPerStop"]]
+    return (max(etas) - trip["startedAt"]) * factor + 3 * MIN
+
+
+def finish(trip, ended, km_factor=1.03):
     trip["status"], trip["endedAt"] = "completed", ended
     alert(trip, ended, "completed", "Driver arrived — trip completed")
     log_positions(trip, trip["startedAt"], ended)
-    trip["actualDistanceMeters"] = store.actual_distance_m(trip["id"])
+    # the sampled trail under-counts a little; the odometer-style figure is the plan plus the detour driven
+    trip["actualDistanceMeters"] = trip["route"]["totalDistanceMeters"] * km_factor
     store.save_trip(trip)
 
 
@@ -351,26 +365,28 @@ def main(reset: bool, with_users: bool):
 
     # ---- run 1: Bike 01 (Ruwan) — finished early this morning
     t = make_run("Ruwan Jayasinghe", ["b1", "b2", "b3"], created=NOW - 8.6 * HOUR, started=NOW - 7.5 * HOUR)
-    deliver(t, "b1", NOW - 7.2 * HOUR, "signature", "Reception desk")
-    deliver(t, "b2", NOW - 6.8 * HOUR, "handed_over", "S. Weerakoon")
-    deliver(t, "b3", NOW - 6.4 * HOUR, "signature", "Lab technician")
-    finish(t, NOW - 6.1 * HOUR)
+    f = 1.06
+    deliver(t, "b1", stop_time(t, "b1", f), "signature", "Reception desk")
+    deliver(t, "b2", stop_time(t, "b2", f), "handed_over", "S. Weerakoon")
+    deliver(t, "b3", stop_time(t, "b3", f), "signature", "Lab technician")
+    finish(t, t["startedAt"] + run_length(t, f))
 
     # ---- run 2: Van 02 (Kamal) — finished a couple of hours ago, one late, one failed, one returned
     t = make_run("Kamal Silva", ["k1", "k2", "k3", "k4", "k5", "k6", "k7"], created=NOW - 5.6 * HOUR, started=NOW - 5 * HOUR)
-    alert(t, NOW - 4.6 * HOUR, "deviation", "Vehicle is 190 m off the planned route", path_point(t["route"], .25), 190)
-    alert(t, NOW - 4.5 * HOUR, "reroute", "Route recalculated from current position (11.2 km remaining)")
-    alert(t, NOW - 4.48 * HOUR, "back_on_route", "Vehicle is back on the planned route")
+    f, span = 1.18, run_length(t, 1.18)                # a detour and slow traffic cost this run about 18%
+    alert(t, t["startedAt"] + .30 * span, "deviation", "Vehicle is 190 m off the planned route", path_point(t["route"], .25), 190)
+    alert(t, t["startedAt"] + .32 * span, "reroute", "Route recalculated from current position (11.2 km remaining)")
+    alert(t, t["startedAt"] + .33 * span, "back_on_route", "Vehicle is back on the planned route")
     t["routeVersion"] = 2
-    deliver(t, "k1", NOW - 4.4 * HOUR, "signature", "A. Wijesinghe")
-    deliver(t, "k2", NOW - 4.1 * HOUR, "handed_over", "Librarian")
-    deliver(t, "k3", NOW - 3.8 * HOUR, "photo", None, note="Left with the neighbour at no. 14", late=True)
-    deliver(t, "k4", NOW - 3.5 * HOUR, "signature", "Shop assistant")
-    fail(t, "k5", NOW - 3.2 * HOUR, "no_one_home", "Gate locked, phone off")
-    deliver(t, "k6", NOW - 2.9 * HOUR, "handed_over", "Workshop foreman")
-    fail(t, "k7", NOW - 2.6 * HOUR, "refused", "Receiver said they no longer need it")      # 3rd failure + refusal -> returned
-    finish(t, NOW - 2.3 * HOUR)
-    with at(NOW - 2 * HOUR):                    # dispatch reviews the refused cake: return it to the sender
+    deliver(t, "k1", stop_time(t, "k1", f), "signature", "A. Wijesinghe")
+    deliver(t, "k2", stop_time(t, "k2", f), "handed_over", "Librarian")
+    deliver(t, "k3", stop_time(t, "k3", f), "photo", None, note="Left with the neighbour at no. 14", late=True)
+    deliver(t, "k4", stop_time(t, "k4", f), "signature", "Shop assistant")
+    fail(t, "k5", stop_time(t, "k5", f), "no_one_home", "Gate locked, phone off")
+    deliver(t, "k6", stop_time(t, "k6", f), "handed_over", "Workshop foreman")
+    fail(t, "k7", stop_time(t, "k7", f), "refused", "Receiver said they no longer need it")      # 3rd failure + refusal -> review
+    finish(t, t["startedAt"] + span, km_factor=1.12)
+    with at(t["endedAt"] + 20 * MIN):                    # dispatch reviews the refused cake: return it to the sender
         delivery.review_failed(load("k7"), "return", "Receiver no longer needs it — returned to sender", actor="dispatcher1")
 
     # ---- run 3: Van 01 (Nuwan) — live right now
