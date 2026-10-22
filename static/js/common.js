@@ -75,11 +75,34 @@ function setTheme(next) {
   applyTheme(next);
 }
 
-function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : null; }
+function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : MAP_LIGHT_STYLE; }
 // routes are blue (the universal navigation convention) so the amber/red
 // traffic overlays and alert colors stay unambiguous — tracking blue from
 // the design system
 function routeColor() { return currentTheme() === "dark" ? "#c9b2ee" : "#6a2fb0"; }
+
+// soft, desaturated light map: pale grey land, light blue water, white roads, quiet labels
+const MAP_LIGHT_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#e9edf1" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#7b8794" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#f4f6f8" }, { weight: 3 }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#cfd6de" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#5d6b7a" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e4e9ee" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ visibility: "on" }, { color: "#dde7e4" }] },
+  { featureType: "poi.park", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#fbfcfd" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#d8dee5" }] },
+  { featureType: "road.arterial", elementType: "labels.text.fill", stylers: [{ color: "#9aa5b1" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#cdd5dd" }] },
+  { featureType: "road.highway", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#a6d3ee" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#6f9fbf" }] },
+];
 
 const MAP_DARK_STYLE = [
   { elementType: "geometry", stylers: [{ color: "#171e2e" }] },
