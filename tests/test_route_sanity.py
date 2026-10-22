@@ -68,6 +68,42 @@ def test_a_bad_gps_fix_does_not_send_a_live_replan_across_the_sea():
     assert out["route"]["totalDistanceMeters"] < 100_000
 
 
+def test_a_route_whose_road_wanders_off_to_another_country_is_discarded():
+    """Whatever the routing service returns, a path far from the stops is never drawn."""
+    from app import polyline
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            good = [(6.93, 79.84), (6.95, 79.86)]
+            bad = good + [(14.98, 75.22), (6.96, 79.87)]               # a detour through Karnataka
+            return {"routes": [{"polyline": {"encodedPolyline": polyline.encode(bad)}, "distanceMeters": 1_361_000,
+                                "duration": "9000s", "legs": [{"distanceMeters": 1_361_000, "duration": "9000s"}]}]}
+
+    class _Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **k): return _Resp()
+
+    real_client, real_fake = routing.httpx.AsyncClient, os.environ.get("FAKE_ROUTES")
+    routing.httpx.AsyncClient = _Client
+    os.environ["FAKE_ROUTES"] = "0"
+    os.environ["MAPS_API_KEY"] = "unused"
+    try:
+        stops = [dict(HUB, kind="depot"), {"lat": 6.95, "lng": 79.86, "label": "Near"}]
+        try:
+            asyncio.run(routing.compute_route(stops, vehicle_type="van"))
+        except routing.RoutingError as e:
+            assert "discarded" in str(e) and "Near" in str(e) and "14.98" in str(e)
+        else:
+            raise AssertionError("a route that wandered to India was accepted")
+    finally:
+        routing.httpx.AsyncClient = real_client
+        os.environ["FAKE_ROUTES"] = real_fake or "1"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

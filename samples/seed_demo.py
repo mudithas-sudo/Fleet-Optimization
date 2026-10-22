@@ -460,7 +460,9 @@ def main(reset: bool, with_users: bool):
     hub = delivery.get_depot()
     for tr in store.list_trips():
         for pt in [*tr["route"]["orderedStops"], *([tr["lastPosition"]] if tr.get("lastPosition") else [])]:
-            assert routing._haversine_m(hub, pt) < 150_000, f"run {tr['id']} has a point far from the hub: {pt}"
+            assert routing._haversine_m(hub, pt) < 150_000, (
+                f"run {tr['id']} has a point far from the hub: {pt}; stops: "
+                + "; ".join(f"{s.get('label')} ({s['lat']:.4f}, {s['lng']:.4f})" for s in tr["route"]["orderedStops"]))
 
     if with_users:
         from app import auth

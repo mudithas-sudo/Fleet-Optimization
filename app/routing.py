@@ -316,10 +316,18 @@ async def compute_route(stops: list[dict], avoid_tolls: bool = False,
         break
 
     encoded = route["polyline"]["encodedPolyline"]
+    path = [list(p) for p in polyline.decode(encoded)]
+    # the drawn road must stay near the stops; if it doesn't, say exactly what was asked, never draw it
+    strays = [p for p in path if min(_haversine_m({"lat": p[0], "lng": p[1]}, s) for s in (origin, dest)) > MAX_SPAN_KM * 1000]
+    if strays:
+        asked = "; ".join(f"{s.get('label')} ({s['lat']:.5f}, {s['lng']:.5f})" for s in ordered_stops)
+        raise RoutingError(
+            f"The route came back {len(strays)} of {len(path)} points away from the stops (e.g. {strays[0][0]:.3f}, {strays[0][1]:.3f}), "
+            f"so it was discarded. Stops asked for: {asked}. Distance reported: {total_distance / 1000:,.0f} km.")
     return {
         "orderedStops": ordered_stops,
         "polyline": encoded,
-        "path": [list(p) for p in polyline.decode(encoded)],
+        "path": path,
         "legs": legs_summary,
         "steps": _flatten_steps(route.get("legs", []), ordered_stops),
         "traffic": traffic,
