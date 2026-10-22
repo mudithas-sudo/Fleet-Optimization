@@ -71,8 +71,9 @@ PLACES = {
     "dematagoda": ("Dematagoda", 6.9370, 79.8780), "slave": ("Slave Island", 6.9230, 79.8560),
     "kotte": ("Sri Jayawardenepura Kotte", 6.8900, 79.9013), "moratuwa": ("Moratuwa", 6.7730, 79.8816),
 }
-HARBOUR = {"lat": 6.9497, "lng": 79.8468, "label": "Colombo Harbour"}
-PETTAH_WH = {"lat": 6.9380, "lng": 79.8590, "label": "Pettah Warehouse"}
+# pickup points sit on ordinary streets: a point inside the port enclosure snaps to a ferry/shipping road and the Routes API answers with a 3,000 km route
+HARBOUR = {"lat": 6.9180, "lng": 79.8570, "label": "Union Place, Colombo 02"}
+PETTAH_WH = {"lat": 6.9344, "lng": 79.8530, "label": "Pettah Warehouse"}
 
 # ---------------------------------------------------------------- fleet
 VEHICLES = [
@@ -471,6 +472,9 @@ def main(reset: bool, with_users: bool):
             if not auth.find_by_username(username):
                 auth.create_user(username, name, role, "demo-pass-123")
 
+    if time.localtime().tm_hour < 10:
+        print("NOTE: it is before 10:00, so the earlier runs of the sample day fall on yesterday and the dashboard shows"
+              " fewer finished runs. For the best demo data, load it after 10:00.")
     counts = {k: len(db.all_entities(k)) for k in ("vehicles", "drivers", "parcels", "notifications")}
     print(f"Added {counts['vehicles']} vehicles, {counts['drivers']} drivers, {counts['parcels']} parcels, "
           f"4 runs and {counts['notifications']} customer messages.")

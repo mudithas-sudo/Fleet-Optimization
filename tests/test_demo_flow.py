@@ -64,7 +64,8 @@ def test_01_the_seeded_day_looks_right():
     assert kinds.get("delivered") == 10 and kinds.get("failed") == 1 and kinds.get("returned") == 1
     assert client.get("/api/route-templates").json()[0]["code"] == "R-01"
     rides = client.get("/api/rides").json()["rides"]
-    assert {r["state"] for r in rides} == {"en_route", "scheduled", "finished"}
+    if time.localtime().tm_hour >= 10:      # before 10:00 the finished runs fall on yesterday's board
+        assert {r["state"] for r in rides} == {"en_route", "scheduled", "finished"}
     live = next(r for r in rides if r["state"] == "en_route")
     assert live["nextStop"] and live["parcelCount"] == 7, "the pickup request added mid-day is on the live run"
     imp = client.get("/api/impact?days=all").json()

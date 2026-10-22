@@ -2,7 +2,7 @@
 
 ## Before the demo
 
-1. **Start fresh data, right before you present** (all sample times are relative to "now"):
+1. **Start fresh data, right before you present, and after 10:00 if you can** (all sample times are relative to "now"; before 10:00 the earlier runs of the sample day fall on yesterday and fewer finished runs show):
 
    ```powershell
    cd "C:\Users\muditha.s\Delivery Management"
