@@ -4,6 +4,7 @@
 #   .\samples\start-demo.ps1 -Port 8002      # another port
 #   .\samples\start-demo.ps1 -Users          # also create demo staff accounts (admin, supervisor1, ...)
 #   .\samples\start-demo.ps1 -Keep           # keep the demo database as it is (don't reseed)
+#   .\samples\start-demo.ps1 -RealRoutes    # draw the sample runs along real roads (uses your Maps key, a few calls)
 #
 # Keys come from .env, as usual. Seeding itself makes no API calls: the sample runs use offline
 # straight-line routes. Runs you plan yourself use whatever FAKE_ROUTES says in .env.
@@ -11,7 +12,8 @@
 param(
     [int]$Port = 8001,
     [switch]$Users,
-    [switch]$Keep
+    [switch]$Keep,
+    [switch]$RealRoutes
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +39,7 @@ if (-not $Keep) {
     Remove-Item "fleet-demo.db*" -ErrorAction SilentlyContinue
     $seedArgs = @("samples\seed_demo.py", "--reset")
     if ($Users) { $seedArgs += "--users" }
+    if ($RealRoutes) { $seedArgs += "--real-routes" }
     & venv\Scripts\python.exe @seedArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }

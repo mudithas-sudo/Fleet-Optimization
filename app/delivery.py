@@ -4,6 +4,7 @@ Run creation lives here too (added with the runs endpoint) so phase 2's
 dispatch agent can reuse it programmatically.
 """
 
+import logging
 import os
 import secrets
 import time
@@ -643,8 +644,16 @@ async def create_run(parcel_ids: list[str], driver_id: str,
     if deterministic or routing.has_special_handling(stops):
         route = await plan_with_priorities(stops, avoid_tolls, vehicle["type"])
     else:
-        route = await plan_route(stops, avoid_tolls=avoid_tolls,
-                                 vehicle_type=vehicle["type"])
+        try:
+            route = await plan_route(stops, avoid_tolls=avoid_tolls,
+                                     vehicle_type=vehicle["type"])
+        except routing.RoutingError:
+            raise
+        except Exception:
+            # the AI planner is unavailable (quota, network, bad key): never leave the dispatcher
+            # stuck — plan the same stops with the deterministic sequencer instead
+            logging.getLogger(__name__).exception("AI planner failed; using the deterministic planner")
+            route = await plan_with_priorities(stops, avoid_tolls, vehicle["type"])
     trip = store.new_trip(stops, route, avoid_tolls=avoid_tolls,
                           vehicle_type=vehicle["type"])
     parcels_by_id = {p["id"]: p for p in parcels}
