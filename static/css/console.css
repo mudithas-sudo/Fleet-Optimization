@@ -193,7 +193,7 @@ body[data-page="dashboard"] #stage > #trip-detail {
 .ride-who b { display: block; font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ride-who span { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .state-chip { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--font); padding: 3px 9px; border-radius: 6px; background: var(--surface-3); color: var(--text-muted); white-space: nowrap; }
-.state-chip.en_route { background: #f3edfa; color: #6a2fb0; } .state-chip.deviating { background: var(--danger-soft); color: var(--danger); }
+.state-chip.en_route { background: #f3edfa; color: #6d35b3; } .state-chip.deviating { background: var(--danger-soft); color: var(--danger); }
 .state-chip.scheduled { background: var(--warning-soft); color: var(--warning); } .state-chip.finished { background: var(--success-soft); color: var(--success); }
 .prog { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .prog-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; display: flex; }
@@ -387,7 +387,7 @@ body[data-page="dashboard"] #dock-empty { position: sticky; top: 0; max-height: 
    ============================================================ */
 :root {
   --pop-bg: #ffffff; --pop-text: #17062a; --pop-muted: #5d5470; --pop-border: #e6e2ec; --pop-hover: #f4f0f9;
-  --pop-accent: #6a2fb0; --pop-on-accent: #ffffff;
+  --pop-accent: #6d35b3; --pop-on-accent: #ffffff;
 }
 [data-theme="dark"] {
   --pop-bg: #221639; --pop-text: #f3eefa; --pop-muted: #bcb0d3; --pop-border: #3a2a5c; --pop-hover: #2c1d49;

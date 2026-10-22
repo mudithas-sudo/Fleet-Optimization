@@ -48,7 +48,9 @@ function renderHero() {
   const h = now.getHours();
   const hello = h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   const name = currentUser && currentUser.id !== "local" ? currentUser.name.split(/\s+/)[0] : "";
-  $("greeting").textContent = `${hello}${name ? ", " + name : ""}!`;
+  $("greeting").textContent = "Operations overview";
+  const pill = $("stream-pill"), live = $("hero-live");
+  if (pill && live) { live.dataset.state = pill.dataset.state || ""; $("hero-live-text").textContent = pill.dataset.state === "live" ? "Live operations" : $("stream-text").textContent; }
   $("hero-date").textContent = now.toLocaleDateString([], { day: "numeric", month: "long", weekday: "long" });
   $("hero-clock").textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (typeof depot !== "undefined" && depot) $("profile-hub").textContent = depot.label;
@@ -298,7 +300,7 @@ async function drawTrail(id) {
   } catch (_) { /* the trail is a nice-to-have */ }
 }
 
-const ROUTE_TONE = { en_route: "#6a2fb0", deviating: "#dd1311", scheduled: "#a79bc0" };
+const ROUTE_TONE = { en_route: "#6d35b3", deviating: "#dd1311", scheduled: "#a79bc0" };
 
 function drawRideMap() {
   if (!window.google || !map || !dashPage()) return;
@@ -440,12 +442,13 @@ function renderDock() {
     return;
   }
 
-  const attnHtml = attn.length ? attn.slice(0, 5).map((i, n) => `
+  const attnHtml = attn.length ? attn.slice(0, 6).map((i, n) => `
     <button type="button" class="dock-item level-${i.level}" data-attn="${n}">
-      <span class="di-top"><b>${pdEsc(i.tag)}</b><span>${i.kind === "run" ? "Run" : "Parcel"}</span></span>
-      <span class="di-title">${pdEsc(i.title)}</span><span class="di-sub">${pdEsc(i.detail)}</span></button>`).join("") +
-    (attn.length > 5 ? `<button type="button" class="link-action" data-all-attn>See all ${attn.length}</button>` : "")
-    : `<div class="hint" style="padding:4px 0 8px">Nothing needs attention right now.</div>`;
+      <span class="di-tag"><i aria-hidden="true"></i>${pdEsc(i.tag)}<span class="di-kind"> · ${i.kind === "run" ? "Run" : "Parcel"}</span></span>
+      <span class="di-main"><span class="di-title">${pdEsc(i.title)}</span><span class="di-sub">${pdEsc(i.detail)}</span></span>
+      <svg viewBox="0 0 24 24" class="i di-go" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>`).join("") +
+    `<div class="dock-foot"><button type="button" class="link-action" data-all-attn>View all${attn.length > 6 ? " " + attn.length : ""}</button></div>`
+    : `<div class="empty-state"><b>All clear</b>Nothing needs attention right now.</div>`;
 
   const queueHtml = queue.length ? queue.slice(0, 8).map(p => {
     const due = dueText(p);
@@ -456,7 +459,7 @@ function renderDock() {
       <span class="dp-side">${p.priority && p.priority !== "standard" ? `<span class="p-chip${p.priority === "express" ? " fragile" : ""}">${p.priority}</span>` : ""}
         <span class="due ${due.tone}">${due.text}</span></span></div>`;
   }).join("") + (queue.length > 8 ? `<button type="button" class="link-action" data-all-queue>See all ${queue.length} on the Parcels page</button>` : "")
-    : `<div class="hint" style="padding:4px 0 8px">Every parcel is on a run.</div>`;
+    : `<div class="empty-state"><b>Queue is empty</b>Every parcel is on a run.</div>`;
 
   box.innerHTML =
     accHtml("Needs attention", attnHtml, { open: true, count: attn.length, warn: attn.some(i => i.level === 0) }) +

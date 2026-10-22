@@ -143,8 +143,34 @@ function setDensity(on) {
   try { localStorage.setItem("fleetops-density", on ? "compact" : "comfortable"); } catch (_) {}
 }
 
+// sidebar: collapsible on desktop (remembered), a slide-in drawer on phones
+function setupNav() {
+  const body = document.body, btn = $("nav-collapse"), burger = $("nav-burger");
+  const setCollapsed = on => {
+    body.classList.toggle("nav-collapsed", on);
+    btn.setAttribute("aria-expanded", String(!on));
+    const label = on ? "Expand sidebar" : "Collapse sidebar";
+    btn.setAttribute("aria-label", label); btn.title = label;
+    try { localStorage.setItem("fleetops-nav", on ? "collapsed" : "open"); } catch (_) {}
+  };
+  let saved = null;
+  try { saved = localStorage.getItem("fleetops-nav"); } catch (_) {}
+  if (saved === "collapsed") setCollapsed(true);
+  btn.onclick = () => setCollapsed(!body.classList.contains("nav-collapsed"));
+  const setDrawer = on => {
+    body.classList.toggle("nav-open", on);
+    burger.setAttribute("aria-expanded", String(on));
+    burger.setAttribute("aria-label", on ? "Close menu" : "Open menu");
+  };
+  burger.onclick = () => setDrawer(!body.classList.contains("nav-open"));
+  $("nav-scrim").onclick = () => setDrawer(false);
+  $("sidebar").addEventListener("click", e => { if (e.target.closest(".nav-item")) setDrawer(false); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && body.classList.contains("nav-open")) { setDrawer(false); burger.focus(); } });
+}
+
 // the two top-bar menus: Display (theme, density) and Account
 function setupMenus() {
+  setupNav();
   const pairs = [["display-btn", "display-menu"], ["user-btn", "user-menu"]];
   const closeAll = () => pairs.forEach(([b, m]) => { $(m).hidden = true; $(b).setAttribute("aria-expanded", "false"); });
   pairs.forEach(([b, m]) => {

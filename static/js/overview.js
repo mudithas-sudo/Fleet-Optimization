@@ -97,6 +97,8 @@ function renderStats() {
   const soon = all.filter(p => isPending(p) && !isLate(p) && p.deadline < nowSec() + 3600).length;
   setDelta("st-pending-sub", soon ? "down" : "flat", soon ? `${soon} due within 1 h` : "to assign");
   $("st-late").textContent = late;
+  const lateCard = $("st-late").closest(".kpi-card");
+  if (lateCard) lateCard.classList.toggle("kpi-alert", late > 0);       // red only when something is actually late
   setDelta("st-ontime", late ? "down" : (deliveredToday.length ? "" : "flat"),
     deliveredToday.length ? `${Math.round(onTime / deliveredToday.length * 100)}% on time` : (late ? "overdue" : "none late"));
   $("st-delivered").textContent = deliveredToday.length;
