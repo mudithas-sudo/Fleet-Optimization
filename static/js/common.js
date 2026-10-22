@@ -79,7 +79,7 @@ function mapThemeStyles() { return currentTheme() === "dark" ? MAP_DARK_STYLE : 
 // routes are blue (the universal navigation convention) so the amber/red
 // traffic overlays and alert colors stay unambiguous — tracking blue from
 // the design system
-function routeColor() { return currentTheme() === "dark" ? "#ff8533" : "#ff6600"; }
+function routeColor() { return currentTheme() === "dark" ? "#c9b2ee" : "#6a2fb0"; }
 
 const MAP_DARK_STYLE = [
   { elementType: "geometry", stylers: [{ color: "#171e2e" }] },
@@ -131,7 +131,7 @@ function fmtClock(ts) {
 function stopMarker(map, position, index, total, kind) {
   const isEnd = index === total - 1;
   const isPickup = kind === "pickup";
-  const fill = index === 0 ? "#00a859" : isPickup ? "#9a5b00" : isEnd ? "#4d148c" : "#4d148c";
+  const fill = index === 0 ? "#17062a" : isPickup ? "#8a5fc4" : isEnd ? "#6a2fb0" : "#6a2fb0";
   const label = index === 0 ? "S" : isPickup ? "P" : isEnd ? "E" : String(index);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
     <path d="M17 0C7.6 0 0 7.6 0 17c0 12.8 17 27 17 27s17-14.2 17-27C34 7.6 26.4 0 17 0z" fill="${fill}"/>
