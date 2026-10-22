@@ -206,6 +206,23 @@ def repair_precedence(rest: list[dict]) -> list[dict]:
     return result
 
 
+# a delivery run lives in one metro area; a stop hundreds of km away is a bad address or a bad GPS fix
+MAX_SPAN_KM = float(os.environ.get("MAX_RUN_SPAN_KM", "300"))
+
+
+def check_span(stops: list[dict]) -> None:
+    """Refuse a route whose stops are absurdly far from its start (e.g. an address that geocoded
+    to another country, or a vehicle position that is not where the vehicle is)."""
+    if len(stops) < 2:
+        return
+    far = max(stops[1:], key=lambda s: _haversine_m(stops[0], s))
+    km = _haversine_m(stops[0], far) / 1000
+    if km > MAX_SPAN_KM:
+        raise RoutingError(
+            f"“{far.get('label') or 'A stop'}” is {km:,.0f} km from the start of the run (limit {MAX_SPAN_KM:g} km). "
+            "Check that address, or the vehicle's last position.")
+
+
 # bikes get true two-wheeler routing; every other fleet type drives
 TRAVEL_MODES = {"bike": "TWO_WHEELER"}
 
@@ -225,6 +242,7 @@ async def compute_route(stops: list[dict], avoid_tolls: bool = False,
     """
     if len(stops) < 2:
         raise RoutingError("Need at least an origin and a destination.")
+    check_span(stops)
 
     stops = hub_last(stops)
     if any(s.get("kind") == "pickup" for s in stops):

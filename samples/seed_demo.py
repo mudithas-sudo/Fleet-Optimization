@@ -427,7 +427,8 @@ def main(reset: bool, with_users: bool):
     deliver(t, "n2", started + 36 * MIN, "photo", None, note="Left with the security desk")
     frac = 0.4
     log_positions(t, started, NOW, frac_end=frac)
-    t["lastPosition"] = {**path_point(t["route"], frac), "ts": NOW}
+    live_position = {**path_point(t["route"], frac), "ts": NOW}
+    t["lastPosition"] = live_position
     store.save_trip(t)
 
     # a pickup request came in after this run had left the hub: dispatch added it to the live run
@@ -435,7 +436,7 @@ def main(reset: bool, with_users: bool):
     with at(NOW - 12 * MIN):
         asyncio.run(replan.replan(t["id"], add_ids=[P["q2"]["id"]]))
     t = store.get_trip(t["id"])
-    t["lastPosition"] = {**path_point(t["route"], frac), "ts": NOW}
+    t["lastPosition"] = live_position               # where the vehicle is: unchanged by the re-plan
     store.save_trip(t)
 
     # ---- run 4: Car 01 (Dilani) — planned, not started
@@ -454,6 +455,12 @@ def main(reset: bool, with_users: bool):
     assert load("k5")["status"] == "failed" and load("k5")["review"]["state"] == "pending"
     assert load("p8")["status"] == "awaiting_redelivery" and load("p8")["holdUntil"]
     assert load("q2")["status"] == "in_transit" and load("q1")["status"] == "pending"
+
+    # nothing in the sample day may be anywhere but around the hub (a stray point would draw a route to another country)
+    hub = delivery.get_depot()
+    for tr in store.list_trips():
+        for pt in [*tr["route"]["orderedStops"], *([tr["lastPosition"]] if tr.get("lastPosition") else [])]:
+            assert routing._haversine_m(hub, pt) < 150_000, f"run {tr['id']} has a point far from the hub: {pt}"
 
     if with_users:
         from app import auth

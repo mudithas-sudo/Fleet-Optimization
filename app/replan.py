@@ -87,6 +87,9 @@ async def replan(trip_id: str, add_ids: list[str] | None = None,
     stops = delivery.build_run_stops(new_open)
     if live:
         pos = trip.get("lastPosition") or {}
+        # a position nowhere near the run is a bad GPS fix: start from the hub instead
+        if pos and routing._haversine_m(pos, stops[0]) > routing.MAX_SPAN_KM * 1000:
+            pos = {}
         origin = {"lat": pos.get("lat", stops[0]["lat"]), "lng": pos.get("lng", stops[0]["lng"]),
                   "label": "Current location"}
         stops = [origin] + stops[1:]
