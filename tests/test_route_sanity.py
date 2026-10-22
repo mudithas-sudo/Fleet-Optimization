@@ -104,6 +104,39 @@ def test_a_route_whose_road_wanders_off_to_another_country_is_discarded():
         os.environ["FAKE_ROUTES"] = real_fake or "1"
 
 
+def test_a_leg_without_distance_or_duration_is_a_zero_leg_not_a_crash():
+    """The Routes API drops zero-valued fields: coincident stops come back as a leg with neither."""
+    from app import polyline
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            pts = [(6.93, 79.84), (6.95, 79.86), (6.95, 79.86)]
+            return {"routes": [{"polyline": {"encodedPolyline": polyline.encode(pts)}, "distanceMeters": 3000, "duration": "600s",
+                                "legs": [{"distanceMeters": 3000, "duration": "600s"}, {}]}]}
+
+    class _Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **k): return _Resp()
+
+    real_client, real_fake = routing.httpx.AsyncClient, os.environ.get("FAKE_ROUTES")
+    routing.httpx.AsyncClient = _Client
+    os.environ["FAKE_ROUTES"] = "0"
+    os.environ["MAPS_API_KEY"] = "unused"
+    try:
+        stops = [dict(HUB, kind="depot"), {"lat": 6.95, "lng": 79.86, "label": "A", "kind": "pickup", "parcelId": "x"},
+                 {"lat": 6.95, "lng": 79.86, "label": "B", "kind": "pickup", "parcelId": "y"}]
+        route = asyncio.run(routing.compute_route(stops, vehicle_type="van", presequenced=True))
+        assert [l["distanceMeters"] for l in route["legs"]] == [3000, 0]
+        assert route["legs"][1]["durationSeconds"] == 0
+    finally:
+        routing.httpx.AsyncClient = real_client
+        os.environ["FAKE_ROUTES"] = real_fake or "1"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

@@ -292,8 +292,9 @@ async def compute_route(stops: list[dict], avoid_tolls: bool = False,
         legs_summary.append({
             "from": ordered_stops[i]["label"],
             "to": ordered_stops[i + 1]["label"],
-            "distanceMeters": leg["distanceMeters"],
-            "durationSeconds": int(leg["duration"].rstrip("s")),
+            # the API omits zero-valued fields: two coincident stops give a leg with no distance (and maybe no duration)
+            "distanceMeters": leg.get("distanceMeters", 0),
+            "durationSeconds": int(str(leg.get("duration", "0s")).rstrip("s") or 0),
         })
 
     total_distance = route.get("distanceMeters", sum(l["distanceMeters"] for l in legs_summary))
