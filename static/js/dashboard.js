@@ -298,7 +298,7 @@ async function drawTrail(id) {
   } catch (_) { /* the trail is a nice-to-have */ }
 }
 
-const ROUTE_TONE = { en_route: "#4f7fd6", deviating: "#e5484d", scheduled: "#9aa3b2" };
+const ROUTE_TONE = { en_route: "#ff6600", deviating: "#dd1311", scheduled: "#9a8fb0" };
 
 function drawRideMap() {
   if (!window.google || !map || !dashPage()) return;
