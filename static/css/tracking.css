@@ -123,3 +123,7 @@ body:not([data-page="dashboard"]) #map-wrap { border-radius: 16px; }
   .pc-addr { flex-direction: column; gap: 2px; } .pc-addr span:last-child { text-align: left; }
   .rt-pk .form-grid { grid-template-columns: 1fr 1fr; } .rt-pk .form-grid input:first-child { grid-column: 1 / -1; }
 }
+
+/* a parcel that was just added flashes so it can be found in a long list */
+.parcel-row.just-added { animation: justAdded 3.5s ease; }
+@keyframes justAdded { 0%, 60% { box-shadow: 0 0 0 4px var(--primary-soft); border-color: var(--primary); } 100% { box-shadow: var(--shadow-sm); } }

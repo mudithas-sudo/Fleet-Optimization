@@ -359,8 +359,10 @@ const PLANNABLE = ["pending", "awaiting_redelivery"];
 const PARCEL_GROUPS = [
   { key: "review",   label: "Failed — needs review", dot: "g-active",
     match: s => s === "failed" },
+  { key: "pickups",  label: "Pickup requests",  dot: "g-active",
+    match: (s, p) => PLANNABLE.includes(s) && p.requestType === "pickup" },
   { key: "pending",  label: "Pending",          dot: "g-planned",
-    match: s => PLANNABLE.includes(s) },
+    match: (s, p) => PLANNABLE.includes(s) && p.requestType !== "pickup" },
   { key: "transit",  label: "Out for delivery", dot: "g-active",
     match: s => ["assigned", "in_transit", "picked_up"].includes(s) },
   { key: "done",     label: "Delivered",        dot: "",
@@ -397,6 +399,7 @@ function parcelProgressPct(p) {
 function parcelRow(p) {
   const row = document.createElement("div");
   row.className = "parcel-row";
+  row.dataset.pid = p.id;
   const dl = fmtDeadline(p);
   const plannable = PLANNABLE.includes(p.status);
   const statusText = p.status.replace(/_/g, " ");
@@ -510,7 +513,7 @@ function renderParcels() {
   }
 
   PARCEL_GROUPS.forEach(g => {
-    const items = all.filter(p => g.match(p.status)).sort(parcelComparator(g.key));
+    const items = all.filter(p => g.match(p.status, p)).sort(parcelComparator(g.key));
     if (!items.length) return;
     wrap.append(parcelGroupHead(g.label, items.length, g.dot));
     items.forEach(p => wrap.append(parcelRow(p)));
@@ -789,6 +792,16 @@ function setupPickupSearch() {
   _wireSearch("pf-pickup", setPfPickup, "pf-pickup-err");
 }
 
+// bring a newly added parcel into view and flash it, so it is obvious where it went
+function revealParcel(id) {
+  if (activeTab !== "parcels") return;
+  const row = document.querySelector(`.parcel-row[data-pid="${id}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: "center", behavior: "smooth" });
+  row.classList.add("just-added");
+  setTimeout(() => row.classList.remove("just-added"), 3500);
+}
+
 async function saveParcel() {
   if (!validateParcelForm()) {
     const bad = $("parcel-form").querySelector(".field-err:not([hidden])");
@@ -840,6 +853,7 @@ async function saveParcel() {
     parcels[parcel.id] = parcel;   // reflect immediately; don't wait on SSE
     renderParcels();
     toggleParcelForm(false);
+    revealParcel(parcel.id);
   } catch (err) {
     pfErr("pf-form-err", err.message || "Could not add the parcel. Please try again.");
     save.disabled = false;

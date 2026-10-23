@@ -451,7 +451,19 @@ function renderDock() {
     `<div class="dock-foot"><button type="button" class="link-action" data-all-attn>View all${attn.length > 6 ? " " + attn.length : ""}</button></div>`
     : `<div class="empty-state"><b>All clear</b>Nothing needs attention right now.</div>`;
 
-  const queueHtml = queue.length ? queue.slice(0, 8).map(p => {
+  const pickups = queue.filter(p => p.requestType === "pickup");
+  const dockParcel = p => {
+    const due = dueText(p);
+    return `<div class="dock-parcel" draggable="true" data-pid="${p.id}" tabindex="0" role="button" aria-label="Open ${pdEsc(p.trackingNumber || p.name)}">
+      <span class="grip" aria-hidden="true"></span>
+      <span class="dp-main"><b>${pdEsc(p.trackingNumber || p.name)}</b> ${pdEsc(p.name)}
+        <span class="di-sub">${p.requestType === "pickup" && p.pickup ? "Collect · " + pdEsc(p.pickup.label) : pdEsc(p.destination.label)}</span></span>
+      <span class="dp-side">${p.priority && p.priority !== "standard" ? `<span class="p-chip${p.priority === "express" ? " fragile" : ""}">${p.priority}</span>` : ""}
+        <span class="due ${due.tone}">${due.text}</span></span></div>`;
+  };
+  const pickupHtml = pickups.map(dockParcel).join("");
+  const others = queue.filter(p => p.requestType !== "pickup");
+  const queueHtml = others.length ? others.slice(0, 8).map(p => {
     const due = dueText(p);
     return `<div class="dock-parcel" draggable="true" data-pid="${p.id}" tabindex="0" role="button" aria-label="Open ${pdEsc(p.trackingNumber || p.name)}">
       <span class="grip" aria-hidden="true"></span>
@@ -459,11 +471,12 @@ function renderDock() {
         <span class="di-sub">${pdEsc(p.destination.label)}</span></span>
       <span class="dp-side">${p.priority && p.priority !== "standard" ? `<span class="p-chip${p.priority === "express" ? " fragile" : ""}">${p.priority}</span>` : ""}
         <span class="due ${due.tone}">${due.text}</span></span></div>`;
-  }).join("") + (queue.length > 8 ? `<button type="button" class="link-action" data-all-queue>See all ${queue.length} on the Parcels page</button>` : "")
+  }).join("") + (others.length > 8 ? `<button type="button" class="link-action" data-all-queue>See all ${others.length} on the Parcels page</button>` : "")
     : `<div class="empty-state"><b>Queue is empty</b>Every parcel is on a run.</div>`;
 
   box.innerHTML =
     accHtml("Needs attention", attnHtml, { open: true, count: attn.length, warn: attn.some(i => i.level === 0) }) +
+    (pickups.length ? accHtml("Pickup requests", `<div class="hint" style="margin-bottom:6px">Customers waiting for a collection. Open one to find the best run, or drag it onto a ride.</div>${pickupHtml}`, { open: true, count: pickups.length }) : "") +
     accHtml("Unassigned parcels", `<div class="hint" style="margin-bottom:6px">Drag a parcel onto a ride in the table to add it to that run.</div>${queueHtml}
       <div class="row" style="margin-top:10px"><button type="button" class="btn btn-ghost" id="dock-add">Add parcel</button>
         <button type="button" class="btn btn-primary" id="dock-suggest"${queue.length ? "" : " disabled"}>Suggest runs</button></div>`,
