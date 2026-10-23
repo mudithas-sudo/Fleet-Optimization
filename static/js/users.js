@@ -57,7 +57,7 @@ function applyRole() {
   [...body.classList].filter(c => c.startsWith("role-") || c.startsWith("can-")).forEach(c => body.classList.remove(c));
   body.classList.add("role-" + currentUser.role);
   currentUser.permissions.forEach(p => body.classList.add("can-" + p.replace(/\./g, "-")));
-  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"].forEach(page => {
+  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"].forEach(page => {
     const btn = $("tab-btn-" + page);
     if (btn) btn.hidden = !currentUser.pages.includes(page);
   });

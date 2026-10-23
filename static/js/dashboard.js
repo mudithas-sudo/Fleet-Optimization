@@ -366,6 +366,8 @@ function onPageChange(page) {
   if (window.google && map) setTimeout(() => google.maps.event.trigger(map, "resize"), 60);
   if (page === "fleet" && typeof loadRouteTemplates === "function") loadRouteTemplates();
   if (page === "warehouse" && typeof startWarehouse === "function") startWarehouse();
+  if (page === "impact" && typeof startImpact === "function") startImpact();
+  if (page === "reports" && typeof startReports === "function") startReports();
   if (page === "dashboard") {
     Object.keys(vehicles || {}).forEach(id => { vehicles[id].setMap(null); delete vehicles[id]; });
     _fitted = false;

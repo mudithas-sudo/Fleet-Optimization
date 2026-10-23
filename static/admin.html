@@ -821,9 +821,10 @@
   .nt.bad { background: var(--danger-soft); color: var(--danger); }
 
   /* ---------- reports ---------- */
+  .rp-page { display: flex; flex-direction: column; gap: var(--space-4); }
   #reports, #impact { display: none; position: fixed; inset: 0; z-index: 30; background: var(--scrim); align-items: flex-start; justify-content: center; padding: var(--space-5) var(--space-4); overflow-y: auto; }
   #reports .rp-card, #impact .rp-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(1040px, 100%); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
-  #reports h3, #impact h3 { font: 700 var(--fs-md) var(--display); margin-bottom: var(--space-2); }
+  #reports h3, #impact h3, .rp-page h3 { font: 700 var(--fs-md) var(--display); margin-bottom: var(--space-2); }
   /* impact screen */
   .im-hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-5); display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--space-5); align-items: center; }
   .im-lead b { display: block; font: 700 40px/1.1 var(--display); letter-spacing: -.02em; color: var(--primary); }
@@ -889,7 +890,7 @@
     #run-footer, #depot-chip, #depot-form, #btn-add-vehicle, #btn-add-driver, .edit-driver, .del, #btn-delete,
     #btn-reassign, #btn-breakdown, #breakdown-form, .rc-run, .rc-driver, #btn-new-route, .rc-tools, #pd-actions, #reassign-form, .parcel-row input[type=checkbox], #btn-reports, #btn-impact) { display: none !important; }
   body.role-dispatcher :is(#btn-add-vehicle, #btn-add-driver, .edit-driver, .reg-row .del, #depot-chip, #depot-form,
-    #btn-clear-all, #btn-reports, #btn-impact, #btn-new-route, .rc-tools) { display: none !important; }
+    #btn-clear-all, #btn-new-route, .rc-tools) { display: none !important; }
   body.role-supervisor #users-section { display: none !important; }
   #users-section[hidden] { display: none; }
   #users-section .reg-row.off { opacity: .6; }
@@ -972,8 +973,8 @@
     <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-warehouse"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 10 12 4l9 6v10H3z"/><path d="M8 20v-6h8v6M3 10h18"/></svg><span class="label">Warehouse</span></button>
     <button type="button" class="nav-item" id="tab-btn-registry"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg><span class="label">Fleet</span></button>
-    <button type="button" class="nav-item" id="btn-impact"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span class="label">Impact</span></button>
-    <button type="button" class="nav-item" id="btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
+    <button type="button" class="nav-item" id="tab-btn-impact"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span class="label">Impact</span></button>
+    <button type="button" class="nav-item" id="tab-btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
     <button type="button" class="nav-collapse" id="nav-collapse" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span class="label">Collapse</span></button>
     </nav>
   <div id="nav-scrim" aria-hidden="true"></div>
@@ -1251,6 +1252,83 @@
       <div id="wh-recv" hidden></div>
     </section>
 
+    <section id="tab-impact" role="tabpanel" aria-label="Impact" hidden>
+      <div class="rp-page">
+    <div class="rp-head">
+      <h2>Impact</h2>
+      <select id="im-days" aria-label="Period">
+        <option value="today">Today</option>
+        <option value="7" selected>Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
+    </div>
+    <div id="im-status" role="status"></div>
+    <div id="im-hero" class="im-hero"></div>
+    <div id="im-kpis" class="rp-kpis"></div>
+    <div><h3>Run by run: before and after optimisation</h3><div class="rp-tablewrap"><table id="im-runs"></table></div></div>
+    <div><h3>Plan vs what actually happened</h3><div id="im-pva" class="rp-panel"></div></div>
+    <div class="rp-panel">
+      <h3>How these figures are worked out</h3>
+      <div class="hint" id="im-method" style="margin-bottom:10px"></div>
+      <div class="im-fuel">
+        <div class="field"><label for="im-price">Fuel price per litre (<span id="im-cur"></span>)</label><input id="im-price" type="number" min="0" step="1" inputmode="decimal"></div>
+        <div class="field"><label for="im-co2">kg CO₂ per litre</label><input id="im-co2" type="number" min="0" step="0.01" inputmode="decimal"></div>
+        <div class="field"><label for="im-l-bike">Bike L/100 km</label><input id="im-l-bike" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="im-l-car">Car L/100 km</label><input id="im-l-car" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="im-l-van">Van L/100 km</label><input id="im-l-van" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="im-l-truck">Truck L/100 km</label><input id="im-l-truck" type="number" min="0" step="0.1"></div>
+        <button id="im-fuel-save" class="btn btn-primary" type="button">Save fuel settings</button>
+      </div>
+    </div>
+
+      </div>
+    </section>
+
+    <section id="tab-reports" role="tabpanel" aria-label="Reports" hidden>
+      <div class="rp-page">
+    <div class="rp-head">
+      <h2>Reports</h2>
+      <select id="rp-days" aria-label="Period">
+        <option value="today">Today</option>
+        <option value="7" selected>Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
+    </div>
+    <div id="rp-status" role="status"></div>
+    <div id="rp-kpis" class="rp-kpis"></div>
+    <div class="rp-grid">
+      <div class="rp-panel"><h3>Deliveries per day</h3><div id="rp-daily"></div></div>
+      <div class="rp-panel"><h3>Why deliveries fail</h3><div id="rp-fail"></div></div>
+    </div>
+    <div><h3>Drivers</h3><div class="rp-tablewrap"><table id="rp-drivers"></table></div></div>
+    <div class="rp-grid">
+      <div class="rp-panel">
+        <h3>Cost rates</h3>
+        <div class="hint" style="margin-bottom:8px">Cost per delivery = (km driven × rate per km + hours × rate per hour) ÷ deliveries.</div>
+        <div class="rp-row">
+          <div class="field"><label for="rp-perkm">Per km</label><input id="rp-perkm" type="number" min="0" step="1" inputmode="decimal"></div>
+          <div class="field"><label for="rp-perhour">Per hour</label><input id="rp-perhour" type="number" min="0" step="10" inputmode="decimal"></div>
+          <div class="field"><label for="rp-currency">Currency</label><input id="rp-currency" maxlength="6"></div>
+          <button id="rp-costs-save" class="btn btn-primary" type="button">Save rates</button>
+        </div>
+      </div>
+      <div class="rp-panel">
+        <h3>Export</h3>
+        <div class="hint" style="margin-bottom:8px">CSV files open in Excel and Google Sheets, for the period selected above.</div>
+        <div class="rp-exports">
+          <a id="rp-export-parcels" class="btn btn-ghost" download>Parcels</a>
+          <a id="rp-export-runs" class="btn btn-ghost" download>Runs</a>
+          <a id="rp-export-drivers" class="btn btn-ghost" download>Drivers</a>
+        </div>
+      </div>
+    </div>
+    <div><h3>Recent customer messages</h3><div class="hint" id="rp-notes-hint" style="margin-bottom:6px"></div><div id="rp-notes"></div></div>
+
+      </div>
+    </section>
+
     <!-- ================= REGISTRY ================= -->
     <section id="tab-registry" role="tabpanel" aria-label="Fleet and drivers" hidden>
       <div class="page-title"><h2>Fleet and drivers</h2><span class="hint">Vehicles, who drives them, and who can sign in.</span></div>
@@ -1511,86 +1589,9 @@
 </div>
 
 <!-- import modal -->
-<div id="reports" role="dialog" aria-modal="true" aria-label="Reports">
-  <div class="rp-card">
-    <div class="rp-head">
-      <h2>Reports</h2>
-      <select id="rp-days" aria-label="Period">
-        <option value="today">Today</option>
-        <option value="7" selected>Last 7 days</option>
-        <option value="30">Last 30 days</option>
-        <option value="all">All time</option>
-      </select>
-      <button id="rp-close" class="close-btn" type="button" aria-label="Close reports">
-        <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div id="rp-status" role="status"></div>
-    <div id="rp-kpis" class="rp-kpis"></div>
-    <div class="rp-grid">
-      <div class="rp-panel"><h3>Deliveries per day</h3><div id="rp-daily"></div></div>
-      <div class="rp-panel"><h3>Why deliveries fail</h3><div id="rp-fail"></div></div>
-    </div>
-    <div><h3>Drivers</h3><div class="rp-tablewrap"><table id="rp-drivers"></table></div></div>
-    <div class="rp-grid">
-      <div class="rp-panel">
-        <h3>Cost rates</h3>
-        <div class="hint" style="margin-bottom:8px">Cost per delivery = (km driven × rate per km + hours × rate per hour) ÷ deliveries.</div>
-        <div class="rp-row">
-          <div class="field"><label for="rp-perkm">Per km</label><input id="rp-perkm" type="number" min="0" step="1" inputmode="decimal"></div>
-          <div class="field"><label for="rp-perhour">Per hour</label><input id="rp-perhour" type="number" min="0" step="10" inputmode="decimal"></div>
-          <div class="field"><label for="rp-currency">Currency</label><input id="rp-currency" maxlength="6"></div>
-          <button id="rp-costs-save" class="btn btn-primary" type="button">Save rates</button>
-        </div>
-      </div>
-      <div class="rp-panel">
-        <h3>Export</h3>
-        <div class="hint" style="margin-bottom:8px">CSV files open in Excel and Google Sheets, for the period selected above.</div>
-        <div class="rp-exports">
-          <a id="rp-export-parcels" class="btn btn-ghost" download>Parcels</a>
-          <a id="rp-export-runs" class="btn btn-ghost" download>Runs</a>
-          <a id="rp-export-drivers" class="btn btn-ghost" download>Drivers</a>
-        </div>
-      </div>
-    </div>
-    <div><h3>Recent customer messages</h3><div class="hint" id="rp-notes-hint" style="margin-bottom:6px"></div><div id="rp-notes"></div></div>
-  </div>
-</div>
 
-<div id="impact" role="dialog" aria-modal="true" aria-label="Impact">
-  <div class="rp-card">
-    <div class="rp-head">
-      <h2>Impact</h2>
-      <select id="im-days" aria-label="Period">
-        <option value="today">Today</option>
-        <option value="7" selected>Last 7 days</option>
-        <option value="30">Last 30 days</option>
-        <option value="all">All time</option>
-      </select>
-      <button id="im-close" class="close-btn" type="button" aria-label="Close impact">
-        <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div id="im-status" role="status"></div>
-    <div id="im-hero" class="im-hero"></div>
-    <div id="im-kpis" class="rp-kpis"></div>
-    <div><h3>Run by run: before and after optimisation</h3><div class="rp-tablewrap"><table id="im-runs"></table></div></div>
-    <div><h3>Plan vs what actually happened</h3><div id="im-pva" class="rp-panel"></div></div>
-    <div class="rp-panel">
-      <h3>How these figures are worked out</h3>
-      <div class="hint" id="im-method" style="margin-bottom:10px"></div>
-      <div class="im-fuel">
-        <div class="field"><label for="im-price">Fuel price per litre (<span id="im-cur"></span>)</label><input id="im-price" type="number" min="0" step="1" inputmode="decimal"></div>
-        <div class="field"><label for="im-co2">kg CO₂ per litre</label><input id="im-co2" type="number" min="0" step="0.01" inputmode="decimal"></div>
-        <div class="field"><label for="im-l-bike">Bike L/100 km</label><input id="im-l-bike" type="number" min="0" step="0.1"></div>
-        <div class="field"><label for="im-l-car">Car L/100 km</label><input id="im-l-car" type="number" min="0" step="0.1"></div>
-        <div class="field"><label for="im-l-van">Van L/100 km</label><input id="im-l-van" type="number" min="0" step="0.1"></div>
-        <div class="field"><label for="im-l-truck">Truck L/100 km</label><input id="im-l-truck" type="number" min="0" step="0.1"></div>
-        <button id="im-fuel-save" class="btn btn-primary" type="button">Save fuel settings</button>
-      </div>
-    </div>
-  </div>
-</div>
+
+
 
 <div id="pw-modal" role="dialog" aria-modal="true" aria-label="Change password">
   <div class="modal-card">

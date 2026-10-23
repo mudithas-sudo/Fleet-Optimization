@@ -4,22 +4,15 @@
 let rpDays = "7";
 
 function setupReports() {
-  $("btn-reports").onclick = openReports;
-  $("rp-close").onclick = closeReports;
-  $("reports").addEventListener("click", e => { if (e.target === $("reports")) closeReports(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && $("reports").style.display === "flex") closeReports(); });
   $("rp-days").onchange = () => { rpDays = $("rp-days").value; loadReport(); };
   $("rp-costs-save").onclick = saveCosts;
 }
 
-function openReports() {
-  $("reports").style.display = "flex";
+// Reports is a page (opened from the side menu); this runs when it is shown
+function startReports() {
   $("rp-days").value = rpDays;
   loadReport();
-  $("rp-close").focus();
 }
-
-function closeReports() { $("reports").style.display = "none"; }
 
 const rpNum = (n, d = 0) => n == null ? "–" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const rpPct = n => n == null ? "–" : n + "%";

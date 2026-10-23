@@ -60,12 +60,12 @@ ROLE_PERMS = {
     "viewer": {"parcels.read", "runs.read", "registry.read", "warehouse.read"},
 }
 # what each role sees: the pages in the side menu (dashboard, parcels, fleet = Runs, attention, warehouse,
-# registry = Fleet and drivers) and where they land after signing in
+# registry = Fleet and drivers, impact, reports) and where they land after signing in
 ROLE_INFO = {
     "admin": {"help": "Everything, including people", "landing": "dashboard",
-              "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"]},
+              "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"]},
     "supervisor": {"help": "Runs the operation: planning, fleet, hub, routes, reports", "landing": "dashboard",
-                   "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"]},
+                   "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"]},
     "dispatcher": {"help": "Plans runs and handles parcels, pickups and failures", "landing": "dashboard",
                    "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse"]},
     "support": {"help": "Customer calls: parcels, pickups, rescheduling, messages", "landing": "parcels",
@@ -75,7 +75,7 @@ ROLE_INFO = {
     "fleet": {"help": "Vehicles and drivers: add, edit, availability", "landing": "registry",
               "pages": ["registry", "fleet"]},
     "analyst": {"help": "Reports and the Impact screen, read-only", "landing": "dashboard",
-                "pages": ["dashboard", "parcels", "fleet"]},
+                "pages": ["dashboard", "parcels", "fleet", "impact", "reports"]},
     "viewer": {"help": "Can look, can’t change anything", "landing": "dashboard",
                "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse"]},
 }

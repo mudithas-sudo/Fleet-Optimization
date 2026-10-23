@@ -5,22 +5,15 @@
 let imDays = "7";
 
 function setupImpact() {
-  $("btn-impact").onclick = openImpact;
-  $("im-close").onclick = closeImpact;
-  $("impact").addEventListener("click", e => { if (e.target === $("impact")) closeImpact(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && $("impact").style.display === "flex") closeImpact(); });
   $("im-days").onchange = () => { imDays = $("im-days").value; loadImpact(); };
   $("im-fuel-save").onclick = saveFuel;
 }
 
-function openImpact() {
-  $("impact").style.display = "flex";
+// Impact is a page (opened from the side menu); this runs when it is shown
+function startImpact() {
   $("im-days").value = imDays;
   loadImpact();
-  $("im-close").focus();
 }
-
-function closeImpact() { $("impact").style.display = "none"; }
 
 const imN = (n, d = 0) => n == null ? "–" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 

@@ -136,17 +136,20 @@ body:not([data-page="dashboard"]) #map-wrap { border-radius: 16px; }
 body[data-page="parcels"]:not(.pf-open):not(.map-needed) #stage,
 body[data-page="attention"]:not(.map-needed) #stage,
 body[data-page="registry"]:not(.map-needed) #stage,
-body[data-page="warehouse"]:not(.map-needed) #stage {
+body[data-page="warehouse"]:not(.map-needed) #stage,
+body[data-page="impact"] #stage, body[data-page="reports"] #stage {
   grid-template-columns: minmax(0, 1fr); grid-template-areas: "panel"; grid-template-rows: auto;
 }
 body[data-page="parcels"]:not(.pf-open):not(.map-needed) #map-wrap,
 body[data-page="attention"]:not(.map-needed) #map-wrap,
 body[data-page="registry"]:not(.map-needed) #map-wrap,
-body[data-page="warehouse"]:not(.map-needed) #map-wrap { display: none; }
+body[data-page="warehouse"]:not(.map-needed) #map-wrap,
+body[data-page="impact"] #map-wrap, body[data-page="reports"] #map-wrap { display: none; }
 body[data-page="parcels"]:not(.pf-open):not(.map-needed) #panel,
 body[data-page="attention"]:not(.map-needed) #panel,
 body[data-page="registry"]:not(.map-needed) #panel,
-body[data-page="warehouse"]:not(.map-needed) #panel { max-width: 1400px; width: 100%; margin: 0 auto; overflow: visible; }
+body[data-page="warehouse"]:not(.map-needed) #panel,
+body[data-page="impact"] #panel, body[data-page="reports"] #panel { max-width: 1400px; width: 100%; margin: 0 auto; overflow: visible; }
 /* full-width Parcels: cards in a responsive grid, group titles across the top */
 body[data-page="parcels"]:not(.pf-open):not(.map-needed) #parcel-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 0 16px; align-items: start; }
 body[data-page="parcels"]:not(.pf-open):not(.map-needed) #parcel-list > .trip-group { grid-column: 1 / -1; }
@@ -166,7 +169,7 @@ body:not(.can-parcels-review):not(.can-runs-plan) #pd-actions { display: none !i
 body:not(.can-registry-write) :is(#btn-add-vehicle, #btn-add-driver, .edit-driver, .reg-row .del) { display: none !important; }
 body:not(.can-hub) :is(#depot-chip, #depot-form, #btn-change-hub) { display: none !important; }
 body:not(.can-routes-edit) :is(#btn-new-route, .rc-tools, #route-form) { display: none !important; }
-body:not(.can-reports) #btn-reports, body:not(.can-impact) #btn-impact { display: none !important; }
+body:not(.can-reports) #tab-btn-reports, body:not(.can-impact) #tab-btn-impact { display: none !important; }
 body:not(.can-users) #users-section { display: none !important; }
 body:not(.can-runs-read) #routes-section { display: none !important; }
 

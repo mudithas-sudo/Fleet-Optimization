@@ -69,7 +69,7 @@ async function init() {
 
   map.addListener("click", e => onMapClick(e.latLng.lat(), e.latLng.lng()));
 
-  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"].forEach(t => {
+  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"].forEach(t => {
     $(`tab-btn-${t}`).onclick = () => switchTab(t);
   });
 
@@ -195,7 +195,7 @@ async function init() {
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
 
-const PAGES = ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"];
+const PAGES = ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"];
 
 function switchTab(tab) {
   if (!PAGES.includes(tab)) tab = "dashboard";
