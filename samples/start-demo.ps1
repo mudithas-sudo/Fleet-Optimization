@@ -4,6 +4,7 @@
 #   .\samples\start-demo.ps1 -Port 8002      # another port
 #   .\samples\start-demo.ps1 -Users          # also create demo staff accounts (admin, supervisor1, ...)
 #   .\samples\start-demo.ps1 -Keep           # keep the demo database as it is (don't reseed)
+#   .\samples\start-demo.ps1 -Fresh         # an EMPTY system (hub, routes, staff only): register vehicles and drivers live
 #   .\samples\start-demo.ps1 -Login         # sign-in on, with a page listing every demo account and its password
 #   .\samples\start-demo.ps1 -RealRoutes    # draw the sample runs along real roads (uses your Maps key, a few calls)
 #
@@ -15,7 +16,8 @@ param(
     [switch]$Users,
     [switch]$Keep,
     [switch]$RealRoutes,
-    [switch]$Login
+    [switch]$Login,
+    [switch]$Fresh
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,11 +49,13 @@ if (-not $Keep) {
     $seedArgs = @("samples\seed_demo.py", "--reset")
     if ($Users) { $seedArgs += "--users" }
     if ($RealRoutes) { $seedArgs += "--real-routes" }
+    if ($Fresh) { $seedArgs += "--fresh" }
     & venv\Scripts\python.exe @seedArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 Write-Host ""
 Write-Host "Demo is at http://localhost:$Port   (Ctrl+C to stop)" -ForegroundColor Cyan
+if ($Fresh) { Write-Host "Empty system: register vehicles and drivers first (docs/demo-script.md has the list)." -ForegroundColor Cyan }
 if ($Login) { Write-Host "Sign-in is on: open the page and pick an account (every demo password is demo-pass-123)." -ForegroundColor Cyan }
 & venv\Scripts\python.exe -m uvicorn app.main:app --port $Port

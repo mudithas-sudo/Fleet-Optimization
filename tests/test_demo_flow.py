@@ -156,7 +156,9 @@ def test_07_predefined_route_builds_todays_run():
     drivers = client.get("/api/drivers").json()
     busy = {x["driverId"] for x in client.get("/api/trips").json() if x["status"] != "completed"}
     free = next((d for d in drivers if d["id"] not in busy and not d.get("onLeave")), None)
-    assert free, "a free driver exists after the earlier steps"
+    if not free:                                   # everyone is on a run by now: register one more, like a fleet manager would
+        v = client.post("/api/vehicles", json={"name": "Van 03", "plate": "CAB-9001", "type": "van"}).json()
+        free = client.post("/api/drivers", json={"name": "Extra Driver", "phone": "+94 77 000 0003", "vehicleId": v["id"]}).json()
     pv = client.get(f"/api/route-templates/{t['id']}/preview").json()
     assert pv["pickups"]
     r = client.post(f"/api/route-templates/{t['id']}/run", json={"driverId": free["id"]})

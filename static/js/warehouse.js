@@ -4,11 +4,13 @@
 // /api/parcels/{id}/loaded, /api/runs/{id}/loaded and /api/parcels/{id}/received.
 
 let whView = "load";
+let whDriver = "";                   // "" = every driver
 let whTimer = null;
 let whData = { load: null, recv: null };
 
 function setupWarehouse() {
   if (!$("tab-warehouse")) return;
+  $("wh-driver").onchange = () => { whDriver = $("wh-driver").value; renderWarehouse(); };
   document.querySelectorAll("#tab-warehouse [data-wh]").forEach(b => {
     b.onclick = () => { whView = b.dataset.wh; renderWarehouse(); };
   });
@@ -38,17 +40,26 @@ async function loadWarehouse(quiet = false) {
 function whInitials(name) { return typeof initialsOf === "function" ? initialsOf(name) : String(name || "?").slice(0, 2).toUpperCase(); }
 
 function renderWarehouse() {
-  const { load, recv } = whData;
-  if (!load || !recv) return;
+  const { load: all, recv } = whData;
+  if (!all || !recv) return;
+  // the driver picker lists everyone who has parcels waiting to be handed over
+  const drivers = [...new Set(all.runs.map(r => r.driverName).filter(Boolean))].sort();
+  if (whDriver && !drivers.includes(whDriver)) whDriver = "";
+  $("wh-driver").innerHTML = `<option value="">All drivers (${drivers.length})</option>` + drivers.map(d =>
+    `<option value="${pdEsc(d)}" ${d === whDriver ? "selected" : ""}>${pdEsc(d)}</option>`).join("");
+  $("wh-filter").hidden = whView !== "load";
+  const runs = whDriver ? all.runs.filter(r => r.driverName === whDriver) : all.runs;
+  const load = { runs, totals: { runs: runs.length, parcels: runs.reduce((n, r) => n + r.total, 0),
+    loaded: runs.reduce((n, r) => n + r.loaded, 0), readyRuns: runs.filter(r => r.ready).length } };
   const t = load.totals, c = recv.counts, incoming = c.collected + c.not_delivered + c.returned;
   document.querySelectorAll("#tab-warehouse [data-wh]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.wh === whView)));
-  $("wh-n-load").textContent = t.runs;
+  $("wh-n-load").textContent = all.totals.runs;
   $("wh-n-recv").textContent = incoming;
   $("wh-n-recv").hidden = !incoming;
   $("wh-load").hidden = whView !== "load";
   $("wh-recv").hidden = whView !== "recv";
   $("wh-summary").innerHTML = whView === "load" ? `
-      <div><b>${t.runs}</b><span>runs to load</span></div>
+      <div><b>${t.runs}</b><span>${whDriver ? "run for " + pdEsc(whDriver) : "drivers to serve"}</span></div>
       <div><b>${t.loaded}/${t.parcels}</b><span>parcels loaded</span></div>
       <div><b>${t.readyRuns}</b><span>ready to leave</span></div>` : `
       <div><b>${c.collected}</b><span>collected from customers</span></div>
@@ -61,7 +72,7 @@ function renderLoading(load) {
   const box = $("wh-load");
   const canLoad = can("warehouse.load");
   if (!load.runs.length) {
-    box.innerHTML = `<div class="empty-state"><b>Nothing to load</b>Runs appear here as soon as a dispatcher plans them.</div>`;
+    box.innerHTML = `<div class="empty-state"><b>Nothing to hand over</b>Each driver’s parcels appear here as soon as a dispatcher plans their run.</div>`;
     return;
   }
   box.innerHTML = "";
@@ -70,13 +81,14 @@ function renderLoading(load) {
     const card = document.createElement("article");
     card.className = "wh-run" + (r.ready ? " ready" : "");
     card.innerHTML = `
+      <div class="wh-print-head"><b>Hand-over list</b> · ${pdEsc(r.driverName || "No driver")} · ${pdEsc(r.vehicleName || r.vehicleType)}${r.plate ? " · " + pdEsc(r.plate) : ""} · ${new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>
       <header class="wh-head">
         <span class="avatar sm">${whInitials(r.driverName)}</span>
         <div class="wh-who"><b>${pdEsc(r.driverName || "No driver")}</b>
-          <small>${pdEsc(r.vehicleName || r.vehicleType)}${r.plate ? " · " + pdEsc(r.plate) : ""}${r.templateCode ? " · " + pdEsc(r.templateCode) : ""} · ${pdEsc(r.label)}</small></div>
+          <small>${r.total} parcel${r.total === 1 ? "" : "s"} to hand over · ${pdEsc(r.vehicleName || r.vehicleType)}${r.plate ? " · " + pdEsc(r.plate) : ""}${r.driverPhone ? " · " + pdEsc(r.driverPhone) : ""}${r.templateCode ? " · " + pdEsc(r.templateCode) : ""}</small></div>
         <span class="pill ${r.ready ? "ok" : "warn"}">${r.ready ? "Ready to leave" : `${r.loaded}/${r.total} loaded`}</span>
         <div class="wh-actions">
-          <button type="button" class="btn btn-ghost" data-print>Print pick list</button>
+          <button type="button" class="btn btn-ghost" data-print>Print hand-over list</button>
           ${canLoad ? `<button type="button" class="btn btn-primary" data-all ${r.ready ? "disabled" : ""}>Mark all loaded</button>` : ""}
         </div>
       </header>

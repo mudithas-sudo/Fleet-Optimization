@@ -7,6 +7,8 @@ Options
     --reset         wipe parcels, vehicles, drivers, runs, positions, proofs and
                     customer messages first (staff accounts are kept)
     --users         also create demo staff accounts (see the end of the output)
+    --fresh         an EMPTY system for a registration-first demo: only the hub, the predefined routes and
+                    (with --users) the staff accounts. No vehicles, drivers, parcels or runs.
     --real-routes   route the seeded runs through the Routes API (uses your key;
                     default is offline straight-line routes, so seeding costs nothing)
 
@@ -343,7 +345,33 @@ def finish(trip, ended, km_factor=1.03):
 
 
 # ---------------------------------------------------------------- the day
-def main(reset: bool, with_users: bool):
+def make_templates(by_name):
+    """Predefined routes: standing zones with a default driver (if that driver exists) and recurring pickups."""
+    from app import route_templates
+    for code, name, centre, radius, driver, start, pickups in ROUTE_TEMPLATES:
+        label, lat, lng = PLACES[centre]
+        route_templates.save({
+            "code": code, "name": name, "zone": {"lat": lat, "lng": lng, "label": label, "radiusKm": radius},
+            "driverId": (by_name.get(driver) or {}).get("id") if driver else None,
+            "days": [0, 1, 2, 3, 4, 5] if code != "R-03" else [0, 1, 2, 3, 4],
+            "startTime": start,
+            "pickups": [{"label": PLACES[pl][0], "lat": PLACES[pl][1], "lng": PLACES[pl][2], "name": who, "readyBy": ready,
+                         "collectBy": by, "size": "small"} for pl, who, ready, by in pickups]})
+
+
+def make_users():
+    from app import auth
+    for username, name, role in (("admin", "Administrator", "admin"), ("supervisor1", "Sunethra Supervisor", "supervisor"),
+                                 ("dispatcher1", "Dinesh Dispatcher", "dispatcher"), ("warehouse1", "Wasantha Warehouse", "warehouse"),
+                                 ("support1", "Sanduni Support", "support"), ("fleet1", "Fathima Fleet", "fleet"),
+                                 ("analyst1", "Anura Analyst", "analyst"), ("viewer1", "Vimal Viewer", "viewer")):
+        if not auth.find_by_username(username):
+            u = auth.create_user(username, name, role, "demo-pass-123")
+            u["demo"] = True                  # listed on the demo sign-in page (when DEMO_ACCOUNTS=1)
+            db.save_entity("users", u)
+
+
+def main(reset: bool, with_users: bool, fresh: bool = False):
     existing = db.all_entities("vehicles") or db.all_entities("parcels") or store.list_trips()
     if existing and not reset:
         sys.exit("Data already exists. Re-run with --reset to replace it (staff accounts are kept).")
@@ -353,21 +381,21 @@ def main(reset: bool, with_users: bool):
                 db.delete_entity(table, e["id"])
         db.clear_trips()
 
+    if fresh:                                   # an empty system: the hub, the standing routes, the staff
+        delivery.get_depot()
+        make_templates({})
+        if with_users:
+            make_users()
+        print("Empty system ready: the hub, 3 predefined routes" + (" and the demo staff accounts." if with_users else "."))
+        print("No vehicles, drivers or parcels yet: register them live (see docs/demo-script.md).")
+        return
+
     vehicles = {v["name"]: delivery.new_vehicle(v) for v in VEHICLES}
     for name, phone, vehicle, extra in DRIVERS:
         delivery.new_driver({"name": name, "phone": phone, "vehicleId": vehicles[vehicle]["id"], **extra})
 
-    # predefined routes: standing zones with a default driver and recurring pickups
-    from app import route_templates
     by_name = {d["name"]: d for d in db.all_entities("drivers")}
-    for code, name, centre, radius, driver, start, pickups in ROUTE_TEMPLATES:
-        label, lat, lng = PLACES[centre]
-        route_templates.save({
-            "code": code, "name": name, "zone": {"lat": lat, "lng": lng, "label": label, "radiusKm": radius},
-            "driverId": by_name[driver]["id"] if driver else None, "days": [0, 1, 2, 3, 4, 5] if code != "R-03" else [0, 1, 2, 3, 4],
-            "startTime": start,
-            "pickups": [{"label": PLACES[pl][0], "lat": PLACES[pl][1], "lng": PLACES[pl][2], "name": who, "readyBy": ready,
-                         "collectBy": by, "size": "small"} for pl, who, ready, by in pickups]})
+    make_templates(by_name)
 
     # parcels: (key, created hours ago, deadline hours from now)
     plan = {
@@ -442,10 +470,13 @@ def main(reset: bool, with_users: bool):
 
     # ---- run 4: Car 01 (Dilani) — planned, not started
     make_run("Dilani Fernando", ["d1", "d2", "d3"], created=NOW - 20 * MIN)
+    # ---- run 5: Bike 01 (Ruwan) — planned for the afternoon, nothing loaded yet
+    make_run("Ruwan Jayasinghe", ["p14", "p16"], created=NOW - 10 * MIN)
 
     # ---- the loading bay: the warehouse has started loading the scheduled run (one parcel ticked)
     from app import warehouse
-    planned = next(t for t in store.list_trips() if t["status"] == "planned")
+    dilani = next(d for d in db.all_entities("drivers") if d["name"] == "Dilani Fernando")
+    planned = next(t for t in store.list_trips() if t["status"] == "planned" and t.get("driverId") == dilani["id"])
     first = sorted(planned["parcelIds"])[0]
     warehouse.set_loaded(db.load_entity("parcels", first), True, "warehouse1")
 
@@ -472,15 +503,7 @@ def main(reset: bool, with_users: bool):
                 + "; ".join(f"{s.get('label')} ({s['lat']:.4f}, {s['lng']:.4f})" for s in tr["route"]["orderedStops"]))
 
     if with_users:
-        from app import auth
-        for username, name, role in (("admin", "Administrator", "admin"), ("supervisor1", "Sunethra Supervisor", "supervisor"),
-                                     ("dispatcher1", "Dinesh Dispatcher", "dispatcher"), ("warehouse1", "Wasantha Warehouse", "warehouse"),
-                                     ("support1", "Sanduni Support", "support"), ("fleet1", "Fathima Fleet", "fleet"),
-                                     ("analyst1", "Anura Analyst", "analyst"), ("viewer1", "Vimal Viewer", "viewer")):
-            if not auth.find_by_username(username):
-                u = auth.create_user(username, name, role, "demo-pass-123")
-                u["demo"] = True                  # listed on the demo sign-in page (when DEMO_ACCOUNTS=1)
-                db.save_entity("users", u)
+        make_users()
 
     if time.localtime().tm_hour < 10:
         print("NOTE: it is before 10:00, so the earlier runs of the sample day fall on yesterday and the dashboard shows"
@@ -490,7 +513,7 @@ def main(reset: bool, with_users: bool):
           f"4 runs and {counts['notifications']} customer messages.")
     print("Predefined routes: R-01 Colombo Central, R-02 Southern Corridor, R-03 Northern Corridor (Runs page > Run today's route).")
     print("Pickup requests: FO-100129 is on the live run, FO-100128 and FO-100130 are open (open one to see the best-run suggestions).")
-    print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando.")
+    print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando and Ruwan Jayasinghe.")
     print("Try the tracking page with FO-100112 (delivered) or FO-100114 (out for delivery).")
     if with_users:
         print("Demo staff accounts (set AUTH_ENABLED=1 to use them), password demo-pass-123: admin, supervisor1, dispatcher1, "
@@ -499,4 +522,4 @@ def main(reset: bool, with_users: bool):
 
 
 if __name__ == "__main__":
-    main("--reset" in sys.argv, "--users" in sys.argv)
+    main("--reset" in sys.argv, "--users" in sys.argv, "--fresh" in sys.argv)

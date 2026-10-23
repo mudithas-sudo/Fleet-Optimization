@@ -139,6 +139,11 @@ selects its model (gemini-3.5-flash recommended).
 
 ### Demo data
 
+Two ways to start (full script in [docs/demo-script.md](docs/demo-script.md)):
+
+- **Empty system, registration first** (the demo story): `.\samples\start-demo.bat -Fresh -Login` loads only the hub, three predefined routes and the staff accounts, so you register vehicles and drivers live, then run the day.
+- **A pre-loaded day**: `.\samples\start-demo.bat -Login -RealRoutes` (below).
+
 One command starts the console on a separate, fully populated demo database (your
 normal `fleet.db` is untouched) at http://localhost:8001:
 

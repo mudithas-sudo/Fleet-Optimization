@@ -227,3 +227,12 @@ body:not(.can-runs-read) #routes-section { display: none !important; }
   body.printing-run .wh-item.loaded .wh-main { opacity: 1; text-decoration: none; }
   body.printing-run #wh-load { display: block; }
 }
+
+.wh-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.wh-filter label { font: 500 13px var(--font); color: var(--text-muted); }
+.wh-filter select { height: 36px; min-width: 220px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: 400 13.5px var(--font); }
+.wh-print-head { display: none; }
+@media print {
+  body.printing-run .wh-print-head { display: block; font-size: 16px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #000; }
+  body.printing-run .wh-filter { display: none !important; }
+}
