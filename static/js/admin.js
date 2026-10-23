@@ -69,7 +69,7 @@ async function init() {
 
   map.addListener("click", e => onMapClick(e.latLng.lat(), e.latLng.lng()));
 
-  ["dashboard", "parcels", "fleet", "attention", "registry"].forEach(t => {
+  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"].forEach(t => {
     $(`tab-btn-${t}`).onclick = () => switchTab(t);
   });
 
@@ -139,6 +139,7 @@ async function init() {
   setupDragAndDrop();
   setupReassign();
   setupBreakdown();
+  if (typeof setupWarehouse === "function") setupWarehouse();
   if (typeof setupRoutes === "function") setupRoutes();
   $("btn-auto").onclick = () => autoAssign("rules");
   $("btn-auto-ai").onclick = () => autoAssign("ai");
@@ -189,15 +190,16 @@ async function init() {
   await Promise.all([loadDepot(), loadParcels(), loadRegistry(), loadTrips(), loadUsers()]);
   if (typeof loadRouteTemplates === "function") loadRouteTemplates();
   openStream();
-  switchTab("dashboard");
+  switchTab(currentUser.landing || "dashboard");
   if (typeof renderHero === "function") renderHero();
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
 
-const PAGES = ["dashboard", "parcels", "fleet", "attention", "registry"];
+const PAGES = ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"];
 
 function switchTab(tab) {
   if (!PAGES.includes(tab)) tab = "dashboard";
+  if (currentUser && !currentUser.pages.includes(tab)) tab = currentUser.landing;     // a page this role doesn't have
   activeTab = tab;
   document.body.dataset.page = tab;
   PAGES.forEach(t => {
@@ -269,6 +271,7 @@ function toggleDepotEdit() {
 
 function startDepotEdit() {
   depotEditing = true;
+  showMapFor("map-needed", true);
   $("depot-chip").setAttribute("aria-pressed", "true");
   $("depot-action").textContent = " · cancel";
   $("depot-form").style.display = "flex";
@@ -279,6 +282,7 @@ function startDepotEdit() {
 
 function closeDepotForm() {
   depotEditing = false;
+  showMapFor("map-needed", false);
   depotDraft = null;
   $("depot-chip").setAttribute("aria-pressed", "false");
   $("depot-action").textContent = " · edit";
@@ -641,8 +645,15 @@ function disarmMapTargets() {
 
 // ---- form open/close ----
 
+// the map is only on screen where it is needed: the list pages are map-free, except while a place has to be picked
+function showMapFor(reason, on) {
+  document.body.classList.toggle(reason, on);
+  if (window.google && map) setTimeout(() => google.maps.event.trigger(map, "resize"), 80);
+}
+
 function toggleParcelForm(show) {
   $("parcel-form").style.display = show ? "flex" : "none";
+  showMapFor("pf-open", !!show);
   if (show) {
     pfClearErrors();
     return;

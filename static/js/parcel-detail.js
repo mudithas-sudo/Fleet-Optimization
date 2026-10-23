@@ -125,9 +125,9 @@ function renderParcelDetail(p) {
     ${accHtml("History", `<ol class="timeline">${p.timeline.map(e => `
       <li class="${PD_EVENT_TONE[e.type] || ""}"><time>${pdWhen(e.ts)}</time><span>${pdEsc(e.message)}</span></li>`).join("")}
     </ol>`, { open: true, count: p.timeline.length })}
-    ${accHtml("Customer updates", `<div id="pd-notify" class="pd-notify"><div class="hint">Loading…</div></div>`)}
+    ${can("customers") ? accHtml("Customer updates", `<div id="pd-notify" class="pd-notify"><div class="hint">Loading…</div></div>`) : ""}
     <div id="pd-actions">${actionsBlock(p)}</div>`;
-  loadNotifications(p);
+  if (can("customers")) loadNotifications(p);
   if (document.getElementById("pd-fit")) loadFit(p);
   if (p.pod && (p.pod.hasSignature || p.pod.hasPhoto)) loadPodImages(p.id);
   wirePdActions(p);

@@ -7,23 +7,24 @@ const PAL = { items: [], idx: 0, goUntil: 0 };
 
 function palCommands() {
   const dispatcher = roleAtLeast("dispatcher"), supervisor = roleAtLeast("supervisor");
-  const goto = (label, page, key) => ({ group: "Go to", label, key: key ? `g ${key}` : "", run: () => switchTab(page) });
+  const goto = (label, page, key) => ({ group: "Go to", label, key: key ? `g ${key}` : "", run: () => switchTab(page), page });
   const list = [
     goto("Dashboard", "dashboard", "d"), goto("Parcels", "parcels", "p"), goto("Runs", "fleet", "r"),
-    goto("Attention queue", "attention", "a"), goto("Fleet and drivers", "registry", "f"),
+    goto("Attention queue", "attention", "a"), goto("Warehouse", "warehouse", "w"), goto("Fleet and drivers", "registry", "f"),
     { group: "Do", label: "Show rides live", key: "l", run: () => { switchTab("dashboard"); goLive(); } },
   ];
-  if (supervisor) list.splice(5, 0, { group: "Go to", label: "Impact: savings, fuel and CO2", key: "", run: () => $("btn-impact").click() });
-  if (supervisor) list.splice(6, 0, { group: "Go to", label: "Reports", key: "", run: () => $("btn-reports").click() });
-  if (dispatcher) {
+  if (can("impact")) list.push({ group: "Go to", label: "Impact: savings, fuel and CO2", key: "", run: () => $("btn-impact").click() });
+  if (can("reports")) list.push({ group: "Go to", label: "Reports", key: "", run: () => $("btn-reports").click() });
+  if (can("parcels.write")) {
     list.push(
       { group: "Do", label: "Add a parcel", key: "n", run: () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); } },
       { group: "Do", label: "Add a pickup request", key: "", run: () => { switchTab("parcels"); toggleParcelForm(true); setPfKind("pickup"); $("pf-name").focus(); } },
-      { group: "Do", label: "Suggest runs for pending parcels", key: "", run: () => { switchTab("parcels"); autoAssign("rules"); } },
+      ...(can("runs.plan") ? [{ group: "Do", label: "Suggest runs for pending parcels", key: "", run: () => { switchTab("parcels"); autoAssign("rules"); } }] : []),
       { group: "Do", label: "Import a manifest (CSV or Excel)", key: "", run: () => { switchTab("parcels"); $("btn-import").click(); } },
     );
   }
-  if (supervisor) list.push({ group: "Do", label: "Change the hub (start point)", key: "", run: () => { switchTab("parcels"); if (!depotEditing) startDepotEdit(); } });
+  if (can("hub")) list.push({ group: "Do", label: "Change the hub (start point)", key: "", run: () => { switchTab("parcels"); if (!depotEditing) startDepotEdit(); } });
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].page && !currentUser.pages.includes(list[i].page)) list.splice(i, 1);
   list.push(
     { group: "View", label: "Switch light / dark theme", key: "", run: () => setTheme(currentTheme() === "dark" ? "light" : "dark") },
     { group: "View", label: "Switch compact / comfortable view", key: "", run: () => setDensity(!document.body.classList.contains("compact")) },
@@ -120,14 +121,14 @@ function setupPalette() {
     const k = e.key;
     if (Date.now() < PAL.goUntil) {                      // second key of "g then …"
       PAL.goUntil = 0;
-      const page = { d: "dashboard", p: "parcels", r: "fleet", a: "attention", f: "registry" }[k.toLowerCase()];
+      const page = { d: "dashboard", p: "parcels", r: "fleet", a: "attention", w: "warehouse", f: "registry" }[k.toLowerCase()];
       if (page) { e.preventDefault(); switchTab(page); }
       return;
     }
     if (k === "g") { PAL.goUntil = Date.now() + 1500; return; }
     if (k === "/") { e.preventDefault(); palOpen(); }
     else if (k === "?") { e.preventDefault(); palOpen(); }
-    else if (k === "n" && roleAtLeast("dispatcher")) { e.preventDefault(); switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); }
+    else if (k === "n" && can("parcels.write")) { e.preventDefault(); switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); }
     else if (k === "l") { switchTab("dashboard"); goLive(); }
   });
 

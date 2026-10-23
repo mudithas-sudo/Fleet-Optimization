@@ -140,6 +140,9 @@ def new_parcel(data: dict) -> dict:
         "createdAt": time.time(),
         "failedAttempts": 0,
         "lastFailure": None,    # {reason, label, note, ts, tripId}
+        "loadedAt": None,       # warehouse: put on the vehicle (epoch) and by whom
+        "loadedBy": None,
+        "receivedAt": None,     # warehouse: checked in at the hub after a pickup, failure or return
         "review": None,         # {state: pending|done, decision, note, by, ts} — the separate rescheduling process
         "holdUntil": None,      # epoch: not plannable before this (rescheduled for a later day)
         "pod": None,            # proof-of-delivery meta; images live in the pods table
@@ -338,6 +341,10 @@ _STATUS_EVENT = {
 def set_parcel_status(parcel: dict, status: str, trip_id=None, ts=None, note=None) -> dict:
     previous = parcel["status"]
     parcel["status"] = status
+    if status != previous:
+        parcel["receivedAt"] = None            # a new movement: it will need checking in again
+        if status != "in_transit":             # loaded stays ticked from assigned to out for delivery, nowhere else
+            parcel["loadedAt"] = parcel["loadedBy"] = None
     if trip_id is not None or status in ("pending", "awaiting_redelivery", "returned", "failed"):
         parcel["tripId"] = trip_id
     request = parcel.get("requestType") == "pickup"

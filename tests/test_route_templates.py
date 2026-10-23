@@ -110,10 +110,10 @@ def test_default_driver_is_used_and_roles():
     r = client.post(f"/api/route-templates/{t['id']}/run", json={})
     assert r.status_code == 200 and r.json()["driverId"] == drv["id"]
     from app import auth
-    assert auth.required_role("POST", "/api/route-templates") == auth.ROLES["supervisor"]
-    assert auth.required_role("DELETE", "/api/route-templates/x") == auth.ROLES["supervisor"]
-    assert auth.required_role("POST", "/api/route-templates/x/run") == auth.ROLES["dispatcher"]
-    assert auth.required_role("GET", "/api/route-templates") == auth.ROLES["viewer"]
+    assert auth.required_perm("POST", "/api/route-templates") == "routes.edit"
+    assert auth.required_perm("DELETE", "/api/route-templates/x") == "routes.edit"
+    assert auth.required_perm("POST", "/api/route-templates/x/run") == "runs.plan"
+    assert auth.required_perm("GET", "/api/route-templates") == "runs.read"
 
 
 if __name__ == "__main__":

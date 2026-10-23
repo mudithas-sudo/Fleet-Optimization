@@ -115,10 +115,24 @@ selects its model (gemini-3.5-flash recommended).
 - **Reports** — header **Reports** button: on-time and first-attempt rates,
   failures by reason, per-driver productivity, distance, cost per delivery
   (editable per-km / per-hour rates) and CSV exports for parcels, runs, drivers.
-- **Users and roles** — set `AUTH_ENABLED=1` to require sign-in. Roles: viewer
-  (read), dispatcher (plan and change deliveries), supervisor (+ fleet, hub,
-  reports), admin (+ people). Driver links carry a secret key (`&k=…`), so the
-  driver app needs no login but guessed ids can't mark deliveries.
+- **People and roles** — set `AUTH_ENABLED=1` to require sign-in. Each role has its own permissions,
+  menu and landing page; the server enforces them and the console hides what a role could not use.
+
+  | Role | For | Sees | Can do |
+  |---|---|---|---|
+  | Administrator | System owner | Everything | Everything, including people |
+  | Operations supervisor | Runs the operation | Everything except people | Plans, fleet, hub, predefined routes, reports, Impact |
+  | Dispatcher | Plans the day | Dashboard, Parcels, Runs, Attention, Warehouse (read) | Add parcels and pickups, plan and change runs, review failures |
+  | Customer service | Call centre | Parcels, Attention, Runs | Add parcels and pickups, reschedule or return failures, customer messages |
+  | Warehouse / hub staff | Loading bay | **Warehouse**, Parcels (read) | See what to give each driver (in loading order), tick parcels loaded, print the pick list, check in pickups and returns |
+  | Fleet manager | Vehicles and drivers | Fleet and drivers, Runs | Add and edit vehicles and drivers |
+  | Analyst | Finance / performance | Dashboard, Parcels, Runs, Impact, Reports | Read-only |
+  | Viewer | Management | Dashboard, Parcels, Runs, Attention, Warehouse | Read-only |
+
+  Drivers use their own app (a secret link) and customers use the public tracking page. The map only
+  appears where it is needed (Dashboard, Runs, and while picking a place when adding a parcel or changing
+  the hub), not on Parcels, Attention, Warehouse or Fleet and drivers. With sign-in off, **Account >
+  View as** lets a presenter switch role to show each person's view.
 
 ### Demo data
 

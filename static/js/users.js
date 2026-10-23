@@ -4,25 +4,42 @@
 
 let currentUser = null;
 let authEnabled = false;
-const ROLE_ORDER = ["viewer", "dispatcher", "supervisor", "admin"];
-const ROLE_HELP = {
-  viewer: "Can look, can’t change anything",
-  dispatcher: "Plans and changes deliveries",
-  supervisor: "Dispatcher + fleet, hub, reports",
-  admin: "Everything, including people",
-};
+let ROLES_INFO = [];                 // from /api/auth/roles: label, help, landing, pages, permissions
+let ROLE_ORDER = [];
+const ROLE_HELP = {};
+const VIEW_AS_KEY = "fleetops-viewas";
 
 async function loadMe() {
   const me = await api("/api/auth/me");
   authEnabled = me.authEnabled;
   currentUser = me.user;
-  document.body.classList.add("role-" + currentUser.role);
+  try {
+    ROLES_INFO = await api("/api/auth/roles");
+    ROLE_ORDER = ROLES_INFO.map(r => r.id);
+    ROLES_INFO.forEach(r => { ROLE_HELP[r.id] = r.help; });
+  } catch (_) { ROLES_INFO = []; }
+  // sign-in is off: let a presenter look at the console as any role (it only changes what is shown)
+  if (!authEnabled && ROLES_INFO.length) {
+    let saved = null;
+    try { saved = localStorage.getItem(VIEW_AS_KEY); } catch (_) {}
+    const r = ROLES_INFO.find(x => x.id === saved);
+    if (r) currentUser = { ...currentUser, role: r.id, roleLabel: r.label, permissions: r.permissions, pages: r.pages, landing: r.landing };
+    const sel = $("viewas");
+    $("viewas-sec").hidden = false;
+    sel.innerHTML = ROLES_INFO.map(x => `<option value="${x.id}">${pdEsc(x.label)}</option>`).join("");
+    sel.value = currentUser.role;
+    sel.onchange = () => {
+      try { localStorage.setItem(VIEW_AS_KEY, sel.value); } catch (_) {}
+      location.reload();
+    };
+  }
   $("menu-auth").hidden = !authEnabled;
   $("menu-note").hidden = authEnabled;
   $("user-name").textContent = $("menu-name").textContent = currentUser.name;
   $("user-role").textContent = $("menu-role").textContent = currentUser.roleLabel;
   const initials = currentUser.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "–";
   $("top-avatar").textContent = initials;
+  applyRole();
   if (authEnabled) {
     $("btn-logout").onclick = async () => {
       try { await api("/api/auth/logout", { method: "POST" }); } catch (_) {}
@@ -32,7 +49,27 @@ async function loadMe() {
   }
 }
 
-function roleAtLeast(role) { return ROLE_ORDER.indexOf(currentUser.role) >= ROLE_ORDER.indexOf(role); }
+// what this person may do (permissions) and see (pages): body classes drive the CSS, `can()` drives scripts
+function can(perm) { return !!currentUser && currentUser.permissions.includes(perm); }
+
+function applyRole() {
+  const body = document.body;
+  [...body.classList].filter(c => c.startsWith("role-") || c.startsWith("can-")).forEach(c => body.classList.remove(c));
+  body.classList.add("role-" + currentUser.role);
+  currentUser.permissions.forEach(p => body.classList.add("can-" + p.replace(/\./g, "-")));
+  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"].forEach(page => {
+    const btn = $("tab-btn-" + page);
+    if (btn) btn.hidden = !currentUser.pages.includes(page);
+  });
+}
+
+// older scripts ask "is this at least a dispatcher / supervisor / admin?"
+function roleAtLeast(role) {
+  if (role === "admin") return can("users");
+  if (role === "supervisor") return can("settings");
+  if (role === "dispatcher") return can("runs.plan");
+  return true;
+}
 
 // ---------------------------------------------------------------- password
 
@@ -78,7 +115,7 @@ async function loadUsers() {
         <div class="meta">${pdEsc(u.username)} · ${u.lastLoginAt ? "last in " + pdWhen(u.lastLoginAt) : "never signed in"}</div>
       </div>
       <select aria-label="Role for ${pdEsc(u.name)}" ${me ? "disabled" : ""}>${ROLE_ORDER.map(r =>
-        `<option value="${r}" ${r === u.role ? "selected" : ""}>${r[0].toUpperCase() + r.slice(1)}</option>`).join("")}</select>
+        `<option value="${r}" ${r === u.role ? "selected" : ""}>${pdEsc((ROLES_INFO.find(x => x.id === r) || {}).label || r)}</option>`).join("")}</select>
       <button class="link-action" type="button" data-act="reset">Reset password</button>
       ${me ? "" : `<button class="link-action" type="button" data-act="toggle">${u.active ? "Switch off" : "Switch on"}</button>
       <button class="del" type="button" aria-label="Delete ${pdEsc(u.name)}">${iconSvg("trash")}</button>`}`;
@@ -103,7 +140,8 @@ async function loadUsers() {
 }
 
 function setupUsers() {
-  $("role-help").textContent = ROLE_ORDER.map(r => `${r[0].toUpperCase() + r.slice(1)}: ${ROLE_HELP[r]}`).join(" · ");
+  $("role-help").textContent = ROLES_INFO.map(r => `${r.label}: ${r.help}`).join(" · ");
+  $("uf-role").innerHTML = ROLES_INFO.map(r => `<option value="${r.id}" ${r.id === "dispatcher" ? "selected" : ""}>${pdEsc(r.label)}</option>`).join("");
   $("btn-add-user").onclick = () => { $("user-form").style.display = "flex"; $("uf-username").focus(); };
   $("uf-cancel").onclick = () => { $("user-form").style.display = "none"; };
   $("uf-save").onclick = async () => {

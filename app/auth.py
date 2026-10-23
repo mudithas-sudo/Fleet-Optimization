@@ -5,8 +5,8 @@ When on:
  - staff sign in at /static/login.html; the session is an HMAC-signed, HttpOnly
    cookie; passwords are scrypt-hashed; repeated wrong passwords lock the account
    briefly;
- - every /api route needs a role: viewer (read), dispatcher (plan and change
-   deliveries), supervisor (fleet registry, depot, reports, costs), admin (users);
+ - every /api route needs a permission, and each role has its own set (admin, supervisor, dispatcher,
+   customer service, warehouse, fleet manager, analyst, viewer);
  - the driver app and the public tracking page stay reachable without a staff
    login. Driver endpoints need the driver's own key (the `k` in their link), so a
    guessed run or parcel id can't be used to mark deliveries.
@@ -31,8 +31,58 @@ from . import db, store
 
 log = logging.getLogger("fleetops.auth")
 
-ROLES = {"viewer": 1, "dispatcher": 2, "supervisor": 3, "admin": 4}
-ROLE_LABEL = {"viewer": "Viewer", "dispatcher": "Dispatcher", "supervisor": "Supervisor", "admin": "Administrator"}
+# The people who use the console. Each role has a set of permissions (not a rank), so a warehouse
+# worker can load and check in parcels without being able to plan runs, and a fleet manager can edit
+# vehicles and drivers without touching parcels. `ROLES` keeps a rank only for ordering in lists.
+ROLES = {"admin": 8, "supervisor": 7, "dispatcher": 6, "support": 5, "warehouse": 4, "fleet": 3, "analyst": 2, "viewer": 1}
+ROLE_LABEL = {"admin": "Administrator", "supervisor": "Operations supervisor", "dispatcher": "Dispatcher",
+              "support": "Customer service", "warehouse": "Warehouse / hub staff", "fleet": "Fleet manager",
+              "analyst": "Analyst", "viewer": "Viewer"}
+
+ALL_PERMS = {
+    "parcels.read", "parcels.write", "parcels.review",      # see parcels; add/edit/import; reschedule or return failures
+    "runs.read", "runs.plan", "routes.edit",                 # see runs; plan/change runs; edit predefined routes
+    "registry.read", "registry.write",                       # see / edit vehicles and drivers
+    "hub", "settings",                                       # change the hub; costs, fuel and other settings
+    "reports", "impact", "customers",                        # reports; the Impact screen; customer messages
+    "warehouse.read", "warehouse.load", "warehouse.receive", # loading bay; load parcels; check parcels in at the hub
+    "users",
+}
+ROLE_PERMS = {
+    "admin": set(ALL_PERMS),
+    "supervisor": ALL_PERMS - {"users"},
+    "dispatcher": {"parcels.read", "parcels.write", "parcels.review", "runs.read", "runs.plan", "registry.read",
+                   "customers", "warehouse.read"},
+    "support": {"parcels.read", "parcels.write", "parcels.review", "runs.read", "registry.read", "customers"},
+    "warehouse": {"parcels.read", "runs.read", "registry.read", "warehouse.read", "warehouse.load", "warehouse.receive"},
+    "fleet": {"parcels.read", "runs.read", "registry.read", "registry.write"},
+    "analyst": {"parcels.read", "runs.read", "registry.read", "reports", "impact"},
+    "viewer": {"parcels.read", "runs.read", "registry.read", "warehouse.read"},
+}
+# what each role sees: the pages in the side menu (dashboard, parcels, fleet = Runs, attention, warehouse,
+# registry = Fleet and drivers) and where they land after signing in
+ROLE_INFO = {
+    "admin": {"help": "Everything, including people", "landing": "dashboard",
+              "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"]},
+    "supervisor": {"help": "Runs the operation: planning, fleet, hub, routes, reports", "landing": "dashboard",
+                   "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry"]},
+    "dispatcher": {"help": "Plans runs and handles parcels, pickups and failures", "landing": "dashboard",
+                   "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse"]},
+    "support": {"help": "Customer calls: parcels, pickups, rescheduling, messages", "landing": "parcels",
+                "pages": ["parcels", "attention", "fleet"]},
+    "warehouse": {"help": "Loading bay: what to hand each driver, and check-in of returns", "landing": "warehouse",
+                  "pages": ["warehouse", "parcels"]},
+    "fleet": {"help": "Vehicles and drivers: add, edit, availability", "landing": "registry",
+              "pages": ["registry", "fleet"]},
+    "analyst": {"help": "Reports and the Impact screen, read-only", "landing": "dashboard",
+                "pages": ["dashboard", "parcels", "fleet"]},
+    "viewer": {"help": "Can look, can’t change anything", "landing": "dashboard",
+               "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse"]},
+}
+
+
+def has_perm(role: str, perm: str | None) -> bool:
+    return perm is None or perm in ROLE_PERMS.get(role, set())
 COOKIE = "fleetops_session"
 SESSION_SECONDS = 12 * 3600
 MIN_PASSWORD = 8
@@ -117,6 +167,8 @@ def current_user(request: Request) -> dict | None:
 def public_user(user: dict) -> dict:
     return {"id": user["id"], "username": user["username"], "name": user["name"], "role": user["role"],
             "roleLabel": ROLE_LABEL[user["role"]], "active": user.get("active", True),
+            "permissions": sorted(ROLE_PERMS[user["role"]]), "landing": ROLE_INFO[user["role"]]["landing"],
+            "pages": ROLE_INFO[user["role"]]["pages"],
             "lastLoginAt": user.get("lastLoginAt"), "createdAt": user.get("createdAt")}
 
 
@@ -164,20 +216,61 @@ def _active_admins(excluding: str | None = None) -> int:
 
 # ------------------------------------------------------------------ permissions
 
-def required_role(method: str, path: str) -> int:
+_PATTERNS = {
+    "loaded_parcel": re.compile(r"^/api/parcels/[^/]+/loaded$"),
+    "received": re.compile(r"^/api/parcels/[^/]+/received$"),
+    "loaded_run": re.compile(r"^/api/runs/[^/]+/loaded$"),
+    "review": re.compile(r"^/api/parcels/[^/]+/(?:review|reschedule|return|early)$"),
+    "operate": re.compile(r"^/api/parcels/[^/]+/(?:pod|fail|collect|move)$"),
+    "notes": re.compile(r"^/api/(?:notifications|parcels/[^/]+/notifications)$"),
+    "driver_queue": re.compile(r"^/api/drivers/[^/]+/queue$"),
+}
+
+
+def required_perm(method: str, path: str) -> str | None:
+    """The permission an API call needs (None = any signed-in person)."""
     write = method not in ("GET", "HEAD", "OPTIONS")
-    if path == "/api/auth/password":                      # everyone may change their own password
-        return ROLES["viewer"]
+    if path.startswith("/api/auth/") or path in ("/api/geocode", "/api/revgeocode", "/api/config"):
+        return None
     if path.startswith("/api/users"):
-        return ROLES["admin"]
-    if path.startswith(("/api/reports", "/api/impact", "/api/settings/costs", "/api/settings/fuel")):
-        return ROLES["supervisor"]
-    if write and path.startswith("/api/route-templates") and not path.endswith("/run"):
-        return ROLES["supervisor"]                          # editing standing routes is a supervisor job; running one is dispatch
-    if write and (path.startswith(("/api/vehicles", "/api/drivers", "/api/settings"))
-                  or (path == "/api/trips" and method == "DELETE")):
-        return ROLES["supervisor"]
-    return ROLES["dispatcher"] if write else ROLES["viewer"]
+        return "users"
+    if path.startswith("/api/reports"):
+        return "reports"
+    if path.startswith("/api/impact"):
+        return "impact"
+    if path.startswith(("/api/settings/costs", "/api/settings/fuel")):
+        return "settings" if write else "reports"
+    if path == "/api/settings/depot":
+        return "hub" if write else None
+    if path.startswith("/api/settings"):
+        return "settings" if write else None
+    if path.startswith("/api/route-templates"):
+        if path.endswith("/run"):
+            return "runs.plan"
+        return "routes.edit" if write else "runs.read"
+    if path.startswith("/api/warehouse"):
+        return "warehouse.read"
+    if _PATTERNS["loaded_parcel"].match(path) or _PATTERNS["loaded_run"].match(path):
+        return "warehouse.load"
+    if _PATTERNS["received"].match(path):
+        return "warehouse.receive"
+    if _PATTERNS["notes"].match(path):
+        return "customers"
+    if _PATTERNS["driver_queue"].match(path):
+        return "runs.read"
+    if path.startswith(("/api/vehicles", "/api/drivers")):
+        return "registry.write" if write else "registry.read"
+    if path == "/api/trips" and method == "DELETE":
+        return "settings"
+    if path.startswith("/api/parcels"):
+        if write and _PATTERNS["review"].match(path):
+            return "parcels.review"
+        if write and _PATTERNS["operate"].match(path):
+            return "runs.plan"
+        if path.endswith("/fit"):
+            return "runs.read"
+        return "parcels.write" if write else "parcels.read"
+    return "runs.plan" if write else "runs.read"
 
 
 PUBLIC = (
@@ -236,7 +329,7 @@ async def middleware(request: Request, call_next):
         return await call_next(request)
     user = current_user(request)
     if user:
-        if ROLES[user["role"]] < required_role(request.method, path):
+        if not has_perm(user["role"], required_perm(request.method, path)):
             return JSONResponse({"detail": "Your role doesn't allow that."}, status_code=403)
         return await call_next(request)
     if driver_key_allows(request):
@@ -306,11 +399,20 @@ async def logout(response: Response):
 async def me(request: Request):
     if not enabled():
         return {"authEnabled": False, "user": {"id": "local", "username": "local", "name": "Local admin",
-                                              "role": "admin", "roleLabel": ROLE_LABEL["admin"]}}
+                                              "role": "admin", "roleLabel": ROLE_LABEL["admin"],
+                                              "permissions": sorted(ROLE_PERMS["admin"]), "landing": "dashboard",
+                                              "pages": ROLE_INFO["admin"]["pages"]}}
     user = current_user(request)
     if not user:
         raise HTTPException(401, "Sign in to continue.")
     return {"authEnabled": True, "user": public_user(user)}
+
+
+@router.get("/api/auth/roles")
+async def list_roles():
+    """Every role: label, what it is for, the pages it sees and what it may do (one source of truth for the UI)."""
+    return [{"id": r, "label": ROLE_LABEL[r], "help": ROLE_INFO[r]["help"], "landing": ROLE_INFO[r]["landing"],
+             "pages": ROLE_INFO[r]["pages"], "permissions": sorted(ROLE_PERMS[r])} for r in ROLES]
 
 
 @router.post("/api/auth/password")

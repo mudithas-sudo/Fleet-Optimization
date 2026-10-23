@@ -443,6 +443,12 @@ def main(reset: bool, with_users: bool):
     # ---- run 4: Car 01 (Dilani) — planned, not started
     make_run("Dilani Fernando", ["d1", "d2", "d3"], created=NOW - 20 * MIN)
 
+    # ---- the loading bay: the warehouse has started loading the scheduled run (one parcel ticked)
+    from app import warehouse
+    planned = next(t for t in store.list_trips() if t["status"] == "planned")
+    first = sorted(planned["parcelIds"])[0]
+    warehouse.set_loaded(db.load_entity("parcels", first), True, "warehouse1")
+
     # ---- an earlier failed delivery was reviewed: the customer asked for tomorrow morning
     tomorrow = delivery.day_start(NOW) + 86400 + 9 * HOUR
     with at(NOW - 0.8 * HOUR):
@@ -468,7 +474,9 @@ def main(reset: bool, with_users: bool):
     if with_users:
         from app import auth
         for username, name, role in (("admin", "Administrator", "admin"), ("supervisor1", "Sunethra Supervisor", "supervisor"),
-                                     ("dispatcher1", "Dinesh Dispatcher", "dispatcher"), ("viewer1", "Vimal Viewer", "viewer")):
+                                     ("dispatcher1", "Dinesh Dispatcher", "dispatcher"), ("warehouse1", "Wasantha Warehouse", "warehouse"),
+                                     ("support1", "Sanduni Support", "support"), ("fleet1", "Fathima Fleet", "fleet"),
+                                     ("analyst1", "Anura Analyst", "analyst"), ("viewer1", "Vimal Viewer", "viewer")):
             if not auth.find_by_username(username):
                 auth.create_user(username, name, role, "demo-pass-123")
 
@@ -483,7 +491,8 @@ def main(reset: bool, with_users: bool):
     print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando.")
     print("Try the tracking page with FO-100112 (delivered) or FO-100114 (out for delivery).")
     if with_users:
-        print("Demo staff accounts (set AUTH_ENABLED=1 to use them): admin, supervisor1, dispatcher1, viewer1 - password demo-pass-123")
+        print("Demo staff accounts (set AUTH_ENABLED=1 to use them), password demo-pass-123: admin, supervisor1, dispatcher1, "
+              "warehouse1, support1, fleet1, analyst1, viewer1")
     print("Restart the server (or refresh the page) to see the new data.")
 
 

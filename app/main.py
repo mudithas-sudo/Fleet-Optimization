@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, db, delivery, deviation, impact, notify, replan, reports, rides, route_templates, routing, store  # noqa: E402
+from . import auth, db, delivery, deviation, impact, notify, replan, reports, rides, route_templates, routing, store, warehouse  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -617,6 +617,65 @@ async def parcel_notifications(parcel_id: str):
     return {"trackingUrl": notify.tracking_url(parcel), "messages": notify.for_parcel(parcel_id)}
 
 
+# ---- warehouse: loading bay and receiving desk
+
+def _who(request: Request) -> str:
+    user = auth.current_user(request) if auth.enabled() else None
+    return (user or {}).get("username") or "warehouse"
+
+
+class LoadedIn(BaseModel):
+    loaded: bool = True
+
+
+class ReceivedIn(BaseModel):
+    note: str | None = None
+
+
+@app.get("/api/warehouse/loading")
+async def warehouse_loading():
+    """Per run that has not left: the parcels to hand to that driver, in loading order."""
+    return warehouse.loading_board()
+
+
+@app.get("/api/warehouse/receiving")
+async def warehouse_receiving():
+    """What is coming back to the hub and needs checking in."""
+    return warehouse.receiving_board()
+
+
+@app.post("/api/parcels/{parcel_id}/loaded")
+async def parcel_loaded(parcel_id: str, body: LoadedIn | None = None, request: Request = None):
+    parcel = _entity_or_404("parcels", parcel_id)
+    try:
+        return warehouse.set_loaded(parcel, body.loaded if body else True, _who(request))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/runs/{trip_id}/loaded")
+async def run_loaded(trip_id: str, body: LoadedIn | None = None, request: Request = None):
+    """Tick (or untick) every parcel of a run in one go."""
+    trip = _trip_or_404(trip_id)
+    done = 0
+    for pid in trip.get("parcelIds") or []:
+        p = db.load_entity("parcels", pid)
+        if not p or p["status"] not in warehouse.LOAD_STATUSES + ("in_transit",) or not warehouse._loadable(trip, p):
+            continue
+        warehouse.set_loaded(p, body.loaded if body else True, _who(request))
+        done += 1
+    return {"ok": True, "parcels": done}
+
+
+@app.post("/api/parcels/{parcel_id}/received")
+async def parcel_received(parcel_id: str, body: ReceivedIn | None = None, request: Request = None):
+    parcel = _entity_or_404("parcels", parcel_id)
+    try:
+        return warehouse.check_in(parcel, _who(request), (body.note or "").strip()[:200] or None if body else None)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
 # ---- predefined routes (route templates)
 
 class ZoneIn(BaseModel):
@@ -903,7 +962,8 @@ async def delete_vehicle(vehicle_id: str):
 async def list_drivers(request: Request):
     drivers = db.all_entities("drivers")
     user = auth.current_user(request) if auth.enabled() else None
-    can_see_keys = not auth.enabled() or (user and auth.ROLES[user["role"]] >= auth.ROLES["dispatcher"])
+    can_see_keys = not auth.enabled() or (user and (auth.has_perm(user["role"], "runs.plan")
+                                                    or auth.has_perm(user["role"], "registry.write")))
     for d in drivers:
         if can_see_keys:
             auth.driver_key(d)          # older drivers get a key the first time

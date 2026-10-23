@@ -936,6 +936,9 @@
       </button>
       <div id="user-menu" class="pop" role="menu" aria-label="Account" hidden>
         <div class="pop-head"><b id="menu-name">Local admin</b><span id="menu-role">Administrator</span></div>
+        <div class="pop-sec" id="viewas-sec" hidden><label class="pop-label" for="viewas">View as (demo)</label>
+          <select id="viewas" aria-label="View the console as a role"></select>
+          <div class="pop-hint" style="border:0;padding:6px 0 0">Sign-in is off, so this only changes what you see.</div></div>
         <p class="pop-note" id="menu-note">Sign-in is off, so everyone works as an administrator. Turn it on with AUTH_ENABLED=1.</p>
         <div id="menu-auth" hidden>
           <button type="button" class="item" id="btn-password" role="menuitem"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3"/></svg>Change password</button>
@@ -967,6 +970,7 @@
     <button type="button" class="nav-item" id="tab-btn-parcels"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span class="label">Parcels</span><span class="badge warn" id="parcel-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-fleet"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg><span class="label">Runs</span><span class="badge" id="fleet-badge">0</span></button>
     <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
+    <button type="button" class="nav-item" id="tab-btn-warehouse"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 10 12 4l9 6v10H3z"/><path d="M8 20v-6h8v6M3 10h18"/></svg><span class="label">Warehouse</span></button>
     <button type="button" class="nav-item" id="tab-btn-registry"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg><span class="label">Fleet</span></button>
     <button type="button" class="nav-item" id="btn-impact"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span class="label">Impact</span></button>
     <button type="button" class="nav-item" id="btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
@@ -1232,6 +1236,19 @@
       <h2>Needs attention</h2>
       <div class="hint" style="margin-top:4px">Most urgent first. Select an item to open it.</div>
       <div id="attention-list"></div>
+    </section>
+
+    <!-- ================= WAREHOUSE ================= -->
+    <section id="tab-warehouse" role="tabpanel" aria-label="Warehouse" hidden>
+      <h2>Warehouse</h2>
+      <p class="page-sub">What to hand each driver, in loading order, and what is coming back to the hub.</p>
+      <div class="wh-tabs" role="tablist" aria-label="Warehouse">
+        <button type="button" role="tab" data-wh="load" aria-selected="true">Loading bay <span class="n" id="wh-n-load">0</span></button>
+        <button type="button" role="tab" data-wh="recv" aria-selected="false">Receiving <span class="n" id="wh-n-recv" hidden>0</span></button>
+      </div>
+      <div id="wh-summary" class="wh-summary" aria-live="polite"></div>
+      <div id="wh-load"></div>
+      <div id="wh-recv" hidden></div>
     </section>
 
     <!-- ================= REGISTRY ================= -->
@@ -1624,6 +1641,7 @@
 <script src="/static/js/parcel-detail.js"></script>
 <script src="/static/js/reports.js"></script>
 <script src="/static/js/routes.js"></script>
+<script src="/static/js/warehouse.js"></script>
 <script src="/static/js/impact.js"></script>
 <script src="/static/js/users.js"></script>
 <script src="/static/js/palette.js"></script>

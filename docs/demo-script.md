@@ -56,7 +56,9 @@ default driver and recurring pickups. Use **What's included**, then **Run today'
 parcels in the order they were entered, plan vs actual, and ETA accuracy. Change the fuel price or
 litres per 100 km and watch the figures update.
 
-**9. Close (1 min).** Reports (cost per delivery, CSV export), the customer tracking page (open
+**9. The people in the system (2 min).** Account menu > **View as**: Warehouse / hub staff lands on the loading bay (what to hand each driver, in loading order, tick parcels, print the pick list) and the receiving desk; Customer service lands on Parcels (add a pickup, reschedule a failed delivery); Fleet manager lands on Fleet and drivers; Analyst sees Impact and Reports. Each role sees only its own menu, and the map only appears where it is useful.
+
+**10. Close (1 min).** Reports (cost per delivery, CSV export), the customer tracking page (open
 `/static/track.html?no=FO-100114`), and roles if you enable sign-in.
 
 ## Be straight about these

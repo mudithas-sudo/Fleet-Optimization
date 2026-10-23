@@ -127,3 +127,100 @@ body:not([data-page="dashboard"]) #map-wrap { border-radius: 16px; }
 /* a parcel that was just added flashes so it can be found in a long list */
 .parcel-row.just-added { animation: justAdded 3.5s ease; }
 @keyframes justAdded { 0%, 60% { box-shadow: 0 0 0 4px var(--primary-soft); border-color: var(--primary); } 100% { box-shadow: var(--shadow-sm); } }
+
+/* ==========================================================================
+   Map only where it is needed
+   The list pages (Parcels, Attention, Fleet and drivers, Warehouse) are map-free and use the full width.
+   The map comes back while a place has to be picked (adding a parcel, changing the hub).
+   ========================================================================== */
+body[data-page="parcels"]:not(.pf-open):not(.map-needed) #stage,
+body[data-page="attention"]:not(.map-needed) #stage,
+body[data-page="registry"]:not(.map-needed) #stage,
+body[data-page="warehouse"]:not(.map-needed) #stage {
+  grid-template-columns: minmax(0, 1fr); grid-template-areas: "panel"; grid-template-rows: auto;
+}
+body[data-page="parcels"]:not(.pf-open):not(.map-needed) #map-wrap,
+body[data-page="attention"]:not(.map-needed) #map-wrap,
+body[data-page="registry"]:not(.map-needed) #map-wrap,
+body[data-page="warehouse"]:not(.map-needed) #map-wrap { display: none; }
+body[data-page="parcels"]:not(.pf-open):not(.map-needed) #panel,
+body[data-page="attention"]:not(.map-needed) #panel,
+body[data-page="registry"]:not(.map-needed) #panel,
+body[data-page="warehouse"]:not(.map-needed) #panel { max-width: 1400px; width: 100%; margin: 0 auto; overflow: visible; }
+/* full-width Parcels: cards in a responsive grid, group titles across the top */
+body[data-page="parcels"]:not(.pf-open):not(.map-needed) #parcel-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 0 16px; align-items: start; }
+body[data-page="parcels"]:not(.pf-open):not(.map-needed) #parcel-list > .trip-group { grid-column: 1 / -1; }
+/* the detail card floats at the right edge of the window when there is no map behind it */
+body[data-page="parcels"]:not(.pf-open):not(.map-needed) #stage > .float-card,
+body[data-page="attention"] #stage > .float-card,
+body[data-page="registry"] #stage > .float-card,
+body[data-page="warehouse"] #stage > .float-card { position: fixed; top: calc(var(--topbar-h) + 16px); right: 16px; max-height: calc(100vh - var(--topbar-h) - 32px); z-index: 40; }
+
+/* ==========================================================================
+   Role-based hiding (permissions from /api/auth/me become body classes "can-...")
+   The server enforces everything; this only hides what a role could not use.
+   ========================================================================== */
+body:not(.can-parcels-write) :is(#btn-add-parcel, #btn-import, #btn-add-top, #dock-add, #btn-clear-delivered, .parcel-row .del) { display: none !important; }
+body:not(.can-runs-plan) :is(#btn-auto, #btn-auto-ai, #run-footer, #btn-reassign, #btn-breakdown, #breakdown-form, #btn-delete, #reassign-form, .rc-run, .rc-driver, #dock-suggest, .parcel-row input[type=checkbox], #btn-add-to-run) { display: none !important; }
+body:not(.can-parcels-review):not(.can-runs-plan) #pd-actions { display: none !important; }
+body:not(.can-registry-write) :is(#btn-add-vehicle, #btn-add-driver, .edit-driver, .reg-row .del) { display: none !important; }
+body:not(.can-hub) :is(#depot-chip, #depot-form, #btn-change-hub) { display: none !important; }
+body:not(.can-routes-edit) :is(#btn-new-route, .rc-tools, #route-form) { display: none !important; }
+body:not(.can-reports) #btn-reports, body:not(.can-impact) #btn-impact { display: none !important; }
+body:not(.can-users) #users-section { display: none !important; }
+body:not(.can-runs-read) #routes-section { display: none !important; }
+
+/* ==========================================================================
+   Warehouse: loading bay and receiving desk
+   ========================================================================== */
+.wh-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
+.wh-tabs button { height: 40px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: 500 14px var(--font); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.wh-tabs button:hover { color: var(--text); }
+.wh-tabs button[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.wh-tabs .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); font: 600 11.5px/20px var(--font); text-align: center; }
+.wh-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.wh-summary > div { flex: 1 1 160px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-sm); }
+.wh-summary b { font: 600 24px/1.1 var(--font); letter-spacing: -.01em; }
+.wh-summary span { font-size: 13px; color: var(--text-muted); }
+#wh-load { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; align-items: start; }
+.wh-run { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.wh-run.ready { border-color: color-mix(in srgb, var(--success) 40%, var(--border)); }
+.wh-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wh-who { flex: 1 1 180px; min-width: 0; }
+.wh-who b { display: block; font: 600 15px var(--font); }
+.wh-who small { display: block; font-size: 12.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wh-actions { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+.wh-actions .btn { height: 36px; padding: 0 14px; }
+.wh-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.wh-bar i { display: block; height: 100%; background: var(--success); border-radius: 3px; transition: width .3s ease; }
+.wh-list { list-style: none; margin: 0; padding: 0; }
+.wh-item { border-top: 1px solid var(--border); }
+.wh-item:first-child { border-top: 0; }
+.wh-item label { display: flex; align-items: center; gap: 12px; padding: 12px 4px; cursor: pointer; min-height: 56px; }
+.wh-item input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--success); flex: 0 0 auto; cursor: pointer; }
+.wh-n { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-3); color: var(--text-muted); font: 600 12px/26px var(--font); text-align: center; flex: 0 0 auto; }
+.wh-main { flex: 1; min-width: 0; font-size: 14px; }
+.wh-main b { font-weight: 600; }
+.wh-main small { display: block; font-size: 12.5px; color: var(--text-muted); margin-top: 1px; overflow-wrap: anywhere; }
+.wh-chips { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+.wh-kg { font-size: 12px; color: var(--text-muted); }
+.wh-item.loaded .wh-main { opacity: .55; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text-muted) 50%, transparent); }
+.wh-item.loaded .wh-n { background: var(--success-soft); color: var(--success); }
+.wh-group { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+.wh-group h3 { font: 600 15px var(--font); display: flex; align-items: center; gap: 8px; }
+.wh-group .hint { margin: 2px 0 8px; }
+.wh-recv-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.wh-recv-row .btn { height: 36px; padding: 0 14px; }
+@media (max-width: 760px) { #wh-load { grid-template-columns: minmax(0, 1fr); } .wh-chips { display: none; } }
+
+/* printing a pick list: only the chosen run, plain */
+@media print {
+  body.printing-run #topbar, body.printing-run #sidebar, body.printing-run #nav-scrim, body.printing-run #hero-main,
+  body.printing-run .wh-tabs, body.printing-run .wh-summary, body.printing-run .wh-actions, body.printing-run #tab-warehouse > h2,
+  body.printing-run #tab-warehouse > .page-sub, body.printing-run .wh-run:not(.printing) { display: none !important; }
+  body.printing-run, body.printing-run #app, body.printing-run #stage, body.printing-run #panel { display: block !important; position: static !important; overflow: visible !important; background: #fff !important; height: auto !important; }
+  body.printing-run .wh-run.printing { border: 0; box-shadow: none; padding: 0; }
+  body.printing-run .wh-item input[type=checkbox] { appearance: none; width: 18px; height: 18px; border: 2px solid #000; border-radius: 3px; }
+  body.printing-run .wh-item.loaded .wh-main { opacity: 1; text-decoration: none; }
+  body.printing-run #wh-load { display: block; }
+}
