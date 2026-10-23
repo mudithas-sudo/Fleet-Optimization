@@ -152,8 +152,9 @@ normal `fleet.db` is untouched) at http://localhost:8001:
 # (or: powershell -ExecutionPolicy Bypass -File .\samples\start-demo.ps1)
 ```
 
-It loads a working day relative to *now*: 4 runs (2 finished earlier today, 1 live,
-1 scheduled), 38 parcels (on-time and late deliveries, a failed delivery waiting
+It loads a week of operations relative to *now*: 9 vehicles, 9 drivers, 26 runs (21 finished over
+the past week, two live, three planned) and 142 parcels. The original sample day:
+4 runs (2 finished earlier today, 1 live, 1 scheduled), 38 parcels (on-time and late deliveries, a failed delivery waiting
 for review, one rescheduled for tomorrow after review, one returned to the sender,
 express / priority / window parcels, collect-and-deliver, one no vehicle can carry,
 three customer pickup requests that arrived during the day, eight ready-to-assign pending parcels), receipt references and

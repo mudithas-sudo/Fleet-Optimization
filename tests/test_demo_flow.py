@@ -57,16 +57,16 @@ def _drive(trip_id, step_m=150.0, until=1.0):
 
 def test_01_the_seeded_day_looks_right():
     parcels = client.get("/api/parcels").json()
-    assert len(parcels) == 38
+    assert len(parcels) >= 100, "a week of history and a busy today"
     kinds = {}
     for p in parcels:
         kinds[p["status"]] = kinds.get(p["status"], 0) + 1
-    assert kinds.get("delivered") == 10 and kinds.get("failed") == 1 and kinds.get("returned") == 1
+    assert kinds.get("delivered", 0) >= 10 and kinds.get("failed", 0) >= 1 and kinds.get("returned", 0) >= 1
     assert client.get("/api/route-templates").json()[0]["code"] == "R-01"
     rides = client.get("/api/rides").json()["rides"]
     if time.localtime().tm_hour >= 10:      # before 10:00 the finished runs fall on yesterday's board
-        assert {r["state"] for r in rides} == {"en_route", "scheduled", "finished"}
-    live = next(r for r in rides if r["state"] == "en_route")
+        assert {"en_route", "scheduled", "finished", "deviating"} <= {r["state"] for r in rides}
+    live = next(r for r in rides if r["state"] == "en_route" and r["driverName"] == "Nuwan Perera")
     assert live["nextStop"] and live["parcelCount"] == 7, "the pickup request added mid-day is on the live run"
     imp = client.get("/api/impact?days=all").json()
     assert imp["savings"]["savedKm"] > 20 and imp["savings"]["savedPct"] > 20

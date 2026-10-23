@@ -345,6 +345,128 @@ def finish(trip, ended, km_factor=1.03):
 
 
 # ---------------------------------------------------------------- the day
+# ---------------------------------------------------------------- more data: a bigger fleet, a week of history, a busier today
+EXTRA_VEHICLES = [
+    {"name": "Van 03", "plate": "CAB-6150", "type": "van"}, {"name": "Van 04", "plate": "CAB-7788", "type": "van"},
+    {"name": "Car 02", "plate": "KY-4410", "type": "car"}, {"name": "Bike 02", "plate": "BKX-311", "type": "bike"},
+]
+EXTRA_DRIVERS = [   # name, phone, vehicle, extras
+    ("Sanjaya Wickrama", "+94 77 410 8832", "Van 03", {}),
+    ("Rohan Fernando", "+94 71 622 4051", "Van 04", {}),
+    ("Malini Perera", "+94 76 981 2207", "Car 02", {"shiftStart": "06:00", "shiftEnd": "22:00"}),
+    ("Tharindu Silva", "+94 70 553 1946", "Bike 02", {"maxStops": 4}),
+]
+ITEMS = ["Documents envelope", "Phone case bundle", "Laptop bag", "Medicine pack", "Books (box)", "Shoes", "Gift hamper", "Printer toner",
+         "Kitchen mixer", "School uniforms", "Spare part kit", "Tablet 8 inch", "Wall clock", "Yoga mat", "Camera lens", "Router",
+         "Tea gift box", "Baby clothes", "Desk lamp", "Fabric roll", "Cricket bat", "Hard drive", "Perfume set", "Curtains"]
+SURNAMES = ["Perera", "Silva", "Fernando", "Jayasuriya", "Wickramasinghe", "Gunawardena", "Dissanayake", "Rajapaksa", "Karunaratne",
+            "Samarasinghe", "Bandara", "Herath", "Mendis", "Abeysekara", "Ranasinghe", "Weerasinghe"]
+FIRST = ["A.", "K.", "S.", "N.", "M.", "R.", "D.", "T.", "P.", "H.", "L.", "C."]
+
+
+def _gen_parcel(rng, n, vehicle_type, created_ago_h, due_h, *, place=None, size=None, **extra):
+    """Register one generated parcel (tracking FO-3xxxxx) and create it. Returns its key."""
+    key = f"g{n}"
+    place = place or rng.choice([k for k in PLACES if k != "dockyard"])
+    size = size or {"bike": "small", "car": rng.choice(["small", "small", "medium"])}.get(vehicle_type) \
+        or rng.choices(["small", "medium", "large"], [6, 3, 1])[0]
+    dims = {"small": (rng.randint(20, 35), rng.randint(15, 25), rng.randint(4, 12)),
+            "medium": (rng.randint(40, 60), rng.randint(30, 45), rng.randint(20, 35)),
+            "large": (rng.randint(80, 140), rng.randint(50, 80), rng.randint(30, 70))}[size]
+    kg = {"small": round(rng.uniform(0.2, 3), 1), "medium": round(rng.uniform(4, 16), 1), "large": round(rng.uniform(20, 45), 1)}[size]
+    who = f"{rng.choice(FIRST)} {rng.choice(SURNAMES)}"
+    parcel(key, f"FO-3{n:05d}", rng.choice(ITEMS), who, f"+94 7{rng.randint(0, 8)} {rng.randint(100, 999)} {rng.randint(1000, 9999)}",
+           f"{who.split()[1].lower()}{n}@example.com" if n % 3 == 0 else None, place, size, dims, kg, **extra)
+    new_parcel(key, created_ago_h, due_h)
+    return key
+
+
+def add_more():
+    rng = random.Random(7)
+    for v in EXTRA_VEHICLES:
+        delivery.new_vehicle(v)
+    veh = {v["name"]: v for v in db.all_entities("vehicles")}
+    for name, phone, vehicle, extra in EXTRA_DRIVERS:
+        delivery.new_driver({"name": name, "phone": phone, "vehicleId": veh[vehicle]["id"], **extra})
+    drivers = [d for d in db.all_entities("drivers") if not d.get("onLeave")]
+    vtype = lambda d: db.load_entity("vehicles", d["vehicleId"])["type"]
+    n = [0]
+
+    def nxt():
+        n[0] += 1
+        return n[0]
+
+    # ---- six days of history: three finished runs a day, mostly on time, a few late, a few failures
+    for day in range(6, 0, -1):
+        day0 = delivery.day_start(NOW - day * 86400)
+        for k in range(3):
+            drv = drivers[(day * 3 + k) % len(drivers)]
+            cap = {"bike": 3, "car": 4, "van": 8, "truck": 8}[vtype(drv)]
+            start = day0 + (8 + 2.4 * k) * HOUR
+            keys = []
+            for _ in range(rng.randint(max(2, cap // 2), cap)):
+                slack = 0.9 if rng.random() < 0.12 else rng.uniform(1.7, 4)       # a few tight deadlines (some will be late)
+                keys.append(_gen_parcel(rng, nxt(), vtype(drv), (NOW - (start - 3600)) / HOUR, (start + slack * HOUR - NOW) / HOUR))
+            t = make_run(drv["name"], keys, created=start - 40 * MIN, started=start)
+            f = rng.uniform(1.0, 1.25)
+            for key in keys:
+                ts = stop_time(t, key, f)
+                if rng.random() < 0.08:
+                    fail(t, key, ts, rng.choice(["no_one_home", "wrong_address", "refused"]), "Customer not reachable")
+                    with at(ts + 40 * MIN):
+                        delivery.review_failed(load(key), "return", "Returned to sender after review", actor="dispatcher1")
+                    with at(ts + 3 * HOUR):                   # and the returned parcel was checked in at the hub that day
+                        from app import warehouse
+                        warehouse.check_in(load(key), "warehouse1")
+                else:
+                    deliver(t, key, ts, rng.choice(["signature", "handed_over", "photo", "left_safe"]),
+                            P[key]["receiver"] if rng.random() < .7 else None)
+            finish(t, start + run_length(t, f), km_factor=rng.uniform(1.0, 1.1))
+
+    # ---- earlier today: Bike 02 went out at the start of the day, two deliveries failed and wait for review
+    drv = next(d for d in drivers if d["name"] == "Tharindu Silva")
+    keys = [_gen_parcel(rng, nxt(), "bike", 6, -2 - i * 0.3) for i in range(3)]
+    start = NOW - 4.5 * HOUR
+    t = make_run(drv["name"], keys, created=start - 30 * MIN, started=start)
+    f = 1.12
+    deliver(t, keys[0], stop_time(t, keys[0], f), "handed_over", P[keys[0]]["receiver"])
+    fail(t, keys[1], stop_time(t, keys[1], f), "wrong_address", "Street number does not exist")
+    fail(t, keys[2], stop_time(t, keys[2], f), "no_one_home", "Shop closed, phone off")
+    finish(t, start + run_length(t, f), km_factor=1.05)
+
+    # ---- a second live run, off route right now (Van 03)
+    drv = next(d for d in drivers if d["name"] == "Sanjaya Wickrama")
+    keys = [_gen_parcel(rng, nxt(), "van", 2.5, rng.uniform(0.6, 3)) for _ in range(6)]
+    started = NOW - 35 * MIN
+    t = make_run(drv["name"], keys, created=started - 25 * MIN, started=started)
+    deliver(t, keys[0], stop_time(t, keys[0], 1.05), "handed_over", P[keys[0]]["receiver"])
+    deliver(t, keys[1], stop_time(t, keys[1], 1.05), "signature", P[keys[1]]["receiver"])
+    log_positions(t, started, NOW, frac_end=0.3)
+    here = path_point(t["route"], 0.3)
+    t["lastPosition"] = {"lat": here["lat"] + 0.004, "lng": here["lng"] + 0.003, "ts": NOW}      # ~500 m off the road
+    t["status"] = "deviating"
+    alert(t, NOW - 4 * MIN, "deviation", "Vehicle is 480 m off the planned route", here, 480)
+    store.save_trip(t)
+
+    # ---- a planned run with tight deadlines (some arrivals will be after them: "at risk")
+    drv = next(d for d in drivers if d["name"] == "Malini Perera")
+    keys = [_gen_parcel(rng, nxt(), "car", 1.5, rng.uniform(0.35, 0.8)) for _ in range(4)]
+    make_run(drv["name"], keys, created=NOW - 5 * MIN)
+
+    # ---- the pending queue: overdue, due soon, comfortable, large, express, and one nothing can carry
+    for i in range(16):
+        due = [-1.4, -0.9, -0.5, -0.2, 0.3, 0.5, 0.8][i] if i < 7 else rng.uniform(2, 9)
+        extra = {"priority": "express"} if i in (1, 8) else {"priority": "priority"} if i in (4, 11) else {}
+        _gen_parcel(rng, nxt(), "van", rng.uniform(1, 5), due, size="large" if i in (6, 13) else None, **extra)
+    new_oversize = _gen_parcel(rng, nxt(), "van", 3, 8, size="large")
+    p = load(new_oversize)
+    p["name"], p["weightKg"], p["dimensionsCm"] = "Industrial press (crated)", 950, {"l": 420, "w": 210, "h": 200}
+    db.save_entity("parcels", p)
+    for place, cutoff, by in (("slave", 0.2, 1.8), ("rajagiriya", 1.0, 3.0), ("moratuwa", 2.5, 4.5)):
+        _gen_parcel(rng, nxt(), "van", rng.uniform(0.2, 1), by, place=place, size="small", request=True, cutoff_h=cutoff, by_h=by)
+    print(f"More data: {len(EXTRA_VEHICLES)} vehicles, {len(EXTRA_DRIVERS)} drivers, a week of history and a busier today.")
+
+
 def make_templates(by_name):
     """Predefined routes: standing zones with a default driver (if that driver exists) and recurring pickups."""
     from app import route_templates
@@ -493,6 +615,8 @@ def main(reset: bool, with_users: bool, fresh: bool = False):
     assert load("p8")["status"] == "awaiting_redelivery" and load("p8")["holdUntil"]
     assert load("q2")["status"] == "in_transit" and load("q1")["status"] == "pending"
 
+    add_more()
+
     # nothing in the sample day may be anywhere but around the hub (a stray point would draw a route to another country)
     hub = delivery.get_depot()
     for tr in store.list_trips():
@@ -509,7 +633,7 @@ def main(reset: bool, with_users: bool, fresh: bool = False):
               " fewer finished runs. For the best demo data, load it after 10:00.")
     counts = {k: len(db.all_entities(k)) for k in ("vehicles", "drivers", "parcels", "notifications")}
     print(f"Added {counts['vehicles']} vehicles, {counts['drivers']} drivers, {counts['parcels']} parcels, "
-          f"5 runs and {counts['notifications']} customer messages.")
+          f"{len(store.list_trips())} runs and {counts['notifications']} customer messages.")
     print("Predefined routes: R-01 Colombo Central, R-02 Southern Corridor, R-03 Northern Corridor (Runs page > Run today's route).")
     print("Pickup requests: FO-100129 is on the live run, FO-100128 and FO-100130 are open (open one to see the best-run suggestions).")
     print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando and Ruwan Jayasinghe.")

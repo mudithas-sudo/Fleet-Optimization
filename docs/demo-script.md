@@ -132,8 +132,8 @@ If you only have 15 minutes, load a finished-and-live sample day instead of an e
 .\samples\start-demo.bat -Login -RealRoutes
 ```
 
-It has 38 parcels, 5 runs (2 finished, 1 live, 2 planned), pickups, a failed delivery, and history for
-the replay and Impact. Start at the sign-in page, show the warehouse loading bay and the dispatcher's
+It has 142 parcels, 26 runs (a week of history, 2 live runs, 3 planned), 9 vehicles and 9 drivers, pickups, failed
+deliveries, late and at-risk parcels, and enough history for the replay, Reports and Impact. Start at the sign-in page, show the warehouse loading bay and the dispatcher's
 Attention list, then the dashboard and Impact. Load it **after 10:00**, because the day starts hours
 before "now".
 
@@ -143,9 +143,9 @@ With `.\samples\start-demo.bat -Login` (or `-Login -RealRoutes` for real roads) 
 
 | Feature | Where to find it |
 |---|---|
-| Registration | Fleet and drivers: 5 vehicles, 5 drivers (one on leave, one with a stop limit); add more live |
+| Registration | Fleet and drivers: 9 vehicles, 9 drivers (one on leave, some with limits); add more live |
 | Import | Parcels > Import: `samples\manifest-demo.csv` |
-| Suggest runs | Parcels: 12 pending parcels, a free van (Kamal), an oversized pallet that fits nowhere |
+| Suggest runs | Parcels: about 35 pending parcels (some overdue, some express), free vans, and two oversized items that fit nowhere |
 | Pickup requests | Parcels > Pickup requests (FO-100128, FO-100130); FO-100129 is already on the live run |
 | Best run for a pickup | Open FO-100128 > Best run for this pickup > Add to run |
 | Failed delivery review | Attention: FO-100108 (nobody home); FO-100125 was reviewed and held for tomorrow |
@@ -153,8 +153,8 @@ With `.\samples\start-demo.bat -Login` (or `-Login -RealRoutes` for real roads) 
 | Vehicle breakdown | Runs > the live run (Nuwan, Van 01) > Change this run > Vehicle broke down |
 | Warehouse | Loading bay: Dilani (1 of 3 loaded) and Ruwan (0 of 2); Receiving: 3 parcels back at the hub |
 | Driver app | Open the live run, copy its driver link |
-| Live dashboard, replay | Dashboard: 1 live run, 2 finished, 2 planned; drag the time slider |
-| Impact, Reports | Finished runs give savings, plan vs actual, ETA accuracy, cost per delivery |
+| Live dashboard, replay | Dashboard: a live run and an off-route one, finished runs, planned runs; drag the time slider |
+| Impact, Reports | 21 finished runs over a week: savings, plan vs actual, ETA accuracy, daily chart, cost per delivery |
 | Customer tracking | `/static/track.html?no=FO-100112` (delivered) or `FO-100114` (out for delivery) |
 | Customer messages | Reports > Recent customer messages; parcel detail > Customer updates |
 | Roles | Sign-in page: admin, supervisor1, dispatcher1, support1, warehouse1 |
