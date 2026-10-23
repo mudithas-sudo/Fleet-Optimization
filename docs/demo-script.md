@@ -16,7 +16,10 @@
    - `-Users` adds demo staff accounts (only used if you set `AUTH_ENABLED=1`).
 2. Open **http://localhost:8001** in Chrome and press **Ctrl+F5**. The map must show Colombo tiles.
 3. Keep a second tab open for the driver app (you get the link from a run, step 4).
-4. To rehearse again without resetting: `.\samples\start-demo.bat -Keep`.
+4. To show the sign-in page with every user group (Administrator, Supervisor, Dispatcher, Customer service,
+   Warehouse, Fleet manager, Analyst, Viewer, plus the driver and customer entry points), start with
+   `.\samples\start-demo.bat -Login -RealRoutes`. Pick an account card, sign in, and each person lands on their own screen.
+5. To rehearse again without resetting: `.\samples\start-demo.bat -Keep`.
 
 What the data contains: 38 parcels, 4 runs (2 finished, 1 live, 1 scheduled), 3 pickup requests,
 1 failed delivery waiting for review, 3 predefined routes (R-01, R-02, R-03), 5 vehicles and

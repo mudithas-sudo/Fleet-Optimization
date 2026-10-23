@@ -4,6 +4,7 @@
 #   .\samples\start-demo.ps1 -Port 8002      # another port
 #   .\samples\start-demo.ps1 -Users          # also create demo staff accounts (admin, supervisor1, ...)
 #   .\samples\start-demo.ps1 -Keep           # keep the demo database as it is (don't reseed)
+#   .\samples\start-demo.ps1 -Login         # sign-in on, with a page listing every demo account and its password
 #   .\samples\start-demo.ps1 -RealRoutes    # draw the sample runs along real roads (uses your Maps key, a few calls)
 #
 # Keys come from .env, as usual. Seeding itself makes no API calls: the sample runs use offline
@@ -13,13 +14,19 @@ param(
     [int]$Port = 8001,
     [switch]$Users,
     [switch]$Keep,
-    [switch]$RealRoutes
+    [switch]$RealRoutes,
+    [switch]$Login
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
 $env:DB_PATH = "fleet-demo.db"
+if ($Login) {
+    $Users = $true
+    $env:AUTH_ENABLED = "1"
+    $env:DEMO_ACCOUNTS = "1"
+}
 
 # load .env, but never override values that are already set in this window
 if (Test-Path .env) {
@@ -46,4 +53,5 @@ if (-not $Keep) {
 
 Write-Host ""
 Write-Host "Demo is at http://localhost:$Port   (Ctrl+C to stop)" -ForegroundColor Cyan
+if ($Login) { Write-Host "Sign-in is on: open the page and pick an account (every demo password is demo-pass-123)." -ForegroundColor Cyan }
 & venv\Scripts\python.exe -m uvicorn app.main:app --port $Port

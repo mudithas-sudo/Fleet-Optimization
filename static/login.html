@@ -4,63 +4,103 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#6d35b3">
+<meta name="theme-color" content="#f8f9fc">
 <title>Sign in — FleetOps</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
-    --bg: #f7f7f7; --surface: #ffffff; --border: #e6e2ec; --border-strong: #cfc8da;
-    --text: #17062a; --muted: #5d5470; --nav: #6d35b3; --primary: #6d35b3;
-    --accent: #6d35b3; --on-accent: #ffffff; --danger: #dd1311;
-    --focus: 0 0 0 3px rgba(77, 20, 140, .35);
-    --font: "Inter", system-ui, sans-serif; --display: var(--font);
+    --bg: #f8f9fc; --surface: #ffffff; --surface-2: #f3f4f8; --border: #e8eaf0; --border-strong: #d5d9e3;
+    --text: #172033; --muted: #667085; --primary: #6d35b3; --primary-hover: #572a94; --primary-soft: #f3eefa;
+    --on-primary: #ffffff; --danger: #d92d20; --focus: 0 0 0 3px rgba(109, 53, 179, .28);
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root { color-scheme: dark; --bg: #120a1f; --surface: #1c1230; --border: #3a2a5c; --border-strong: #4d3a75;
-      --text: #f3eefa; --muted: #bcb0d3; --nav: #2d0e57; --primary: #c9b2ee; --accent: #c9b2ee; --on-accent: #17062a;
-      --danger: #ff6b5e; --focus: 0 0 0 3px rgba(201, 178, 238, .45); }
+    :root { color-scheme: dark; --bg: #120a1f; --surface: #1c1230; --surface-2: #221639; --border: #3a2a5c; --border-strong: #4d3a75;
+      --text: #f3eefa; --muted: #bcb0d3; --primary: #c9b2ee; --primary-hover: #e0d0f7; --primary-soft: #2d1d4d; --on-primary: #17062a;
+      --danger: #ff6b5e; --focus: 0 0 0 3px rgba(201, 178, 238, .4); }
   }
   * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--text); font: 500 15px/1.5 var(--font); min-height: 100vh; display: grid; grid-template-rows: auto 1fr; -webkit-font-smoothing: antialiased; }
-  header { background: var(--nav); color: #f2f7f5; padding: 16px 20px; font: 700 22px var(--display); letter-spacing: -.03em; display: flex; align-items: center; gap: 10px; }
-  header .logo { width: 28px; height: 28px; border-radius: 3px; background: #fff; color: #6d35b3; display: grid; place-items: center; }
-  header .logo svg { width: 17px; height: 17px; }
-  header em { font-style: normal; color: #cbd5e1; }
-  main { display: grid; place-items: center; padding: 24px 16px; }
-  form { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-  h1 { font: 800 28px/1.1 var(--display); letter-spacing: -.03em; }
-  p.lead { color: var(--muted); margin-top: -8px; }
-  label { display: flex; flex-direction: column; gap: 5px; font-weight: 700; font-size: 13.5px; }
-  input { min-height: 46px; padding: 0 12px; border: 1.5px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: 600 16px var(--font); }
+  body { background: var(--bg); color: var(--text); font: 400 14px/1.5 var(--font); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  header { padding: 18px 32px; display: flex; align-items: center; gap: 12px; }
+  .logo { width: 32px; height: 32px; border-radius: 8px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
+  .logo svg { width: 18px; height: 18px; }
+  header b { font: 600 17px var(--font); letter-spacing: -.01em; }
+  .chip { height: 24px; padding: 0 9px; border-radius: 6px; background: var(--surface-2); color: var(--muted); font: 500 12px/24px var(--font); }
+  main { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 24px; max-width: 1180px; margin: 8px auto 40px; padding: 0 32px; align-items: start; }
+  main.solo { grid-template-columns: minmax(300px, 400px); justify-content: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 2px rgba(23, 32, 51, .04); }
+  form.card { padding: 24px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+  h1 { font: 600 24px/1.2 var(--font); letter-spacing: -.015em; }
+  .lead { color: var(--muted); margin-top: -8px; }
+  label { display: flex; flex-direction: column; gap: 6px; font: 500 13px var(--font); }
+  .label-row { display: flex; justify-content: space-between; align-items: center; }
+  input { height: 44px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: 400 15px var(--font); }
   input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus); }
-  button { min-height: 48px; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); font: 700 16px var(--display); cursor: pointer; }
-  button:disabled { opacity: .55; cursor: progress; }
-  .err { color: var(--danger); font-weight: 700; font-size: 14px; min-height: 1.3em; }
-  .note { color: var(--muted); font-size: 13px; text-align: center; }
+  .go { height: 44px; border: 0; border-radius: 8px; background: var(--primary); color: var(--on-primary); font: 500 15px var(--font); cursor: pointer; transition: background .15s ease; }
+  .go:hover:not(:disabled) { background: var(--primary-hover); }
+  .go:disabled { opacity: .6; cursor: progress; }
+  .err { color: var(--danger); font-size: 13px; min-height: 1.3em; }
+  .note { color: var(--muted); font-size: 12.5px; padding-top: 14px; border-top: 1px solid var(--border); }
   a { color: var(--primary); }
+  .demo h2 { font: 600 16px var(--font); display: flex; align-items: center; gap: 8px; }
+  .demo .sub { color: var(--muted); margin: 4px 0 14px; }
+  code { font: 500 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+  .pwd { display: inline-flex; align-items: center; gap: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .acct { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .acct.picked { border-color: var(--primary); box-shadow: var(--focus); }
+  .acct-top { display: flex; align-items: center; gap: 12px; }
+  .av { width: 40px; height: 40px; border-radius: 8px; color: #fff; font: 600 13px/40px var(--font); text-align: center; flex: 0 0 auto; background: #475467; }
+  .tag { font: 500 12px var(--font); color: var(--primary); }
+  .acct-top b { display: block; font: 600 15px var(--font); }
+  .where { color: var(--muted); font-size: 13px; }
+  .about { font-size: 13.5px; line-height: 1.5; }
+  .sees { color: var(--muted); font-size: 12.5px; }
+  .user { margin-top: auto; }
+  .use { align-self: flex-start; height: 34px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: 500 13px var(--font); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+  .use:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+  .use svg { width: 14px; height: 14px; }
+  .r-admin { background: #6d35b3; } .r-supervisor { background: #4f46c8; } .r-dispatcher { background: #0e7490; } .r-support { background: #b45309; }
+  .r-warehouse { background: #168464; } .r-fleet { background: #475467; } .r-analyst { background: #be185d; } .r-viewer { background: #64748b; }
+  .r-driver { background: #1d4ed8; } .r-customer { background: #9333ea; }
+  @media (max-width: 880px) { main { grid-template-columns: minmax(0, 1fr); padding: 0 16px; } main.solo { justify-content: stretch; } form.card { position: static; } header { padding: 14px 16px; } }
+  @media (max-width: 560px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
 </head>
 <body>
 <header>
   <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h13V6H3zM16 10h4l1 4v3h-5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg></span>
-  Fleet<em>Ops</em>
+  <b>FleetOps</b><span class="chip">Prototype</span>
 </header>
-<main>
-  <form id="f">
+<main id="main" class="solo">
+  <form id="f" class="card">
     <div><h1>Sign in</h1></div>
-    <p class="lead">Back-office console for dispatchers and supervisors.</p>
+    <p class="lead" id="lead">Back-office console for everyone who works the operation.</p>
     <label>Username <input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
     <label>Password <input id="p" name="password" type="password" autocomplete="current-password" required></label>
     <div class="err" id="err" role="alert"></div>
-    <button id="go" type="submit">Sign in</button>
-    <div class="note">Drivers don’t sign in here — use the link your dispatcher sent you.<br>Looking for a parcel? <a href="/static/track.html">Track it</a>.</div>
+    <button id="go" class="go" type="submit">Sign in</button>
+    <div class="note">Drivers don’t sign in here — they use the link their dispatcher sent them.<br>Looking for a parcel? <a href="/static/track.html">Track it</a>.</div>
   </form>
+
+  <section id="demo" class="demo" hidden aria-label="Demo accounts">
+    <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg> Demo accounts</h2>
+    <p class="sub">Password for every account: <span class="pwd"><code id="demo-pw">…</code></span>. Pick a card to fill the form.</p>
+    <div class="grid" id="accounts"></div>
+  </section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
+const PAGE_NAME = { dashboard: "Dashboard", parcels: "Parcels", fleet: "Runs", attention: "Attention", warehouse: "Warehouse",
+  registry: "Fleet", impact: "Impact", reports: "Reports" };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const initials = n => String(n).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>';
+const LINK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
+
 // only ever go back to a page inside the app (no open redirects)
 function nextUrl() {
   const n = new URLSearchParams(location.search).get("next") || "";
@@ -69,6 +109,44 @@ function nextUrl() {
 fetch("/api/auth/me").then(r => r.ok ? r.json() : null).then(d => {
   if (d && (!d.authEnabled || d.user)) location.replace(nextUrl());     // already signed in (or auth is off)
 }).catch(() => {});
+
+// the demo accounts, one card per user group (shown only when the server was started with DEMO_ACCOUNTS=1)
+fetch("/api/auth/demo-accounts").then(r => r.ok ? r.json() : null).then(d => {
+  if (!d || !d.enabled || !d.accounts.length) return;
+  $("main").classList.remove("solo");
+  $("demo").hidden = false;
+  $("demo-pw").textContent = d.password;
+  const cards = d.accounts.map(a => `
+    <article class="card acct" data-user="${esc(a.username)}">
+      <div class="acct-top"><span class="av r-${esc(a.role)}" aria-hidden="true">${esc(initials(a.name))}</span>
+        <div><span class="tag">${esc(a.roleLabel)}</span><b>${esc(a.name)}</b></div></div>
+      <p class="about">${esc(a.help)}.</p>
+      <p class="sees">Sees: ${a.pages.map(p => esc(PAGE_NAME[p] || p)).join(", ")}</p>
+      <code class="user">${esc(a.username)}</code>
+      <button type="button" class="use" data-use="${esc(a.username)}">${ARROW} Use this account</button>
+    </article>`);
+  cards.push(`
+    <article class="card acct"><div class="acct-top"><span class="av r-driver" aria-hidden="true">DR</span>
+      <div><span class="tag">Driver · no account</span><b>Driver app</b></div></div>
+      <p class="about">Drivers don’t sign in. They open the secret link on their run from the dispatch console, then drive, collect and deliver.</p>
+      <p class="sees">Opens from a run: “Driver link”</p></article>
+    <article class="card acct"><div class="acct-top"><span class="av r-customer" aria-hidden="true">CU</span>
+      <div><span class="tag">Customer · no account</span><b>Tracking page</b></div></div>
+      <p class="about">Customers follow a parcel with its tracking number and get SMS or email updates. No sign-in.</p>
+      <a class="use" href="/static/track.html?no=FO-100114">${LINK} Open a sample tracking page</a></article>`);
+  $("accounts").innerHTML = cards.join("");
+  $("accounts").querySelectorAll("[data-use]").forEach(b => {
+    b.onclick = () => {
+      $("u").value = b.dataset.use; $("p").value = d.password;
+      document.querySelectorAll(".acct.picked").forEach(c => c.classList.remove("picked"));
+      b.closest(".acct").classList.add("picked");
+      $("err").textContent = "";
+      $("go").focus();
+      if (matchMedia("(max-width: 880px)").matches) $("f").scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+  });
+}).catch(() => {});
+
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
   $("err").textContent = "";

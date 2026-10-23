@@ -478,7 +478,9 @@ def main(reset: bool, with_users: bool):
                                      ("support1", "Sanduni Support", "support"), ("fleet1", "Fathima Fleet", "fleet"),
                                      ("analyst1", "Anura Analyst", "analyst"), ("viewer1", "Vimal Viewer", "viewer")):
             if not auth.find_by_username(username):
-                auth.create_user(username, name, role, "demo-pass-123")
+                u = auth.create_user(username, name, role, "demo-pass-123")
+                u["demo"] = True                  # listed on the demo sign-in page (when DEMO_ACCOUNTS=1)
+                db.save_entity("users", u)
 
     if time.localtime().tm_hour < 10:
         print("NOTE: it is before 10:00, so the earlier runs of the sample day fall on yesterday and the dashboard shows"

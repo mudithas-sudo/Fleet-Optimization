@@ -211,6 +211,27 @@ def test_new_users_can_be_given_any_role_and_the_admin_screen_lists_them():
     assert adm.post("/api/users", json={"username": "new-boss", "role": "boss", "password": PW}).status_code == 400
 
 
+def test_demo_accounts_are_listed_only_when_the_server_is_started_for_a_demo():
+    anon = TestClient(main.app)                                    # not signed in
+    off = anon.get("/api/auth/demo-accounts").json()
+    assert off == {"enabled": False, "accounts": []}, "never listed on a real deployment"
+    for r in ROLES:                                                # mark a few as demo accounts, as the seed does
+        u = auth.find_by_username(f"{r}1")
+        u["demo"] = r != "viewer"
+        db.save_entity("users", u)
+    os.environ["DEMO_ACCOUNTS"] = "1"
+    try:
+        on = anon.get("/api/auth/demo-accounts").json()
+    finally:
+        os.environ.pop("DEMO_ACCOUNTS")
+    assert on["enabled"] and on["password"]
+    roles = [a["role"] for a in on["accounts"]]
+    assert roles == [r for r in ROLES if r != "viewer"], "one card per group, in the usual order"
+    for a in on["accounts"]:
+        assert a["username"] == f"{a['role']}1" and a["roleLabel"] and a["help"] and a["landing"] in a["pages"]
+        assert "passwordHash" not in a and "token" not in a
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

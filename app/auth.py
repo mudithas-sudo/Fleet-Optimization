@@ -277,6 +277,7 @@ PUBLIC = (
     ("POST", re.compile(r"^/api/auth/login$")),
     ("POST", re.compile(r"^/api/auth/logout$")),
     ("GET", re.compile(r"^/api/auth/me$")),
+    ("GET", re.compile(r"^/api/auth/demo-accounts$")),
     ("GET", re.compile(r"^/api/config$")),
     ("GET", re.compile(r"^/api/track/[^/]+$")),
 )
@@ -406,6 +407,20 @@ async def me(request: Request):
     if not user:
         raise HTTPException(401, "Sign in to continue.")
     return {"authEnabled": True, "user": public_user(user)}
+
+
+@router.get("/api/auth/demo-accounts")
+async def demo_accounts():
+    """For the demo sign-in page: the sample accounts and their password, listed only when the
+    server was started with DEMO_ACCOUNTS=1 (never on a real deployment)."""
+    if os.environ.get("DEMO_ACCOUNTS", "0") != "1":
+        return {"enabled": False, "accounts": []}
+    accounts = [u for u in db.all_entities("users") if u.get("demo") and u.get("active", True)]
+    accounts.sort(key=lambda u: (-ROLES.get(u["role"], 0), u["username"]))
+    return {"enabled": True, "password": os.environ.get("DEMO_PASSWORD", "demo-pass-123"),
+            "accounts": [{"username": u["username"], "name": u["name"], "role": u["role"], "roleLabel": ROLE_LABEL[u["role"]],
+                          "help": ROLE_INFO[u["role"]]["help"], "pages": ROLE_INFO[u["role"]]["pages"],
+                          "landing": ROLE_INFO[u["role"]]["landing"]} for u in accounts]}
 
 
 @router.get("/api/auth/roles")

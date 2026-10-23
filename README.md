@@ -129,6 +129,9 @@ selects its model (gemini-3.5-flash recommended).
   | Analyst | Finance / performance | Dashboard, Parcels, Runs, Impact, Reports | Read-only |
   | Viewer | Management | Dashboard, Parcels, Runs, Attention, Warehouse | Read-only |
 
+  The demo sign-in page lists one account card per group with its username and password (start the demo
+  with `.\samples\start-demo.bat -Login`; every demo password is `demo-pass-123`).
+
   Drivers use their own app (a secret link) and customers use the public tracking page. The map only
   appears where it is needed (Dashboard, Runs, and while picking a place when adding a parcel or changing
   the hub), not on Parcels, Attention, Warehouse or Fleet and drivers. With sign-in off, **Account >
