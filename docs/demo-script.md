@@ -137,6 +137,28 @@ the replay and Impact. Start at the sign-in page, show the warehouse loading bay
 Attention list, then the dashboard and Impact. Load it **after 10:00**, because the day starts hours
 before "now".
 
+## Where each feature lives in the sample day
+
+With `.\samples\start-demo.bat -Login` (or `-Login -RealRoutes` for real roads) every feature has data behind it:
+
+| Feature | Where to find it |
+|---|---|
+| Registration | Fleet and drivers: 5 vehicles, 5 drivers (one on leave, one with a stop limit); add more live |
+| Import | Parcels > Import: `samples\manifest-demo.csv` |
+| Suggest runs | Parcels: 12 pending parcels, a free van (Kamal), an oversized pallet that fits nowhere |
+| Pickup requests | Parcels > Pickup requests (FO-100128, FO-100130); FO-100129 is already on the live run |
+| Best run for a pickup | Open FO-100128 > Best run for this pickup > Add to run |
+| Failed delivery review | Attention: FO-100108 (nobody home); FO-100125 was reviewed and held for tomorrow |
+| Predefined routes | Runs page: R-01, R-02, R-03 (What's included, Run today's route) |
+| Vehicle breakdown | Runs > the live run (Nuwan, Van 01) > Change this run > Vehicle broke down |
+| Warehouse | Loading bay: Dilani (1 of 3 loaded) and Ruwan (0 of 2); Receiving: 3 parcels back at the hub |
+| Driver app | Open the live run, copy its driver link |
+| Live dashboard, replay | Dashboard: 1 live run, 2 finished, 2 planned; drag the time slider |
+| Impact, Reports | Finished runs give savings, plan vs actual, ETA accuracy, cost per delivery |
+| Customer tracking | `/static/track.html?no=FO-100112` (delivered) or `FO-100114` (out for delivery) |
+| Customer messages | Reports > Recent customer messages; parcel detail > Customer updates |
+| Roles | Sign-in page: admin, supervisor1, dispatcher1, support1, warehouse1 |
+
 ## If something goes wrong
 
 | Problem | What to do |

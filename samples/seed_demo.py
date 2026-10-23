@@ -509,7 +509,7 @@ def main(reset: bool, with_users: bool, fresh: bool = False):
               " fewer finished runs. For the best demo data, load it after 10:00.")
     counts = {k: len(db.all_entities(k)) for k in ("vehicles", "drivers", "parcels", "notifications")}
     print(f"Added {counts['vehicles']} vehicles, {counts['drivers']} drivers, {counts['parcels']} parcels, "
-          f"4 runs and {counts['notifications']} customer messages.")
+          f"5 runs and {counts['notifications']} customer messages.")
     print("Predefined routes: R-01 Colombo Central, R-02 Southern Corridor, R-03 Northern Corridor (Runs page > Run today's route).")
     print("Pickup requests: FO-100129 is on the live run, FO-100128 and FO-100130 are open (open one to see the best-run suggestions).")
     print("Live now: Nuwan Perera on Van 01. Finished: Kamal Silva, Ruwan Jayasinghe. Scheduled: Dilani Fernando and Ruwan Jayasinghe.")
