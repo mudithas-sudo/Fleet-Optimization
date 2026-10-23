@@ -53,6 +53,8 @@ async function loadMe() {
 function can(perm) { return !!currentUser && currentUser.permissions.includes(perm); }
 
 function applyRole() {
+  // Impact and Reports follow their permissions, even if an older server's page list does not mention them
+  currentUser.pages = [...new Set([...currentUser.pages, ...(can("impact") ? ["impact"] : []), ...(can("reports") ? ["reports"] : [])])];
   const body = document.body;
   [...body.classList].filter(c => c.startsWith("role-") || c.startsWith("can-")).forEach(c => body.classList.remove(c));
   body.classList.add("role-" + currentUser.role);
