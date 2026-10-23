@@ -83,7 +83,9 @@ body.nav-collapsed .brand { width: auto; }
 #panel, #map-wrap { border-radius: 12px; }
 
 /* ---------- overview heading + KPIs ---------- */
-#hero-main { grid-column: 1 / -1; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 20px 24px 0; background: var(--bg); }
+/* the sidebar runs the full height on every page; the overview heading and cards sit to its right */
+#app { grid-template-areas: "top top" "nav hero" "nav stage"; grid-template-rows: auto auto minmax(0, 1fr); }
+#hero-main { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 20px 24px 0; background: var(--bg); }
 .hero-left { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 16px; }
 .hero-left h1 { font: 600 24px/1.2 var(--font); letter-spacing: -.015em; color: var(--text); margin-right: 4px; }
 .hero-left .hero-meta { gap: 16px; font-size: 13px; color: var(--text-muted); font-weight: 400; }
