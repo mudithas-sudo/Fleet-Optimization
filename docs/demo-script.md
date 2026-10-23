@@ -47,8 +47,9 @@ is just name, plate and type.
 
 ## Act 1: Register the fleet (3 min)
 
-**Sign in as Fleet manager** (`fleet1`, click "Use this account"). They land on **Fleet and drivers**,
-and the menu is short: Fleet and drivers, Runs. There is no map on this page, because it isn't needed.
+**Sign in as Operations supervisor** (`supervisor1`, click "Use this account") and open **Fleet and drivers**
+(supervisors and administrators manage the fleet; the system also has a Fleet manager role for a dedicated
+fleet team). There is no map on this page, because it isn't needed.
 
 1. **Add** the four vehicles (name, plate, type). Point out that the type sets capacity and the
    largest parcel it can carry.
@@ -101,7 +102,7 @@ Back as Dispatcher (or open the second window): in a run, copy the **driver link
 
 ## Act 3: The dashboard (6 min)
 
-**Sign in as Operations supervisor** (`supervisor1`). Landing page: **Dashboard**.
+**Sign in as Operations supervisor** again (`supervisor1`). Landing page: **Dashboard**.
 
 1. **Operations overview**: the five KPI cards (Late turns red only when something is late), the live
    map with the vehicles you just moved, the **Needs attention** list and **Pickup requests** beside
@@ -111,8 +112,9 @@ Back as Dispatcher (or open the second window): in a run, copy the **driver link
    runs finish.
 3. **Reports**: cost per delivery, failures by reason, per-driver productivity, CSV export.
 4. Customer view: open `/static/track.html?no=` with a tracking number from the Parcels page.
-5. Close on the sign-in page: **eight groups, each with their own menu**, plus the driver app and the
-   customer page, which need no account.
+5. Close on the sign-in page: **five demo accounts, each with their own menu** (the system also has Fleet manager, Analyst and
+   Viewer roles, which an administrator can give to anyone), plus the driver app and the customer page, which
+   need no account.
 
 ## Be straight about these
 

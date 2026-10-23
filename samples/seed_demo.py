@@ -363,8 +363,7 @@ def make_users():
     from app import auth
     for username, name, role in (("admin", "Administrator", "admin"), ("supervisor1", "Sunethra Supervisor", "supervisor"),
                                  ("dispatcher1", "Dinesh Dispatcher", "dispatcher"), ("warehouse1", "Wasantha Warehouse", "warehouse"),
-                                 ("support1", "Sanduni Support", "support"), ("fleet1", "Fathima Fleet", "fleet"),
-                                 ("analyst1", "Anura Analyst", "analyst"), ("viewer1", "Vimal Viewer", "viewer")):
+                                 ("support1", "Sanduni Support", "support")):
         if not auth.find_by_username(username):
             u = auth.create_user(username, name, role, "demo-pass-123")
             u["demo"] = True                  # listed on the demo sign-in page (when DEMO_ACCOUNTS=1)
@@ -517,7 +516,7 @@ def main(reset: bool, with_users: bool, fresh: bool = False):
     print("Try the tracking page with FO-100112 (delivered) or FO-100114 (out for delivery).")
     if with_users:
         print("Demo staff accounts (set AUTH_ENABLED=1 to use them), password demo-pass-123: admin, supervisor1, dispatcher1, "
-              "warehouse1, support1, fleet1, analyst1, viewer1")
+              "warehouse1, support1")
     print("Restart the server (or refresh the page) to see the new data.")
 
 
