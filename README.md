@@ -115,19 +115,30 @@ selects its model (gemini-3.5-flash recommended).
 - **Reports** — header **Reports** button: on-time and first-attempt rates,
   failures by reason, per-driver productivity, distance, cost per delivery
   (editable per-km / per-hour rates) and CSV exports for parcels, runs, drivers.
+- **Real-world operations** (from the Sri Lanka courier research, `docs/real-world.md`) —
+  - *Cash on delivery*: a parcel can carry cash to collect and the seller it is owed to. The rider must take the
+    cash to complete it (driving past never does), and the **Cash** page follows the money: with riders (against a
+    carry limit and a hand-in time), counted at the hub (any difference recorded), paid out to each merchant.
+  - *Failed-delivery prevention*: every open parcel gets a transparent **risk score** (no phone, COD, past refusals,
+    unconfirmed, vague address, earlier failures). **Attention > Confirm before dispatch** is the call list; the receiver
+    can also confirm, add directions, pick another day or cancel from the tracking page. A delivery's GPS point is
+    remembered per phone number and offered as a better pin next time.
+  - *Disruptions*: hold an area (flood, hartal, closure) so nothing is planned into it and customers are told why; mark a
+    rider absent so their planned runs return to the queue; a **capacity forecast** and a weekly **fuel allowance** per vehicle.
+  - *First-attempt delivery* on Reports, split by confirmed, unconfirmed and cash on delivery.
 - **People and roles** — set `AUTH_ENABLED=1` to require sign-in. Each role has its own permissions,
   menu and landing page; the server enforces them and the console hides what a role could not use.
 
   | Role | For | Sees | Can do |
   |---|---|---|---|
   | Administrator | System owner | Everything | Everything, including people |
-  | Operations supervisor | Runs the operation | Everything except people | Plans, fleet, hub, predefined routes, reports, Impact |
-  | Dispatcher | Plans the day | Dashboard, Parcels, Runs, Attention, Warehouse (read) | Add parcels and pickups, plan and change runs, review failures |
+  | Operations supervisor | Runs the operation | Everything except people | Plans, fleet, hub, predefined routes, reports, Impact, pays merchants out |
+  | Dispatcher | Plans the day | Dashboard, Parcels, Runs, Attention, Warehouse (read), Cash (read) | Add parcels and pickups, plan and change runs, review failures |
   | Customer service | Call centre | Parcels, Attention, Runs | Add parcels and pickups, reschedule or return failures, customer messages |
-  | Warehouse / hub staff | Loading bay | **Warehouse**, Parcels (read) | See what to give each driver (in loading order), tick parcels loaded, print the pick list, check in pickups and returns |
+  | Warehouse / hub staff | Loading bay and cash desk | **Warehouse**, **Cash**, Parcels (read) | See what to give each driver (in loading order), tick parcels loaded, print the pick list, check in pickups and returns, count a rider's cash in |
   | Fleet manager | Vehicles and drivers | Fleet and drivers, Runs | Add and edit vehicles and drivers |
-  | Analyst | Finance / performance | Dashboard, Parcels, Runs, Impact, Reports | Read-only |
-  | Viewer | Management | Dashboard, Parcels, Runs, Attention, Warehouse | Read-only |
+  | Analyst | Finance / performance | Dashboard, Parcels, Runs, Cash, Impact, Reports | Read-only |
+  | Viewer | Management | Dashboard, Parcels, Runs, Attention, Warehouse, Cash | Read-only |
 
   The demo sign-in page lists one account card per group with its username and password (start the demo
   with `.\samples\start-demo.bat -Login`; every demo password is `demo-pass-123`).

@@ -116,11 +116,33 @@ Back as Dispatcher (or open the second window): in a run, copy the **driver link
    Viewer roles, which an administrator can give to anyone), plus the driver app and the customer page, which
    need no account.
 
+## Act 4: What goes wrong in real life (6 min, optional)
+
+These come from the Sri Lankan courier research: most failures are not driving problems.
+Use the pre-loaded day (`.\samples\start-demo.bat -Login`), signed in as the person named.
+
+1. **Cash on delivery** (`warehouse1`, **Cash**): Van 03 (Sanjaya) is carrying more than the cash limit; another rider has not
+   handed in yesterday's cash. **Count cash in** for Kamal: type a slightly lower figure to show the difference being recorded.
+   As `supervisor1`, **Mark paid** to a merchant (this is the part sellers always ask about).
+2. **Prevent the failed first attempt** (`dispatcher1`, **Attention > Confirm before dispatch**): the riskiest parcels first, each with
+   its reasons. Open **FO-300119** (the number that refused cash last week): **Delivery risk** shows the points. Press **Send
+   confirmation message**, then open `/static/track.html?no=FO-300119` as the customer: **Yes, I will be there** (or pick another
+   day) and watch the score drop. The receiver's own answer is the cheapest fix there is.
+3. **A door the rider finds from memory**: the parcel for 071 340 9902 has a pin a few hundred metres from where the last delivery
+   succeeded: **Delivery risk > Use the pin from past deliveries**.
+4. **Flood or hartal** (`dispatcher1`, **Attention > Area holds**): type a place, press **Hold this area**: parcels there come off planned
+   runs, stay out of **Suggest runs**, and customers get a delay message (Reports > recent messages). **Reopen the area** when it clears.
+5. **A rider does not turn up** (**Attention > A rider isn't coming in**): their planned run goes back to the queue.
+6. **Capacity** (**Attention > Capacity for the next days**): demand against riders, and the extra riders to book when a day is short. Set a
+   weekly fuel allowance to show fuel rationing.
+7. **Reports > First-attempt delivery**: first-time delivery rate when the receiver confirmed, when they did not, and for cash on delivery.
+
 ## Be straight about these
 
 - The savings are **estimates** against a stated baseline (stops in the order entered). On a pilot they
   become real numbers from FedEx's own data.
 - Fuel use comes from litres per 100 km by vehicle type (editable); it is not telematics.
+- Risk scores, capacity and fuel allowance are rules and estimates, not predictions from FedEx's own history yet; they get better with real data.
 - Data and addresses are made up (Colombo). Ask FedEx for their real service areas, cut-offs, vehicle
   mix and failed-delivery policy.
 
@@ -157,6 +179,9 @@ With `.\samples\start-demo.bat -Login` (or `-Login -RealRoutes` for real roads) 
 | Impact, Reports | 21 finished runs over a week: savings, plan vs actual, ETA accuracy, daily chart, cost per delivery |
 | Customer tracking | `/static/track.html?no=FO-100112` (delivered) or `FO-100114` (out for delivery) |
 | Customer messages | Reports > Recent customer messages; parcel detail > Customer updates |
+| Cash on delivery | Cash page: Van 03 over the limit, yesterday's cash not handed in, merchants owed money |
+| Confirmation and risk | Attention > Confirm before dispatch (about 30 parcels); FO-300119 refused cash before; the pin for 071 340 9902 |
+| Area holds, absent rider, capacity | Attention page sections; Reports > First-attempt delivery |
 | Roles | Sign-in page: admin, supervisor1, dispatcher1, support1, warehouse1 |
 
 ## If something goes wrong

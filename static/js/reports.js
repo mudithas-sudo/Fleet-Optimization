@@ -43,6 +43,8 @@ async function loadReport() {
     kpi(c.perDelivery == null ? "–" : `${c.currency} ${rpNum(c.perDelivery)}`, "Cost per delivery", `${c.currency} ${rpNum(c.total)} total`),
   ].join("");
 
+  if (typeof renderFirstAttempt === "function") renderFirstAttempt(days);
+
   // deliveries per day (last 30 days shown)
   const days30 = r.daily.slice(-30);
   const max = Math.max(1, ...days30.map(d => d.delivered + d.failed));

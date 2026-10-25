@@ -972,6 +972,7 @@
     <button type="button" class="nav-item" id="tab-btn-fleet"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg><span class="label">Runs</span><span class="badge" id="fleet-badge">0</span></button>
     <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-warehouse"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 10 12 4l9 6v10H3z"/><path d="M8 20v-6h8v6M3 10h18"/></svg><span class="label">Warehouse</span></button>
+    <button type="button" class="nav-item" id="tab-btn-cash"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg><span class="label">Cash</span></button>
     <button type="button" class="nav-item" id="tab-btn-registry"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M14 17V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg><span class="label">Fleet</span></button>
     <button type="button" class="nav-item" id="tab-btn-impact"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span class="label">Impact</span></button>
     <button type="button" class="nav-item" id="tab-btn-reports"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Reports</span></button>
@@ -1154,6 +1155,14 @@
           </label>
           <div class="field"><label for="pf-notes">Delivery notes <span class="opt">(optional)</span></label>
             <textarea id="pf-notes" rows="2" placeholder="Gate code, floor, leave with neighbour…"></textarea></div>
+          <div class="field"><label for="pf-landmark">Landmark or directions <span class="opt">(optional)</span></label>
+            <input id="pf-landmark" maxlength="200" placeholder="e.g. opposite the temple, blue gate" autocomplete="off"></div>
+          <div class="form-grid">
+            <div class="field"><label for="pf-cod">Cash to collect <span class="opt">(optional)</span></label>
+              <input id="pf-cod" type="number" min="0" step="1" inputmode="decimal" placeholder="0 = prepaid"></div>
+            <div class="field"><label for="pf-merchant">Seller the cash is owed to <span class="opt">(optional)</span></label>
+              <input id="pf-merchant" maxlength="80" placeholder="e.g. Daraz seller 4411" autocomplete="off"></div>
+          </div>
         </div>
 
         <label class="toggle-row" id="pf-pickup-toggle" style="padding:10px 12px">
@@ -1237,6 +1246,7 @@
       <h2>Needs attention</h2>
       <div class="hint" style="margin-top:4px">Most urgent first. Select an item to open it.</div>
       <div id="attention-list"></div>
+      <div id="att-field" class="fx-field"></div>
     </section>
 
     <!-- ================= WAREHOUSE ================= -->
@@ -1251,6 +1261,27 @@
       <div id="wh-summary" class="wh-summary" aria-live="polite"></div>
       <div id="wh-load"></div>
       <div id="wh-recv" hidden></div>
+    </section>
+
+    <!-- ================= CASH ON DELIVERY ================= -->
+    <section id="tab-cash" role="tabpanel" aria-label="Cash" hidden>
+      <div class="rp-page">
+        <div class="rp-head"><h2>Cash on delivery</h2></div>
+        <p class="page-sub">Cash taken at the door, who is holding it, what has been counted in at the hub and what each merchant is owed.</p>
+        <div id="cash-kpis" class="rp-kpis"></div>
+        <div><h3>Riders holding cash</h3><div id="cash-riders"></div></div>
+        <div><h3>Owed to merchants</h3><div class="rp-tablewrap"><table id="cash-merchants"></table></div></div>
+        <div><h3>Recent deposits</h3><div class="rp-tablewrap"><table id="cash-deposits"></table></div></div>
+        <div class="rp-panel fx-admin" hidden>
+          <h3>Limits</h3>
+          <div class="hint" style="margin-bottom:10px">A rider carrying more than the limit, or holding cash for longer than the deposit time, is flagged above.</div>
+          <div class="im-fuel">
+            <div class="field"><label for="cash-limit">Cash a rider may carry (LKR)</label><input id="cash-limit" type="number" min="0" step="1000" inputmode="decimal"></div>
+            <div class="field"><label for="cash-hours">Hand in within (hours)</label><input id="cash-hours" type="number" min="1" step="1" inputmode="decimal"></div>
+            <button id="cash-settings-save" class="btn btn-primary" type="button">Save limits</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="tab-impact" role="tabpanel" aria-label="Impact" hidden>
@@ -1299,6 +1330,7 @@
     </div>
     <div id="rp-status" role="status"></div>
     <div id="rp-kpis" class="rp-kpis"></div>
+    <div id="rp-fa"></div>
     <div class="rp-grid">
       <div class="rp-panel"><h3>Deliveries per day</h3><div id="rp-daily"></div></div>
       <div class="rp-panel"><h3>Why deliveries fail</h3><div id="rp-fail"></div></div>
@@ -1645,6 +1677,7 @@
 <script src="/static/js/routes.js"></script>
 <script src="/static/js/warehouse.js"></script>
 <script src="/static/js/impact.js"></script>
+<script src="/static/js/field.js"></script>
 <script src="/static/js/users.js"></script>
 <script src="/static/js/palette.js"></script>
 <script src="/static/js/admin.js"></script>

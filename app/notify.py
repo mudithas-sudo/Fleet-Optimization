@@ -21,7 +21,7 @@ from . import db
 
 log = logging.getLogger("fleetops.notify")
 
-EVENTS = ("out_for_delivery", "nearby", "delivered", "failed", "rescheduled", "returned")
+EVENTS = ("out_for_delivery", "nearby", "delivered", "failed", "rescheduled", "returned", "confirm_request", "delayed")
 
 
 def public_base_url() -> str:
@@ -77,6 +77,15 @@ def _compose(parcel: dict, event: str, **info) -> tuple[str, str]:
     if event == "rescheduled":
         when = time.strftime("%d %b %H:%M", time.localtime(info["deadline"])) if info.get("deadline") else "soon"
         return (f"Parcel {tn} rescheduled", f"{who}delivery of parcel {tn} is rescheduled for {when}. {url}")
+    if event == "confirm_request":
+        cod = parcel.get("cod")
+        pay = f" Please keep {cod['amount']:,.0f} ready in cash." if cod and cod.get("state") == "due" else ""
+        return (f"Will you be there for parcel {tn}?",
+                f"{who}parcel {tn} is on its way to you.{pay} Confirm you will be there, add directions, or pick another day: {url}")
+    if event == "delayed":
+        return (f"Parcel {tn} is delayed",
+                f"{who}delivery of parcel {tn} is delayed ({info.get('reason', 'a disruption on the roads')}). "
+                f"We will deliver as soon as it is safe and will message you. {url}")
     return (f"Parcel {tn} is being returned", f"{who}parcel {tn} could not be delivered and is being returned to the sender. {url}")
 
 

@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, db, delivery, deviation, impact, notify, replan, reports, rides, route_templates, routing, store, warehouse  # noqa: E402
+from . import auth, cod, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, route_templates, routing, store, warehouse  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -165,6 +165,9 @@ class ParcelIn(BaseModel):
     fragile: bool = False               # optional — flag for careful handling
     recipientPhone: str | None = None   # optional — contact at the destination
     notes: str | None = None            # optional — delivery instructions
+    codAmount: float | None = None      # optional — cash the rider must collect at the door
+    merchant: str | None = None         # optional — the seller the cash is owed to
+    landmark: str | None = None         # optional — directions or a landmark near the door
 
 
 class PodIn(BaseModel):
@@ -174,6 +177,7 @@ class PodIn(BaseModel):
     reference: str | None = None         # receipt / e-signature id from the existing signature process
     signature: str | None = None         # optional data URL (png); the driver app doesn't capture it any more
     photo: str | None = None             # data URL (jpeg/webp), downscaled client-side
+    codCollected: float | None = None    # cash taken at the door (required when the parcel is cash on delivery)
     lat: float | None = None
     lng: float | None = None
     by: str = "driver"
@@ -384,6 +388,13 @@ async def parcel_pod(parcel_id: str, body: PodIn):
                                   "left_safe": "Say where it was left, or add a photo."}[body.method])
     trip = _trip_for(parcel)
     was_delivered = parcel["status"] == "delivered"
+    if parcel.get("cod") and parcel["cod"]["state"] == "due" and not was_delivered:
+        if body.codCollected is None or body.codCollected < 0:
+            raise HTTPException(400, f"Collect the cash first: {parcel['cod']['amount']:,.0f} is due on delivery.")
+        cod.collect(parcel, body.codCollected, (trip or {}).get("driverId"), actor=body.by)
+        short = parcel["cod"]["short"]
+        delivery.add_event(parcel, "cod", f"Cash collected: {body.codCollected:,.0f}" + (f" ({short:,.0f} short)" if short else ""),
+                           tripId=parcel.get("tripId"), by=body.by)
     delivery.save_pod(parcel, body.method, received_by, note, body.signature, body.photo,
                       parcel.get("tripId"), body.lat, body.lng, actor=body.by, reference=reference)
     if not was_delivered:
@@ -608,6 +619,11 @@ async def track(tracking_number: str, request: Request):
         "receivedBy": pod.get("receivedBy") if parcel["status"] == "delivered" else None,
         "lastProblem": failure["label"] if failure and parcel["status"] in ("failed", "awaiting_redelivery", "returned") else None,
         "history": history,
+        # what the receiver may do themselves: confirm they will be there, add directions, pick another day, cancel
+        "canRespond": (not request) and parcel["status"] in ("pending", "assigned", "awaiting_redelivery"),
+        "confirmation": (parcel.get("confirmation") or {}).get("state"),
+        "cashDue": parcel["cod"]["amount"] if parcel.get("cod") and parcel["cod"]["state"] == "due" else None,
+        "landmark": parcel.get("landmark"),
     }
 
 
@@ -908,6 +924,9 @@ async def edit_parcel(parcel_id: str, p: ParcelIn):
     data = _parcel_data(p, exclude_id=parcel_id)
     if not (data.get("trackingNumber") or "").strip():
         data["trackingNumber"] = parcel.get("trackingNumber")   # blank keeps the existing one
+    amount = data.pop("codAmount", None)
+    if not parcel.get("cod") or parcel["cod"]["state"] == "due":
+        parcel["cod"] = cod.new_cod(amount)
     parcel.update(data)
     parcel["deadlineMissed"] = False
     db.save_entity("parcels", parcel)
@@ -1506,6 +1525,8 @@ def _check_stop_progress(trip: dict, runtime: dict):
                 continue
             if p["status"] not in ("in_transit", "picked_up"):
                 continue
+            if p.get("cod") and p["cod"]["state"] == "due":
+                continue        # cash on delivery: only the rider taking the cash completes it
             delivery.set_parcel_status(p, "delivered")
             trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
             late = " (past deadline)" if p["deadlineMissed"] else ""
@@ -1799,3 +1820,191 @@ class RevalidatingStatic(StaticFiles):
 
 
 app.mount("/static", RevalidatingStatic(directory="static"), name="static")
+
+
+# ---- real-world operations: cash on delivery, confirmation and risk, disruptions, capacity
+
+class CodDepositIn(BaseModel):
+    driverId: str
+    counted: float
+    reference: str | None = None
+    note: str | None = None
+
+
+class CodRemitIn(BaseModel):
+    merchant: str
+    reference: str | None = None
+
+
+class CodSettingsIn(BaseModel):
+    cashLimit: float | None = None
+    depositHours: float | None = None
+
+
+@app.get("/api/cod/ledger")
+async def cod_ledger():
+    return cod.ledger()
+
+
+@app.put("/api/cod/settings")
+async def cod_settings(body: CodSettingsIn):
+    return cod.set_settings(body.cashLimit, body.depositHours)
+
+
+@app.post("/api/cod/deposit")
+async def cod_deposit(body: CodDepositIn, request: Request):
+    if body.counted < 0:
+        raise HTTPException(400, "The counted amount can't be negative.")
+    try:
+        return cod.deposit(body.driverId, body.counted, body.reference, _who(request), body.note)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/cod/remit")
+async def cod_remit(body: CodRemitIn, request: Request):
+    try:
+        return cod.remit(body.merchant, body.reference, _who(request))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+class ConfirmIn(BaseModel):
+    action: str                  # request | confirm | reschedule | cancel
+    window: str | None = None    # morning | afternoon | evening | any
+    day: float | None = None     # reschedule: the day (epoch seconds)
+    landmark: str | None = None
+    note: str | None = None
+
+
+def _apply_confirmation(parcel: dict, body: ConfirmIn, actor: str) -> dict:
+    try:
+        if body.action == "request":
+            return risk.request_confirmation(parcel, actor)
+        return risk.respond(parcel, body.action, window=body.window, day=body.day, landmark=body.landmark,
+                            actor=actor, note=body.note)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/risk/queue")
+async def risk_queue():
+    return risk.queue()
+
+
+@app.get("/api/risk/kpis")
+async def risk_kpis(days: int = 30):
+    return risk.first_attempt(days or None)
+
+
+@app.get("/api/parcels/{parcel_id}/risk")
+async def parcel_risk(parcel_id: str):
+    return risk.assess(_entity_or_404("parcels", parcel_id))
+
+
+@app.post("/api/parcels/{parcel_id}/confirmation")
+async def parcel_confirmation(parcel_id: str, body: ConfirmIn, request: Request):
+    parcel = _entity_or_404("parcels", parcel_id)
+    _apply_confirmation(parcel, body, _who(request))
+    if body.action in ("reschedule", "cancel") and parcel["status"] == "assigned" and parcel.get("tripId"):
+        try:
+            await replan.replan(parcel["tripId"], remove_ids=[parcel["id"]])
+        except delivery.RunError:
+            pass
+        parcel = db.load_entity("parcels", parcel_id)
+    if body.action == "cancel" and parcel["status"] in delivery.PARCEL_PLANNABLE_STATUSES:
+        delivery.set_parcel_status(parcel, "returned", trip_id=None, note="Cancelled by the receiver before dispatch")
+    store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return parcel
+
+
+@app.post("/api/parcels/{parcel_id}/use-known-pin")
+async def parcel_use_known_pin(parcel_id: str):
+    parcel = _entity_or_404("parcels", parcel_id)
+    if parcel["status"] not in delivery.PARCEL_PLANNABLE_STATUSES:
+        raise HTTPException(409, "This parcel is on a run: change its pin before it is planned.")
+    try:
+        return risk.use_known_pin(parcel)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/track/{tracking_number}/respond")
+async def track_respond(tracking_number: str, body: ConfirmIn, request: Request):
+    """The customer's own answer from the tracking page. Public, rate-limited, and limited to what they may do."""
+    _track_rate_limit(request.client.host if request.client else "?")
+    if body.action not in ("confirm", "reschedule", "cancel"):
+        raise HTTPException(400, "Choose confirm, reschedule or cancel.")
+    want = tracking_number.strip().lower()
+    parcel = next((p for p in db.all_entities("parcels") if (p.get("trackingNumber") or "").lower() == want), None)
+    if not parcel:
+        raise HTTPException(404, "We couldn't find that tracking number.")
+    if parcel.get("requestType") == "pickup":
+        raise HTTPException(409, "Please contact us to change a pickup.")
+    _apply_confirmation(parcel, body, "customer")
+    if body.action in ("reschedule", "cancel") and parcel["status"] == "assigned" and parcel.get("tripId"):
+        try:
+            await replan.replan(parcel["tripId"], remove_ids=[parcel["id"]])
+        except delivery.RunError:
+            pass
+        parcel = db.load_entity("parcels", parcel["id"])
+    if body.action == "cancel" and parcel["status"] in delivery.PARCEL_PLANNABLE_STATUSES:
+        delivery.set_parcel_status(parcel, "returned", trip_id=None, note="Cancelled by the receiver before dispatch")
+    store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return {"ok": True, "state": (parcel.get("confirmation") or {}).get("state")}
+
+
+class DisruptionIn(BaseModel):
+    kind: str = "flood"
+    label: str | None = None
+    lat: float
+    lng: float
+    radiusKm: float = 3.0
+    until: float | None = None
+
+
+class AbsentIn(BaseModel):
+    reason: str | None = None
+
+
+class FuelQuotaIn(BaseModel):
+    weeklyLitres: float
+
+
+@app.get("/api/disruptions")
+async def disruptions_list():
+    return disruptions.list_all()
+
+
+@app.post("/api/disruptions")
+async def disruptions_create(body: DisruptionIn, request: Request):
+    try:
+        return await disruptions.create(body.kind, body.label or "", body.lat, body.lng, body.radiusKm, body.until, _who(request))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/disruptions/{disruption_id}/clear")
+async def disruptions_clear(disruption_id: str, request: Request):
+    try:
+        return disruptions.clear(disruption_id, _who(request))
+    except KeyError:
+        raise HTTPException(404, "disruption not found")
+
+
+@app.post("/api/drivers/{driver_id}/absent")
+async def driver_absent(driver_id: str, body: AbsentIn, request: Request):
+    try:
+        return await disruptions.mark_absent(driver_id, body.reason or "", _who(request))
+    except KeyError:
+        raise HTTPException(404, "driver not found")
+
+
+@app.get("/api/capacity")
+async def capacity(days: int = 5):
+    return {**disruptions.forecast(max(1, min(days, 14))), "fuel": disruptions.fuel_quota()}
+
+
+@app.put("/api/fuel-quota")
+async def fuel_quota_set(body: FuelQuotaIn):
+    return disruptions.set_fuel_quota(body.weeklyLitres)

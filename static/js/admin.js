@@ -140,6 +140,7 @@ async function init() {
   setupReassign();
   setupBreakdown();
   if (typeof setupWarehouse === "function") setupWarehouse();
+  if (typeof setupField === "function") { setupField(); setupCash(); }
   if (typeof setupRoutes === "function") setupRoutes();
   $("btn-auto").onclick = () => autoAssign("rules");
   $("btn-auto-ai").onclick = () => autoAssign("ai");
@@ -195,7 +196,7 @@ async function init() {
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
 
-const PAGES = ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"];
+const PAGES = ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash", "registry", "impact", "reports"];
 
 function switchTab(tab) {
   if (!PAGES.includes(tab)) tab = "dashboard";
@@ -417,6 +418,9 @@ function parcelRow(p) {
     p.priority === "priority" ? `<span class="p-chip" title="Priority — scheduled ahead of standard parcels">priority</span>` : "",
     p.windowStart && p.windowStart > Date.now() / 1000 ? `<span class="p-chip" title="Not before ${new Date(p.windowStart * 1000).toLocaleString()}">window</span>` : "",
     p.fragile ? `<span class="p-chip fragile" title="Fragile — handle with care">fragile</span>` : "",
+    p.cod && p.cod.state === "due" ? `<span class="p-chip cod" title="Cash on delivery: collect ${Math.round(p.cod.amount).toLocaleString()}">cash ${Math.round(p.cod.amount).toLocaleString()}</span>` : "",
+    p.cod && p.cod.state === "collected" ? `<span class="p-chip cod" title="Cash is with the rider">cash with rider</span>` : "",
+    p.confirmation && p.confirmation.state === "confirmed" ? `<span class="p-chip ok" title="The receiver confirmed">confirmed</span>` : "",
     p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the hub">redeliv</span>` : "",
   ].join(" ");
   const where = p.requestType === "pickup"
@@ -675,7 +679,7 @@ function toggleParcelForm(show) {
     b.setAttribute("aria-pressed", String(on));
   });
   ["pf-name", "pf-tracking", "pf-receiver", "pf-dim-l", "pf-dim-w", "pf-dim-h",
-    "pf-window", "pf-email", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes",
+    "pf-window", "pf-email", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes", "pf-landmark", "pf-cod", "pf-merchant",
     "pf-deadline", "pf-pickup", "pf-pickup-from", "pf-pickup-until"].forEach(id => { $(id).value = ""; });
   $("pf-fragile").checked = false;
   $("pf-early").checked = false;
@@ -859,6 +863,9 @@ async function saveParcel() {
         fragile: $("pf-fragile").checked,
         recipientPhone: $("pf-phone").value.trim() || null,
         notes: $("pf-notes").value.trim() || null,
+        landmark: $("pf-landmark").value.trim() || null,
+        codAmount: Number($("pf-cod").value) > 0 ? Number($("pf-cod").value) : null,
+        merchant: $("pf-merchant").value.trim() || null,
       }),
     });
     parcels[parcel.id] = parcel;   // reflect immediately; don't wait on SSE

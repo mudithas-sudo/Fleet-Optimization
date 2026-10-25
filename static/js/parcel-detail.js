@@ -114,10 +114,13 @@ function renderParcelDetail(p) {
       ${p.pickup ? `<div class="hint">Collected from ${pdEsc(p.pickup.label)}</div>` : ""}
       ${facts ? `<div class="hint">${pdEsc(facts)}</div>` : ""}
       ${p.notes ? `<div class="hint">Note: ${pdEsc(p.notes)}</div>` : ""}
+      ${p.landmark ? `<div class="hint">Directions: ${pdEsc(p.landmark)}</div>` : ""}
+      ${codFacts(p)}
       ${p.windowStart ? `<div class="hint">Not before ${pdWhen(p.windowStart)}</div>` : ""}
       <div class="hint">${deadline}${p.driverName ? ` · ${pdEsc(p.driverName)}` : ""}</div>
     </div>
     ${failureBlock(p)}
+    ${riskBlock(p)}
     ${["pending", "awaiting_redelivery"].includes(p.status) && !(p.holdUntil && p.holdUntil > Date.now() / 1000)
       ? accHtml(p.requestType === "pickup" ? "Best run for this pickup" : "Best run for this parcel",
           `<div id="pd-fit" class="hint">Checking the runs…</div>`, { open: p.requestType === "pickup" }) : ""}
@@ -129,6 +132,7 @@ function renderParcelDetail(p) {
     <div id="pd-actions">${actionsBlock(p)}</div>`;
   if (can("customers")) loadNotifications(p);
   if (document.getElementById("pd-fit")) loadFit(p);
+  loadRisk(p);
   if (p.pod && (p.pod.hasSignature || p.pod.hasPhoto)) loadPodImages(p.id);
   wirePdActions(p);
 }
@@ -288,6 +292,7 @@ function showPdForm(act, p) {
       ${pdField("pd-method", "How was it handed over?", `<select id="pd-method">
         <option value="handed_over">Handed to the receiver</option>
         <option value="left_safe">Left in a safe place</option></select>`)}
+      ${p.cod && p.cod.state === "due" ? pdField("pd-cash", `Cash collected (due ${Math.round(p.cod.amount).toLocaleString()})`, `<input id="pd-cash" type="number" min="0" step="1" inputmode="decimal" value="${p.cod.amount}">`) : ""}
       ${pdField("pd-by", "Received by", `<input id="pd-by" placeholder="${pdEsc(p.receiverName || "Name")}" maxlength="80" autocomplete="off">`)}
       ${pdField("pd-ref", "Receipt reference (from the e-signature process)", `<input id="pd-ref" maxlength="60" placeholder="e.g. ESIG-004512" autocomplete="off">`)}
       ${pdField("pd-note", "Note", `<input id="pd-note" placeholder="e.g. left with the security desk" maxlength="300" autocomplete="off">`)}
@@ -296,6 +301,7 @@ function showPdForm(act, p) {
       method: $("pd-method").value, receivedBy: $("pd-by").value.trim() || null,
       reference: $("pd-ref").value.trim() || null,
       note: $("pd-note").value.trim() || null, by: "dispatcher",
+      codCollected: $("pd-cash") ? Number($("pd-cash").value) : null,
     }, "Confirm delivery");
   } else if (act === "fail") {
     box.innerHTML = `<div class="form-card">

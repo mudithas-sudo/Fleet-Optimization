@@ -66,6 +66,13 @@ Design system: a modern minimalist layer, plus `static/css/tracking.css` (loaded
 - `app/reports.py`: reporting + CSV (cells starting `= + - @` are neutralised).
 - Tests are plain scripts, no keys: `tests/test_{pickup_delivery,pickup_requests,roles,route_templates,impact,capacity_dispatch,pod_failures,priority_shifts,replan,tracking_notify,reports,rides,auth}.py`. Each sets its own temp `DB_PATH`.
 
+## Real-world operations (from the Sri Lanka courier research; `docs/real-world.md`)
+
+- `app/cod.py`: cash on delivery. A parcel's `cod` is `{amount, state: due|collected|deposited|remitted, ...}` with `merchant` on the parcel. `POST /api/parcels/{id}/pod` refuses a COD parcel without `codCollected` (and `_check_stop_progress` never auto-delivers one). `ledger()` groups cash by rider (limit and hand-in hours from the `cod` setting), merchant and deposit; `deposit()` settles everything a rider holds and records the variance; `remit()` pays a merchant out. `until=` only exists so the seed can back-date. Endpoints `/api/cod/*` (`cod.read|write|remit`); the page is `static/js/field.js` (`startCash`).
+- `app/risk.py`: `assess()` is an explainable score (reasons with points, never a black box); `customer_index()` derives phone-number history and the last successful drop-off position from parcels, so there is no separate address table; `queue()` is the confirmation call list; `respond()` is the receiver's answer (confirm / reschedule sets `holdUntil` / cancel), shared by `POST /api/parcels/{id}/confirmation` (staff) and the public, rate-limited `POST /api/track/{no}/respond`; `first_attempt()` feeds Reports. `/api/track` returns `canRespond`, `confirmation`, `cashDue`, `landmark` for `static/track.html`.
+- `app/disruptions.py`: `blocking(parcel)` is checked inside `delivery.is_plannable`, so every planner honours area holds; creating one removes planned (not started) parcels from their runs and sends a `delayed` message; live runs are only reported. `mark_absent` frees planned runs. `forecast()` and `fuel_quota()` are estimates (stops/day by vehicle type; litres from the Impact fuel settings), labelled as such in the UI.
+- Permissions `cod.read|write|remit` (warehouse counts cash, supervisor pays out); `cash` is a page. UI lives in `static/js/field.js` (Cash page, Attention extras, parcel risk panel, Reports first-attempt) with styles at the end of `tracking.css`. Tests: `tests/test_realworld.py`.
+
 ## Routes API gotchas (learned the hard way)
 
 - The `X-Goog-FieldMask` header is mandatory; omitting it is a 400.
