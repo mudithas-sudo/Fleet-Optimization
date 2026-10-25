@@ -298,3 +298,68 @@ async function renderFirstAttempt(days) {
   ].join("")}</div>
   ${k.failureReasons.length ? `<div class="hint" style="margin-top:6px">Why first attempts failed: ${k.failureReasons.map(r => `${fxEsc(r.reason)} (${r.parcels})`).join(" · ")}</div>` : ""}`;
 }
+
+// ------------------------------------------------------------------ scorecard, dashboard flags, parcel chips
+
+let riskById = {};                     // parcel id -> "high" | "medium" | "low" (for the chips in the Parcels list)
+let fxFlags = { at: 0, rows: [] };
+
+// the research's KPI scorecard on the Impact page
+async function renderScorecard(days) {
+  const box = $("im-score");
+  if (!box) return;
+  let k;
+  try { k = await api(`/api/scorecard?days=${days}`); } catch (_) { box.innerHTML = ""; return; }
+  const pct = v => v == null ? "–" : v + "%";
+  const t = k.targets, c = k.cod;
+  const card = (v, label, target, note = "") => `<div class="rp-kpi"><b>${v}</b><span>${label}</span><small>${note ? note + " · " : ""}target ${target}</small></div>`;
+  box.innerHTML = `<h3>Scorecard against the research targets</h3><div class="rp-kpis">${[
+    card(pct(k.firstAttemptPct), "Delivered first time", t.firstAttemptPct, k.confirmedFirstPct != null ? `${k.confirmedFirstPct}% when confirmed, ${pct(k.unconfirmedFirstPct)} when not` : ""),
+    card(pct(k.returnedPct), "Sent back to sender", t.returnedPct),
+    card(pct(k.onTimePct), "On time", t.onTimePct),
+    card(c.avgDaysToPay == null ? "–" : c.avgDaysToPay + " days", "Cash to merchant", t.avgDaysToPay, `${fxMoney(c.waitingAtHub)} waiting at the hub`),
+    card(c.variancePct == null ? "–" : c.variancePct + "%", "Cash variance", t.variancePct, `${fxMoney(c.collected)} collected`),
+    card(k.stopsPerHour == null ? "–" : k.stopsPerHour, "Stops per rider-hour", t.stopsPerHour),
+    card(k.kmPerParcel == null ? "–" : k.kmPerParcel + " km", "Distance per parcel", t.kmPerParcel),
+  ].join("")}</div>
+  ${k.failureReasons.length ? `<div class="hint" style="margin-top:6px">Why first attempts failed: ${k.failureReasons.map(r => `${fxEsc(r.reason)} (${r.parcels})`).join(" · ")}</div>` : ""}`;
+}
+
+async function refreshFieldFlags(force = false) {
+  if (!force && Date.now() - fxFlags.at < 20000) return;
+  fxFlags.at = Date.now();
+  const [led, q, zones] = await Promise.all([
+    can("cod.read") ? api("/api/cod/ledger").catch(() => null) : null,
+    can("parcels.read") ? api("/api/risk/queue").catch(() => null) : null,
+    can("runs.read") ? api("/api/disruptions").catch(() => []) : []]);
+  const rows = [];
+  if (led && led.flags.overLimit) rows.push({ tag: "Cash", title: `${led.flags.overLimit} rider${led.flags.overLimit === 1 ? " is" : "s are"} over the cash limit`,
+    detail: "Ask them to hand cash in at the hub", go: "cash" });
+  if (led && led.flags.overdue) rows.push({ tag: "Cash", title: `${led.flags.overdue} rider${led.flags.overdue === 1 ? " has" : "s have"} held cash too long`,
+    detail: "Past the hand-in time", go: "cash" });
+  if (q && q.high) rows.push({ tag: "Confirm", title: `${q.high} high-risk parcel${q.high === 1 ? "" : "s"} not confirmed`,
+    detail: "Call or message the receiver before dispatch", go: "attention" });
+  (zones || []).filter(z => z.isActive).forEach(z => rows.push({ tag: "Area hold", title: z.label, detail: `${z.parcelsInside} parcel${z.parcelsInside === 1 ? "" : "s"} held`, go: "attention" }));
+  fxFlags.rows = rows;
+  if (q) {
+    const next = Object.fromEntries(q.rows.map(r => [r.id, r.level]));
+    const changed = JSON.stringify(next) !== JSON.stringify(riskById);
+    riskById = next;
+    if (changed && typeof renderParcels === "function") renderParcels();
+  }
+  if (typeof renderDock === "function") renderDock();
+}
+
+// called by renderDock: puts the cash / confirmation / area-hold flags at the top of "Needs attention"
+function addFieldAttention(box) {
+  refreshFieldFlags();
+  if (!fxFlags.rows.length) return;
+  const body = box.querySelector(".acc-body");
+  if (!body) return;
+  const html = fxFlags.rows.map((i, n) => `<button type="button" class="dock-item level-1" data-fgo="${i.go}">
+      <span class="di-tag"><i aria-hidden="true"></i>${fxEsc(i.tag)}</span>
+      <span class="di-main"><span class="di-title">${fxEsc(i.title)}</span><span class="di-sub">${fxEsc(i.detail)}</span></span>
+      <svg viewBox="0 0 24 24" class="i di-go" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>`).join("");
+  body.insertAdjacentHTML("afterbegin", html);
+  body.querySelectorAll("[data-fgo]").forEach(b => { b.onclick = () => switchTab(b.dataset.fgo); });
+}

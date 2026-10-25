@@ -90,6 +90,9 @@ def test_01b_the_sample_day_has_cash_risk_and_confirmation_data():
     assert pins, "a receiver whose past delivery was made away from the pin"
     kp = client.get("/api/risk/kpis?days=30").json()
     assert kp["parcels"] > 50 and kp["firstAttemptPct"] is not None
+    sc = client.get("/api/scorecard?days=all").json()
+    assert sc["firstAttemptPct"] is not None and sc["cod"]["collected"] > 0 and sc["cod"]["avgDaysToPay"] is not None
+    assert sc["cod"]["variancePct"] is not None and sc["stopsPerHour"] and sc["targets"]["avgDaysToPay"]
     cap = client.get("/api/capacity?days=3").json()
     assert cap["days"][0]["demand"] > 20 and len(cap["days"]) == 3
 

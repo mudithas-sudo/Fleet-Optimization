@@ -366,6 +366,7 @@ function onPageChange(page) {
   if (window.google && map) setTimeout(() => google.maps.event.trigger(map, "resize"), 60);
   if (page === "fleet" && typeof loadRouteTemplates === "function") loadRouteTemplates();
   if (page === "warehouse" && typeof startWarehouse === "function") startWarehouse();
+  if (page === "parcels" && typeof refreshFieldFlags === "function") refreshFieldFlags();
   if (page === "cash" && typeof startCash === "function") startCash();
   if (page === "attention" && typeof startAttentionField === "function") startAttentionField();
   if (page === "impact" && typeof startImpact === "function") startImpact();
@@ -487,6 +488,7 @@ function renderDock() {
         <button type="button" class="btn btn-primary" id="dock-suggest"${queue.length ? "" : " disabled"}>Suggest runs</button></div>`,
       { open: true, count: queue.length });
 
+  if (typeof addFieldAttention === "function") addFieldAttention(box);
   box.querySelectorAll("[data-attn]").forEach(b => { b.onclick = () => openAttentionItem(attn[Number(b.dataset.attn)]); });
   const all = box.querySelector("[data-all-attn]"); if (all) all.onclick = () => switchTab("attention");
   const allq = box.querySelector("[data-all-queue]"); if (allq) allq.onclick = () => { setStatusFilter("pending"); };

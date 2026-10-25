@@ -1297,23 +1297,7 @@
     </div>
     <div id="im-status" role="status"></div>
     <div id="im-hero" class="im-hero"></div>
-    <div id="im-kpis" class="rp-kpis"></div>
-    <div><h3>Run by run: before and after optimisation</h3><div class="rp-tablewrap"><table id="im-runs"></table></div></div>
-    <div><h3>Plan vs what actually happened</h3><div id="im-pva" class="rp-panel"></div></div>
-    <div class="rp-panel">
-      <h3>How these figures are worked out</h3>
-      <div class="hint" id="im-method" style="margin-bottom:10px"></div>
-      <div class="im-fuel">
-        <div class="field"><label for="im-price">Fuel price per litre (<span id="im-cur"></span>)</label><input id="im-price" type="number" min="0" step="1" inputmode="decimal"></div>
-        <div class="field"><label for="im-co2">kg CO₂ per litre</label><input id="im-co2" type="number" min="0" step="0.01" inputmode="decimal"></div>
-        <div class="field"><label for="im-l-bike">Bike L/100 km</label><input id="im-l-bike" type="number" min="0" step="0.1"></div>
-        <div class="field"><label for="im-l-car">Car L/100 km</label><input id="im-l-car" type="number" min="0" step="0.1"></div>
-        <div class="field"><label for="im-l-van">Van L/100 km</label><input id="im-l-van" type="number" min="0" step="0.1"></div>
-        <div class="field"><label for="im-l-truck">Truck L/100 km</label><input id="im-l-truck" type="number" min="0" step="0.1"></div>
-        <button id="im-fuel-save" class="btn btn-primary" type="button">Save fuel settings</button>
-      </div>
-    </div>
-
+    <div id="im-score"></div>
       </div>
     </section>
 
@@ -1330,35 +1314,10 @@
     </div>
     <div id="rp-status" role="status"></div>
     <div id="rp-kpis" class="rp-kpis"></div>
-    <div id="rp-fa"></div>
     <div class="rp-grid">
       <div class="rp-panel"><h3>Deliveries per day</h3><div id="rp-daily"></div></div>
       <div class="rp-panel"><h3>Why deliveries fail</h3><div id="rp-fail"></div></div>
     </div>
-    <div><h3>Drivers</h3><div class="rp-tablewrap"><table id="rp-drivers"></table></div></div>
-    <div class="rp-grid">
-      <div class="rp-panel">
-        <h3>Cost rates</h3>
-        <div class="hint" style="margin-bottom:8px">Cost per delivery = (km driven × rate per km + hours × rate per hour) ÷ deliveries.</div>
-        <div class="rp-row">
-          <div class="field"><label for="rp-perkm">Per km</label><input id="rp-perkm" type="number" min="0" step="1" inputmode="decimal"></div>
-          <div class="field"><label for="rp-perhour">Per hour</label><input id="rp-perhour" type="number" min="0" step="10" inputmode="decimal"></div>
-          <div class="field"><label for="rp-currency">Currency</label><input id="rp-currency" maxlength="6"></div>
-          <button id="rp-costs-save" class="btn btn-primary" type="button">Save rates</button>
-        </div>
-      </div>
-      <div class="rp-panel">
-        <h3>Export</h3>
-        <div class="hint" style="margin-bottom:8px">CSV files open in Excel and Google Sheets, for the period selected above.</div>
-        <div class="rp-exports">
-          <a id="rp-export-parcels" class="btn btn-ghost" download>Parcels</a>
-          <a id="rp-export-runs" class="btn btn-ghost" download>Runs</a>
-          <a id="rp-export-drivers" class="btn btn-ghost" download>Drivers</a>
-        </div>
-      </div>
-    </div>
-    <div><h3>Recent customer messages</h3><div class="hint" id="rp-notes-hint" style="margin-bottom:6px"></div><div id="rp-notes"></div></div>
-
       </div>
     </section>
 

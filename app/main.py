@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, cod, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, route_templates, routing, store, warehouse  # noqa: E402
+from . import auth, cod, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, scorecard, route_templates, routing, store, warehouse  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -830,6 +830,12 @@ class FuelIn(BaseModel):
 async def impact_summary(days: str | None = None):
     """What the optimisation is worth: savings vs the as-entered order, fuel, CO2, plan vs actual."""
     return impact.summary(_period(days))
+
+
+@app.get("/api/scorecard")
+async def scorecard_summary(days: str | None = None):
+    """The research's KPI scorecard (first-attempt rate, RTO, COD remittance and variance, productivity) with its targets."""
+    return scorecard.summary(_period(days))
 
 
 @app.put("/api/settings/fuel")

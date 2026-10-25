@@ -238,7 +238,7 @@ def required_perm(method: str, path: str) -> str | None:
         return "users"
     if path.startswith("/api/reports"):
         return "reports"
-    if path.startswith("/api/impact"):
+    if path.startswith(("/api/impact", "/api/scorecard")):
         return "impact"
     if path.startswith(("/api/settings/costs", "/api/settings/fuel")):
         return "settings" if write else "reports"

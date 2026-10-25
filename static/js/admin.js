@@ -418,6 +418,7 @@ function parcelRow(p) {
     p.priority === "priority" ? `<span class="p-chip" title="Priority — scheduled ahead of standard parcels">priority</span>` : "",
     p.windowStart && p.windowStart > Date.now() / 1000 ? `<span class="p-chip" title="Not before ${new Date(p.windowStart * 1000).toLocaleString()}">window</span>` : "",
     p.fragile ? `<span class="p-chip fragile" title="Fragile — handle with care">fragile</span>` : "",
+    typeof riskById !== "undefined" && riskById[p.id] === "high" ? `<span class="p-chip fragile" title="High risk of a failed delivery: open the parcel to see why">high risk</span>` : "",
     p.cod && p.cod.state === "due" ? `<span class="p-chip cod" title="Cash on delivery: collect ${Math.round(p.cod.amount).toLocaleString()}">cash ${Math.round(p.cod.amount).toLocaleString()}</span>` : "",
     p.cod && p.cod.state === "collected" ? `<span class="p-chip cod" title="Cash is with the rider">cash with rider</span>` : "",
     p.confirmation && p.confirmation.state === "confirmed" ? `<span class="p-chip ok" title="The receiver confirmed">confirmed</span>` : "",
