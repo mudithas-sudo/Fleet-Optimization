@@ -143,7 +143,7 @@ async function init() {
   setupReassign();
   setupBreakdown();
   if (typeof setupWarehouse === "function") setupWarehouse();
-  if (typeof setupField === "function") { setupField(); setupCash(); }
+  if (typeof setupField === "function") { setupField(); }
   if (typeof setupRoutes === "function") setupRoutes();
   $("btn-auto").onclick = () => autoAssign("rules");
   $("btn-auto-ai").onclick = () => autoAssign("ai");
@@ -199,7 +199,7 @@ async function init() {
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
 
-const PAGES = ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"];
+const PAGES = ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "registry", "impact", "reports"];
 
 function switchTab(tab) {
   if (!PAGES.includes(tab)) tab = "dashboard";
@@ -424,8 +424,6 @@ function parcelRow(p) {
     p.fragile ? `<span class="p-chip fragile" title="Fragile — handle with care">fragile</span>` : "",
     typeof riskById !== "undefined" && riskById[p.id] === "high" ? `<span class="p-chip fragile" title="High risk of a failed delivery: open the parcel to see why">high risk</span>` : "",
     p.shipment ? `<span class="p-chip ${p.shipment.customs.state === "cleared" ? "ok" : "cod"}" title="International import${p.shipment.origin ? " from " + p.shipment.origin : ""}: ${p.shipment.customs.state === "cleared" ? "cleared by Customs" : p.shipment.customs.state === "held_exam" ? "held by Customs, receiver must attend" : "awaiting Customs clearance"}">${p.shipment.customs.state === "cleared" ? "import" : p.shipment.customs.state === "held_exam" ? "customs hold" : "in customs"}</span>` : "",
-    p.cod && p.cod.state === "due" ? `<span class="p-chip cod" title="Cash on delivery: collect ${Math.round(p.cod.amount).toLocaleString()}">cash ${Math.round(p.cod.amount).toLocaleString()}</span>` : "",
-    p.cod && p.cod.state === "collected" ? `<span class="p-chip cod" title="Cash is with the rider">cash with rider</span>` : "",
     p.confirmation && p.confirmation.state === "confirmed" ? `<span class="p-chip ok" title="The receiver confirmed">confirmed</span>` : "",
     p.status === "awaiting_redelivery" ? `<span class="redeliv-chip" title="Collected earlier, run aborted — back at the hub">redeliv</span>` : "",
   ].join(" ");
@@ -686,7 +684,7 @@ function toggleParcelForm(show) {
     b.setAttribute("aria-pressed", String(on));
   });
   ["pf-name", "pf-tracking", "pf-receiver", "pf-dim-l", "pf-dim-w", "pf-dim-h",
-    "pf-window", "pf-email", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes", "pf-landmark", "pf-cod", "pf-merchant", "pf-origin",
+    "pf-window", "pf-email", "pf-type", "pf-dest", "pf-weight", "pf-phone", "pf-notes", "pf-landmark", "pf-origin",
     "pf-deadline", "pf-pickup", "pf-pickup-from", "pf-pickup-until"].forEach(id => { $(id).value = ""; });
   $("pf-fragile").checked = false;
   $("pf-early").checked = false;
@@ -875,8 +873,6 @@ async function saveParcel() {
         landmark: $("pf-landmark").value.trim() || null,
         shipmentKind: $("pf-ship").value,
         origin: $("pf-ship").value === "import" ? ($("pf-origin").value.trim() || null) : null,
-        codAmount: Number($("pf-cod").value) > 0 ? Number($("pf-cod").value) : null,
-        merchant: $("pf-merchant").value.trim() || null,
       }),
     });
     parcels[parcel.id] = parcel;   // reflect immediately; don't wait on SSE

@@ -180,35 +180,3 @@ def forecast(days: int = 5, now: float | None = None) -> dict:
                     "extraRiders": math.ceil(gap / 20) if gap else 0,
                     "status": "short" if gap else "tight" if cap and load > 0.85 * cap else "ok"})
     return {"days": out, "note": "Capacity is an estimate from vehicle type and each rider's stop limit. Replace it with your own figures in a pilot."}
-
-
-def fuel_quota() -> dict:
-    """Weekly litres used per vehicle against the allowance (set in the fuel settings; 0 = no rationing)."""
-    from . import impact
-    cfg = db.get_setting("fuel_quota") or {"weeklyLitres": 0}
-    fuel = impact.get_fuel()
-    since = time.time() - 7 * 86400
-    used: dict[str, float] = {}
-    for t in store.list_trips():
-        if (t.get("startedAt") or t.get("createdAt") or 0) < since:
-            continue
-        d = db.load_entity("drivers", t.get("driverId") or "")
-        v = d and db.load_entity("vehicles", d.get("vehicleId") or "")
-        if not v:
-            continue
-        km = impact._km(t["route"]["orderedStops"]) if (t.get("route") or {}).get("orderedStops") else 0
-        used[v["id"]] = used.get(v["id"], 0.0) + km * fuel["l100"].get(v["type"], 10) / 100
-    quota = float(cfg.get("weeklyLitres") or 0)
-    rows = []
-    for v in db.all_entities("vehicles"):
-        u = round(used.get(v["id"], 0.0), 1)
-        rows.append({"vehicle": v["name"], "plate": v.get("plate"), "type": v["type"], "litres": u,
-                     "remaining": round(quota - u, 1) if quota else None,
-                     "usedPct": round(100 * u / quota) if quota else None})
-    rows.sort(key=lambda r: -(r["usedPct"] or 0) if quota else -r["litres"])
-    return {"weeklyLitres": quota, "vehicles": rows}
-
-
-def set_fuel_quota(weekly_litres: float) -> dict:
-    db.set_setting("fuel_quota", {"weeklyLitres": max(0.0, float(weekly_litres))})
-    return fuel_quota()

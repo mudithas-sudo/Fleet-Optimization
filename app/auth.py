@@ -46,39 +46,38 @@ ALL_PERMS = {
     "hub", "settings",                                       # change the hub; costs, fuel and other settings
     "reports", "impact", "customers",                        # reports; the Impact screen; customer messages
     "warehouse.read", "warehouse.load", "warehouse.receive", # loading bay; load parcels; check parcels in at the hub
-    "cod.read", "cod.write", "cod.remit",                   # see the cash ledger; count a rider's cash in; pay a merchant out
     "users",
 }
 ROLE_PERMS = {
     "admin": set(ALL_PERMS),
     "supervisor": ALL_PERMS - {"users"},
     "dispatcher": {"parcels.read", "parcels.write", "parcels.review", "runs.read", "runs.plan", "registry.read",
-                   "customers", "warehouse.read", "cod.read"},
+                   "customers", "warehouse.read"},
     "support": {"parcels.read", "parcels.write", "parcels.review", "runs.read", "registry.read", "customers"},
-    "warehouse": {"parcels.read", "runs.read", "registry.read", "warehouse.read", "warehouse.load", "warehouse.receive", "cod.read", "cod.write"},
+    "warehouse": {"parcels.read", "runs.read", "registry.read", "warehouse.read", "warehouse.load", "warehouse.receive"},
     "fleet": {"parcels.read", "runs.read", "registry.read", "registry.write"},
-    "analyst": {"parcels.read", "runs.read", "registry.read", "reports", "impact", "cod.read"},
-    "viewer": {"parcels.read", "runs.read", "registry.read", "warehouse.read", "cod.read"},
+    "analyst": {"parcels.read", "runs.read", "registry.read", "reports", "impact"},
+    "viewer": {"parcels.read", "runs.read", "registry.read", "warehouse.read"},
 }
 # what each role sees: the pages in the side menu (dashboard, parcels, fleet = Runs, attention, warehouse,
 # registry = Fleet and drivers, impact, reports) and where they land after signing in
 ROLE_INFO = {
     "admin": {"help": "Everything, including people", "landing": "dashboard",
-              "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"]},
+              "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "registry", "impact", "reports"]},
     "supervisor": {"help": "Runs the operation: planning, fleet, hub, routes, reports", "landing": "dashboard",
-                   "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"]},
+                   "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "registry", "impact", "reports"]},
     "dispatcher": {"help": "Plans runs and handles parcels, pickups and failures", "landing": "dashboard",
-                   "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash"]},
+                   "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse"]},
     "support": {"help": "Customer calls: parcels, pickups, rescheduling, messages", "landing": "parcels",
                 "pages": ["parcels", "attention", "fleet", "routes"]},
     "warehouse": {"help": "Loading bay: what to hand each driver, and check-in of returns", "landing": "warehouse",
-                  "pages": ["warehouse", "cash", "parcels"]},
+                  "pages": ["warehouse", "parcels"]},
     "fleet": {"help": "Vehicles and drivers: add, edit, availability", "landing": "registry",
               "pages": ["registry", "fleet", "routes"]},
     "analyst": {"help": "Reports and the Impact screen, read-only", "landing": "dashboard",
-                "pages": ["dashboard", "parcels", "fleet", "routes", "cash", "impact", "reports"]},
+                "pages": ["dashboard", "parcels", "fleet", "routes", "impact", "reports"]},
     "viewer": {"help": "Can look, can’t change anything", "landing": "dashboard",
-               "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash"]},
+               "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse"]},
 }
 
 
@@ -250,18 +249,12 @@ def required_perm(method: str, path: str) -> str | None:
         if path.endswith("/run"):
             return "runs.plan"
         return "routes.edit" if write else "runs.read"
-    if path.startswith("/api/cod"):
-        if path.endswith("/remit") or path.endswith("/settings"):
-            return "cod.remit" if write else "cod.read"
-        return "cod.write" if write else "cod.read"
     if path.startswith("/api/customs"):
         return "parcels.read"
     if path.startswith("/api/risk"):
         return "parcels.read"
     if path.startswith(("/api/disruptions", "/api/capacity")) or _PATTERNS["absent"].match(path):
         return "runs.plan" if write else "runs.read"
-    if path == "/api/fuel-quota":
-        return "settings" if write else "runs.read"
     if path.startswith("/api/warehouse"):
         return "warehouse.read"
     if _PATTERNS["loaded_parcel"].match(path) or _PATTERNS["loaded_run"].match(path):

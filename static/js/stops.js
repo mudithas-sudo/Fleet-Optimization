@@ -96,7 +96,6 @@ function stopCard(p, n, isNext = false) {
       p.earlyOk ? " · customer confirmed early collection" : ""}</div>` : ""}
     ${p.notes ? `<div class="stop-note">${stopEsc(p.notes)}</div>` : ""}
     ${p.landmark ? `<div class="stop-note">Directions: ${stopEsc(p.landmark)}</div>` : ""}
-    ${p.cod && p.cod.state === "due" ? `<div class="stop-note stop-cash">Collect ${Math.round(p.cod.amount).toLocaleString()} cash</div>` : ""}
     ${p.status === "delivered" && p.pod ? `<div class="stop-note">${stopEsc(p.pod.label)}${
       p.pod.receivedBy ? ` — ${stopEsc(p.pod.receivedBy)}` : ""}</div>` : ""}
     ${state === "failed" && p.lastFailure ? `<div class="stop-note">${stopEsc(p.lastFailure.label)}</div>` : ""}
@@ -163,8 +162,6 @@ function showDeliverForm(card, p) {
         <button type="button" class="active" data-m="handed_over" aria-pressed="true">Handed over</button>
         <button type="button" data-m="left_safe" aria-pressed="false">Left safe</button>
       </div>
-      ${p.cod && p.cod.state === "due" ? `<label>Cash collected <span class="stop-label"><span>(due ${Math.round(p.cod.amount).toLocaleString()})</span></span>
-        <input id="sd-cash" type="number" min="0" step="1" inputmode="decimal" value="${p.cod.amount}"></label>` : ""}
       <label>Received by<input id="sd-by" placeholder="${stopEsc(p.receiverName || "Name")}" maxlength="80" autocomplete="off"></label>
       <label>Receipt reference <span class="stop-label"><span>(from your e-signature app)</span></span>
         <input id="sd-ref" maxlength="60" placeholder="e.g. ESIG-004512" autocomplete="off"></label>
@@ -211,7 +208,6 @@ function showDeliverForm(card, p) {
         body: JSON.stringify({
           method: chosen, receivedBy: by || null, note: note || null, reference: reference || null, photo,
           lat: lastKnown("lat"), lng: lastKnown("lng"), by: "driver",
-          codCollected: box.querySelector("#sd-cash") ? Number(box.querySelector("#sd-cash").value) : null,
         }),
       });
       await loadStops();

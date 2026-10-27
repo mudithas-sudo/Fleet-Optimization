@@ -4,7 +4,7 @@ The story, in the order you will tell it:
 
 1. **Set up the fleet**: create vehicle records and assign drivers to them.
 2. **Optimise**: show how parcels are grouped onto vehicles and ordered by the distance between destinations.
-3. **The real-world pain points** this solution addresses: cash on delivery, failed first attempts, disruptions.
+3. **The real-world pain points** this solution addresses: imports held at Customs, failed first attempts, disruptions.
 4. **The dashboard**: everything in one view, and the proof of value.
 
 Each part is one idea, with what to click and a line to say. For the full test-style walkthrough see [demo-script.md](demo-script.md).
@@ -18,7 +18,7 @@ cd "C:\Users\muditha.s\Delivery Management"
 
 Open http://localhost:8001, press Ctrl+F5, and load it **after 10:00** so the live runs look right. Every password is `demo-pass-123`.
 
-Why this and not the empty start: parts 3 and 4 need history (cash held by riders, a refuser, a week of runs). The sample day already has 9 vehicles and
+Why this and not the empty start: parts 3 and 4 need history (a refuser, imports at Customs, a week of runs). The sample day already has 9 vehicles and
 drivers, so in part 1 you **add two more live**, and those two new drivers are the free ones that part 2 plans onto.
 
 Have ready:
@@ -38,7 +38,7 @@ Have ready:
 
 ## Opening (1 min), say this
 
-> "Most delivery problems are not driving problems. They are a customer who was not home, cash that went missing, a flooded road nobody told the rider
+> "Most delivery problems are not driving problems. They are a customer who was not home, a parcel stuck at Customs, a flooded road nobody told the rider
 > about. We start with the basics, a fleet and its drivers, and I will show you how it plans, and then the problems that actually cost you money."
 
 Show the sign-in page: five staff accounts, each with their own menu, plus the driver app and the customer page that need no account.
@@ -94,27 +94,17 @@ Do not stop here to explain figures. Say: "I will show you what this is worth in
 
 > Say: "The route is only half of the problem. These are the other things that cost you money every day."
 
-### 3a. Cash on delivery (3 min), `warehouse1`, then `supervisor1`
-Open **Cash**.
-- **Riders holding cash**: Van 03 is over the cash limit (red); another rider has not handed in yesterday's cash (amber).
-- **Count cash in** for one rider and type a slightly lower amount: the difference is recorded against the rider and the deposit slip.
-- As `supervisor1`, **Owed to merchants**: how many days each seller has waited, then **Mark paid** with a bank reference.
-- On the parcel itself the rider's app shows **Collect LKR 21,500 cash** and will not mark the parcel delivered until it is taken.
-
-> Say: "A delivery is not complete until the cash is in the rider's hand, and every rupee is followed to the merchant's account. This is what moves a seller's
-> payout from weeks to days."
-
 ### 3b. Stop the failed first attempt before it happens (4 min), `dispatcher1`
 1. **Attention > Confirm before dispatch**: the riskiest parcels first, each with a stated reason.
-2. Open **FO-300119**: **Delivery risk** lists the points (cash on delivery, this number refused a parcel before, not confirmed). Nothing is a black box.
-3. **Send confirmation message**. Switch to the **customer window**: the receiver sees "Will you be there?", the cash to keep ready, a time window, a directions box,
+2. Open **FO-300119**: **Delivery risk** lists the points (this number refused a parcel before, not confirmed). Nothing is a black box.
+3. **Send confirmation message**. Switch to the **customer window**: the receiver sees "Will you be there?", a time window, a directions box,
    and **Yes, I will be there** or **another day**. Press yes.
 4. Back in the console the score drops and the parcel leaves the call list.
 5. Open the parcel for 071 340 9902: **Use the pin from past deliveries**. The place where the last delivery actually succeeded becomes the address.
 
-> Say: "The customer answers in ten seconds, the rider arrives knowing someone is home and where the door is, and the cash is ready."
+> Say: "The customer answers in ten seconds, the rider arrives knowing someone is home and where the door is."
 
-### 3c. International imports held at Customs (1 min), `dispatcher1`
+### 3a. International imports held at Customs (1 min), `dispatcher1`
 **Attention > Held at Customs**: express parcels arriving from Singapore, Dubai and London that cannot go on a run yet. Press **Customs is holding it** on one: the receiver is
 told to attend the examination and to pay at the Customs point, never to the rider. Press **Cleared** and it becomes plannable. Open the tracking page to show the receiver sees
 "Held by Customs" instead of a delivery status.
@@ -122,11 +112,11 @@ told to attend the examination and to pay at the Customs point, never to the rid
 > Say: "A large share of FedEx parcels in Sri Lanka are imports that sit at Customs first. The receiver needs to know why, and the rider must not be sent to a door
 > with a parcel that is not released."
 
-### 3d. When the real world interferes (2 min), **Attention**
+### 3c. When the real world interferes (2 min), **Attention**
 - **Area holds**: type a town, **Hold this area**. Parcels there come off planned runs, stay out of Suggest runs, and customers are told why. **Reopen the area** afterwards.
 - **A rider isn't coming in**: their planned run drops back into the queue.
 - **Vehicle broke down**: open the live run, **Change this run > Vehicle broke down**, preview where each remaining parcel goes, then apply.
-- **Capacity for the next days**: parcels against riders, the extra riders to book when a day is short, and the weekly fuel allowance per vehicle.
+- **Capacity for the next days**: parcels against riders, and the extra capacity to ask the contractor for when a day is short.
 
 > Say: "Floods, hartals, fuel limits and absent riders are normal days here. The system plans around them instead of being surprised by them."
 
@@ -137,15 +127,15 @@ told to attend the examination and to pay at the Customs point, never to the rid
 Landing page: **Dashboard**.
 
 1. **Operations overview**: the five KPI cards (Late turns red only when something is late), the live map with the vehicles you just planned and the live run,
-   and **Needs attention** beside it: riders over the cash limit, high-risk parcels not confirmed, failed deliveries waiting for review. Drag the time slider back
+   and **Needs attention** beside it: imports held at Customs, high-risk parcels not confirmed, failed deliveries waiting for review. Drag the time slider back
    to replay the day, then press **Live**.
 2. **Impact** (side menu): kilometres, hours, fuel, CO₂ and cost saved against the same parcels visited in the order they were entered. This is the answer to the
-   zig-zag in part 2. Below it, the **scorecard**: first-attempt rate, returns, on-time, days to pay merchants, cash variance, stops per rider-hour and distance per
+   zig-zag in part 2. Below it, the **scorecard**: first-attempt rate, returns, on-time, stops per rider-hour and distance per
    parcel, each next to the target from the market research.
 3. **Reports**: on-time rate, first-attempt rate, why deliveries fail, deliveries per day.
 4. The **customer view** (`track.html`) and the **driver app** need no account.
 
-> Closing line: "Fleet, planning, cash, confirmation and disruptions in one console, with a role for each person. The next step is a four-week pilot on one branch with your
+> Closing line: "Fleet, planning, Customs holds, confirmation and disruptions in one console, with a role for each person. The next step is a four-week pilot on one branch with your
 > real parcels, so the numbers you just saw become yours."
 
 ---
@@ -158,7 +148,6 @@ Landing page: **Dashboard**.
 | How does it choose the order? | By road distance and time between stops, with express parcels, delivery windows and pickup-before-drop rules applied first. A Gemini planner is available, and a built-in planner takes over when it is unavailable. |
 | Does it message customers on WhatsApp? | Messages are recorded and sent through a webhook; connecting a WhatsApp or SMS provider is a configuration step. |
 | Is the risk score AI? | It is a transparent rule set; each point has a reason. It can be replaced by a model trained on your own history. |
-| Does it move money? | No. It is the ledger: what was collected, counted and owed. Payment integration is a later step. |
 | Capacity and fuel figures? | Estimates from vehicle type and rider limits; replaced by your real numbers in a pilot. |
 | Can it use our systems? | It imports a CSV manifest now; order-system integration is the pilot's first integration. |
 | What data is this? | Made-up Colombo data. Ask for your service areas, cut-offs, vehicle mix and failed-delivery policy. |

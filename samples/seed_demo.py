@@ -40,7 +40,7 @@ REAL_ROUTES = "--real-routes" in sys.argv
 if not REAL_ROUTES:
     os.environ["FAKE_ROUTES"] = "1"          # offline, no API calls
 
-from app import cod, customs, db, delivery, disruptions, risk, routing, store  # noqa: E402
+from app import customs, db, delivery, disruptions, risk, routing, store  # noqa: E402
 
 NOW = time.time()
 MIN, HOUR = 60, 3600
@@ -237,7 +237,7 @@ def new_parcel(key, created_ago_h, deadline_in_h):
             "recipientPhone": d["phone"], "receiverEmail": d["email"], "size": d["size"], "weightKg": d["kg"],
             "dimensionsCm": dict(zip("lwh", d["dims"])), "deadline": NOW + deadline_in_h * HOUR,
             "fragile": x.get("fragile", False), "notes": x.get("notes"), "priority": x.get("priority", "standard"),
-            "codAmount": x.get("cod"), "merchant": x.get("merchant"), "landmark": x.get("landmark"),
+            "landmark": x.get("landmark"),
             "pickup": x.get("pickup"), "destination": {"lat": lat, "lng": lng, "label": label},
             "windowStart": NOW + x["window_h"] * HOUR if "window_h" in x else None,
         })
@@ -311,8 +311,6 @@ def deliver(trip, key, ts, how, who, *, note=None, late=False):
         how = "handed_over" if how == "signature" else how
         pho = photo_image(sum(map(ord, key)) % 50) if how in ("photo", "left_safe") else None
         delivery.save_pod(p, how, who, note, None, pho, trip["id"], lat, lng, reference=ref)
-        if p.get("cod") and p["cod"]["state"] == "due":
-            cod.collect(p, p["cod"]["amount"], trip.get("driverId"))
         delivery.set_parcel_status(p, "delivered")
     trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
     alert(trip, ts, "delivered", f"Delivered: {p['name']}" + (" (past deadline)" if late else ""))
@@ -349,7 +347,6 @@ def finish(trip, ended, km_factor=1.03):
 
 # ---------------------------------------------------------------- the day
 # ---------------------------------------------------------------- more data: a bigger fleet, a week of history, a busier today
-MERCHANTS = ["Daraz", "Kapruka", "Abans", "Singer Mega", "Cargills Online"]
 EXTRA_VEHICLES = [
     {"name": "Van 03", "plate": "CAB-6150", "type": "van"}, {"name": "Van 04", "plate": "CAB-7788", "type": "van"},
     {"name": "Car 02", "plate": "KY-4410", "type": "car"}, {"name": "Bike 02", "plate": "BKX-311", "type": "bike"},
@@ -385,50 +382,19 @@ def _gen_parcel(rng, n, vehicle_type, created_ago_h, due_h, *, place=None, size=
     return key
 
 
-# ---------------------------------------------------------------- real-world cases: cash on delivery, confirmation, risk
-def set_cod(key, amount, merchant, landmark=None):
-    """Make an already-created parcel cash on delivery (before it goes on a run)."""
-    p = load(key)
-    p["cod"] = cod.new_cod(amount)
-    p["merchant"] = merchant
-    if landmark:
-        p["landmark"] = landmark
-    db.save_entity("parcels", p)
-
-
-def settle_cash(driver, when, rng):
-    """The rider hands the cash in at the hub: usually exactly right, now and then a little short."""
-    held = [p for p in db.all_entities("parcels")
-            if p.get("cod") and p["cod"]["state"] == "collected" and p["cod"].get("driverId") == driver["id"]
-            and p["cod"]["collectedAt"] <= when]
-    if not held:
-        return
-    expected = sum(p["cod"]["collected"] for p in held)
-    with at(when):
-        cod.deposit(driver["id"], expected - rng.choice([0] * 9 + [200, 500]), f"DEP-{rng.randint(1000, 9999)}", "warehouse1", until=when)
-
-
-def pay_merchants(when, rng):
-    merchants = {p.get("merchant") for p in db.all_entities("parcels")
-                 if p.get("cod") and p["cod"]["state"] == "deposited" and p["cod"]["depositedAt"] <= when}
-    for m in sorted(x for x in merchants if x):
-        with at(when):
-            cod.remit(m, f"BANK-{rng.randint(10000, 99999)}", "supervisor1", until=when)
-
-
+# ---------------------------------------------------------------- real-world cases: confirmation and risk
 def risk_cases(rng, nxt):
     """Parcels that show the early-warning side: a number that refused cash before, a door that is found by memory."""
     phone = "+94 77 480 5521"
     old = _gen_parcel(rng, nxt(), "van", 90, -70, place="nugegoda")
     p = load(old)
-    p.update(recipientPhone=phone, receiverName="K. Rathnayake", merchant="Daraz", cod=cod.new_cod(14500))
+    p.update(recipientPhone=phone, receiverName="K. Rathnayake")
     db.save_entity("parcels", p)
     with at(NOW - 72 * HOUR):
         delivery.record_failed_attempt(load(old), "refused", "Would not pay cash on the doorstep", None)
     with at(NOW - 70 * HOUR):
         delivery.review_failed(load(old), "return", "Returned to the sender", actor="support1")
     again = _gen_parcel(rng, nxt(), "van", 1.2, 5, place="nugegoda")
-    set_cod(again, 21500, "Daraz")
     p = load(again)
     p.update(recipientPhone=phone, receiverName="K. Rathnayake")
     db.save_entity("parcels", p)
@@ -490,8 +456,7 @@ def add_more():
             keys = []
             for _ in range(rng.randint(max(2, cap // 2), cap)):
                 slack = 0.9 if rng.random() < 0.12 else rng.uniform(1.7, 4)       # a few tight deadlines (some will be late)
-                extra = {"cod": rng.choice([2500, 4800, 7900, 12500, 18000, 27500]), "merchant": rng.choice(MERCHANTS)} if rng.random() < 0.42 else {}
-                keys.append(_gen_parcel(rng, nxt(), vtype(drv), (NOW - (start - 3600)) / HOUR, (start + slack * HOUR - NOW) / HOUR, **extra))
+                keys.append(_gen_parcel(rng, nxt(), vtype(drv), (NOW - (start - 3600)) / HOUR, (start + slack * HOUR - NOW) / HOUR))
             t = make_run(drv["name"], keys, created=start - 40 * MIN, started=start)
             f = rng.uniform(1.0, 1.25)
             for key in keys:
@@ -507,16 +472,10 @@ def add_more():
                     deliver(t, key, ts, rng.choice(["signature", "handed_over", "photo", "left_safe"]),
                             P[key]["receiver"] if rng.random() < .7 else None)
             finish(t, start + run_length(t, f), km_factor=rng.uniform(1.0, 1.1))
-            if not (day == 1 and k == 2):                    # (one rider from yesterday still has not handed their cash in)
-                settle_cash(drv, t["endedAt"] + 45 * MIN, rng)
-        if day == 3:                                         # merchants are paid about three days after the cash reaches the hub
-            pay_merchants(day0 + 20 * HOUR, rng)
 
     # ---- earlier today: Bike 02 went out at the start of the day, two deliveries failed and wait for review
     drv = next(d for d in drivers if d["name"] == "Tharindu Silva")
     keys = [_gen_parcel(rng, nxt(), "bike", 6, -2 - i * 0.3) for i in range(3)]
-    set_cod(keys[0], 6200, "Daraz")
-    set_cod(keys[2], 15000, "Kapruka")
     start = NOW - 4.5 * HOUR
     t = make_run(drv["name"], keys, created=start - 30 * MIN, started=start)
     f = 1.12
@@ -528,9 +487,6 @@ def add_more():
     # ---- a second live run, off route right now (Van 03)
     drv = next(d for d in drivers if d["name"] == "Sanjaya Wickrama")
     keys = [_gen_parcel(rng, nxt(), "van", 2.5, rng.uniform(0.6, 3)) for _ in range(6)]
-    set_cod(keys[0], 48000, "Daraz")
-    set_cod(keys[1], 62000, "Abans")
-    set_cod(keys[3], 15500, "Kapruka")
     started = NOW - 35 * MIN
     t = make_run(drv["name"], keys, created=started - 25 * MIN, started=started)
     deliver(t, keys[0], stop_time(t, keys[0], 1.05), "handed_over", P[keys[0]]["receiver"])
@@ -553,8 +509,6 @@ def add_more():
         due = [-1.4, -0.9, -0.5, -0.2, 0.3, 0.5, 0.8][i] if i < 7 else rng.uniform(2, 9)
         extra = {"priority": "express"} if i in (1, 8) else {"priority": "priority"} if i in (4, 11) else {}
         pend.append(_gen_parcel(rng, nxt(), "van", rng.uniform(1, 5), due, size="large" if i in (6, 13) else None, **extra))
-    for i, (amount, merchant) in {2: (3500, "Kapruka"), 5: (18000, "Daraz"), 9: (42500, "Singer Mega"), 12: (9800, "Daraz"), 14: (26500, "Abans")}.items():
-        set_cod(pend[i], amount, merchant)
     for i, text in {1: "Opposite the Sri Lankan Airlines office", 4: "Blue gate, ring the bell twice", 7: "Behind the pharmacy, 2nd floor", 11: "Next to Cargills, green shutter"}.items():
         p = load_key = db.load_entity("parcels", P[pend[i]]["id"])
         p["landmark"] = text
@@ -571,15 +525,13 @@ def add_more():
             risk.request_confirmation(db.load_entity("parcels", P[pend[i]]["id"]), "support1")
     risk_cases(rng, nxt)
     import_cases(rng, nxt)
-    cod.set_settings(cash_limit=100000, deposit_hours=12)       # riders should hand cash in within half a day
     new_oversize = _gen_parcel(rng, nxt(), "van", 3, 8, size="large")
     p = load(new_oversize)
     p["name"], p["weightKg"], p["dimensionsCm"] = "Industrial press (crated)", 950, {"l": 420, "w": 210, "h": 200}
     db.save_entity("parcels", p)
     for place, cutoff, by in (("slave", 0.2, 1.8), ("rajagiriya", 1.0, 3.0), ("moratuwa", 2.5, 4.5)):
         _gen_parcel(rng, nxt(), "van", rng.uniform(0.2, 1), by, place=place, size="small", request=True, cutoff_h=cutoff, by_h=by)
-    print("Cash on delivery: Van 03 is over the cash limit, one rider has not handed in yesterday's cash, merchants are owed money; "
-          "Attention has a confirmation call list, a number that refused cash before and a receiver whose pin is off.")
+    print("Attention has a confirmation call list, a number that refused a parcel before, a receiver whose pin is off, and five imports at Customs.")
     print(f"More data: {len(EXTRA_VEHICLES)} vehicles, {len(EXTRA_DRIVERS)} drivers, a week of history and a busier today.")
 
 
@@ -613,7 +565,7 @@ def main(reset: bool, with_users: bool, fresh: bool = False):
     if existing and not reset:
         sys.exit("Data already exists. Re-run with --reset to replace it (staff accounts are kept).")
     if reset:
-        for table in ("parcels", "vehicles", "drivers", "pods", "notifications", "route_templates", "cod_deposits", "disruptions"):
+        for table in ("parcels", "vehicles", "drivers", "pods", "notifications", "route_templates", "disruptions"):
             for e in db.all_entities(table):
                 db.delete_entity(table, e["id"])
         db.clear_trips()
@@ -647,11 +599,10 @@ def main(reset: bool, with_users: bool, fresh: bool = False):
     for key, (ago, due) in plan.items():
         new_parcel(key, ago, due)
 
-    for key, amount, merchant, landmark in (
-            ("k1", 9500, "Daraz", None), ("k4", 62000, "Abans", None), ("k5", 7500, "Kapruka", "Pink house behind the Buddhist temple"),
-            ("n2", 4500, "Daraz", None), ("n4", 38500, "Singer Mega", "Second gate after the pharmacy"),
-            ("p3", 12000, "Kapruka", None), ("p5", 7800, "Daraz", "Opposite the bus halt"), ("p12", 25500, "Abans", None)):
-        set_cod(key, amount, merchant, landmark)
+    for key, landmark in (("k5", "Pink house behind the Buddhist temple"), ("n4", "Second gate after the pharmacy"), ("p5", "Opposite the bus halt")):
+        p = load(key)
+        p["landmark"] = landmark
+        db.save_entity("parcels", p)
 
     # a parcel that has already failed twice on earlier days
     for ago in (30, 26):

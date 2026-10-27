@@ -10,7 +10,7 @@ import secrets
 import time
 import uuid
 
-from . import cod, customs, db, disruptions, notify, routing, store
+from . import customs, db, disruptions, notify, routing, store
 
 SIZES = ["small", "medium", "large"]
 SIZE_ORDER = {s: i for i, s in enumerate(SIZES)}
@@ -133,8 +133,6 @@ def new_parcel(data: dict) -> dict:
         "recipientPhone": (data.get("recipientPhone") or "").strip() or None,
         "notes": (data.get("notes") or "").strip() or None,
         "shipment": customs.new_shipment(data.get("shipmentKind"), data.get("origin"), data.get("customsState")),   # international import: customs state
-        "cod": cod.new_cod(data.get("codAmount")),     # cash to collect: {amount, state: due|collected|deposited|remitted, ...}
-        "merchant": (data.get("merchant") or "").strip()[:80] or None,    # the seller the cash is owed to
         "landmark": (data.get("landmark") or "").strip()[:200] or None,   # directions that help the rider find the door
         "confirmation": None,   # {state: requested|confirmed|reschedule|cancelled, window, ...}: the receiver's answer
         "requestType": data.get("requestType") or "delivery",   # delivery | pickup (a customer's pickup request)

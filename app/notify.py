@@ -84,10 +84,8 @@ def _compose(parcel: dict, event: str, **info) -> tuple[str, str]:
     if event == "customs_cleared":
         return (f"Parcel {tn} cleared Customs", f"{who}parcel {tn} has cleared Sri Lanka Customs and will be scheduled for delivery. {url}")
     if event == "confirm_request":
-        cod = parcel.get("cod")
-        pay = f" Please keep {cod['amount']:,.0f} ready in cash." if cod and cod.get("state") == "due" else ""
         return (f"Will you be there for parcel {tn}?",
-                f"{who}parcel {tn} is on its way to you.{pay} Confirm you will be there, add directions, or pick another day: {url}")
+                f"{who}parcel {tn} is on its way to you. Confirm you will be there, add directions, or pick another day: {url}")
     if event == "delayed":
         return (f"Parcel {tn} is delayed",
                 f"{who}delivery of parcel {tn} is delayed ({info.get('reason', 'a disruption on the roads')}). "

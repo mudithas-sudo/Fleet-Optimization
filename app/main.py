@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, cod, customs, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, scorecard, route_templates, routing, store, warehouse  # noqa: E402
+from . import auth, customs, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, scorecard, route_templates, routing, store, warehouse  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -165,8 +165,6 @@ class ParcelIn(BaseModel):
     fragile: bool = False               # optional — flag for careful handling
     recipientPhone: str | None = None   # optional — contact at the destination
     notes: str | None = None            # optional — delivery instructions
-    codAmount: float | None = None      # optional — cash the rider must collect at the door
-    merchant: str | None = None         # optional — the seller the cash is owed to
     landmark: str | None = None         # optional — directions or a landmark near the door
     shipmentKind: str = "domestic"      # domestic | import (an international shipment that must clear Sri Lanka Customs)
     origin: str | None = None           # import: where it came from
@@ -180,7 +178,6 @@ class PodIn(BaseModel):
     reference: str | None = None         # receipt / e-signature id from the existing signature process
     signature: str | None = None         # optional data URL (png); the driver app doesn't capture it any more
     photo: str | None = None             # data URL (jpeg/webp), downscaled client-side
-    codCollected: float | None = None    # cash taken at the door (required when the parcel is cash on delivery)
     lat: float | None = None
     lng: float | None = None
     by: str = "driver"
@@ -393,13 +390,6 @@ async def parcel_pod(parcel_id: str, body: PodIn):
                                   "left_safe": "Say where it was left, or add a photo."}[body.method])
     trip = _trip_for(parcel)
     was_delivered = parcel["status"] == "delivered"
-    if parcel.get("cod") and parcel["cod"]["state"] == "due" and not was_delivered:
-        if body.codCollected is None or body.codCollected < 0:
-            raise HTTPException(400, f"Collect the cash first: {parcel['cod']['amount']:,.0f} is due on delivery.")
-        cod.collect(parcel, body.codCollected, (trip or {}).get("driverId"), actor=body.by)
-        short = parcel["cod"]["short"]
-        delivery.add_event(parcel, "cod", f"Cash collected: {body.codCollected:,.0f}" + (f" ({short:,.0f} short)" if short else ""),
-                           tripId=parcel.get("tripId"), by=body.by)
     delivery.save_pod(parcel, body.method, received_by, note, body.signature, body.photo,
                       parcel.get("tripId"), body.lat, body.lng, actor=body.by, reference=reference)
     if not was_delivered:
@@ -631,7 +621,6 @@ async def track(tracking_number: str, request: Request):
         "origin": (parcel.get("shipment") or {}).get("origin"),
         "canRespond": (not request) and parcel["status"] in ("pending", "assigned", "awaiting_redelivery"),
         "confirmation": (parcel.get("confirmation") or {}).get("state"),
-        "cashDue": parcel["cod"]["amount"] if parcel.get("cod") and parcel["cod"]["state"] == "due" else None,
         "landmark": parcel.get("landmark"),
     }
 
@@ -843,7 +832,7 @@ async def impact_summary(days: str | None = None):
 
 @app.get("/api/scorecard")
 async def scorecard_summary(days: str | None = None):
-    """The research's KPI scorecard (first-attempt rate, RTO, COD remittance and variance, productivity) with its targets."""
+    """The research's KPI scorecard (first-attempt rate, RTO, on-time, productivity) with its targets."""
     return scorecard.summary(_period(days))
 
 
@@ -951,9 +940,6 @@ async def edit_parcel(parcel_id: str, p: ParcelIn):
         parcel["shipment"] = None
     elif parcel.get("shipment"):
         parcel["shipment"]["origin"] = (origin or "").strip()[:60] or None
-    amount = data.pop("codAmount", None)
-    if not parcel.get("cod") or parcel["cod"]["state"] == "due":
-        parcel["cod"] = cod.new_cod(amount)
     parcel.update(data)
     parcel["deadlineMissed"] = False
     db.save_entity("parcels", parcel)
@@ -1552,8 +1538,6 @@ def _check_stop_progress(trip: dict, runtime: dict):
                 continue
             if p["status"] not in ("in_transit", "picked_up"):
                 continue
-            if p.get("cod") and p["cod"]["state"] == "due":
-                continue        # cash on delivery: only the rider taking the cash completes it
             delivery.set_parcel_status(p, "delivered")
             trip["deliveredCount"] = trip.get("deliveredCount", 0) + 1
             late = " (past deadline)" if p["deadlineMissed"] else ""
@@ -1851,51 +1835,6 @@ app.mount("/static", RevalidatingStatic(directory="static"), name="static")
 
 # ---- real-world operations: cash on delivery, confirmation and risk, disruptions, capacity
 
-class CodDepositIn(BaseModel):
-    driverId: str
-    counted: float
-    reference: str | None = None
-    note: str | None = None
-
-
-class CodRemitIn(BaseModel):
-    merchant: str
-    reference: str | None = None
-
-
-class CodSettingsIn(BaseModel):
-    cashLimit: float | None = None
-    depositHours: float | None = None
-
-
-@app.get("/api/cod/ledger")
-async def cod_ledger():
-    return cod.ledger()
-
-
-@app.put("/api/cod/settings")
-async def cod_settings(body: CodSettingsIn):
-    return cod.set_settings(body.cashLimit, body.depositHours)
-
-
-@app.post("/api/cod/deposit")
-async def cod_deposit(body: CodDepositIn, request: Request):
-    if body.counted < 0:
-        raise HTTPException(400, "The counted amount can't be negative.")
-    try:
-        return cod.deposit(body.driverId, body.counted, body.reference, _who(request), body.note)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-
-
-@app.post("/api/cod/remit")
-async def cod_remit(body: CodRemitIn, request: Request):
-    try:
-        return cod.remit(body.merchant, body.reference, _who(request))
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-
-
 class ConfirmIn(BaseModel):
     action: str                  # request | confirm | reschedule | cancel
     window: str | None = None    # morning | afternoon | evening | any
@@ -2021,10 +1960,6 @@ class AbsentIn(BaseModel):
     reason: str | None = None
 
 
-class FuelQuotaIn(BaseModel):
-    weeklyLitres: float
-
-
 @app.get("/api/disruptions")
 async def disruptions_list():
     return disruptions.list_all()
@@ -2056,9 +1991,4 @@ async def driver_absent(driver_id: str, body: AbsentIn, request: Request):
 
 @app.get("/api/capacity")
 async def capacity(days: int = 5):
-    return {**disruptions.forecast(max(1, min(days, 14))), "fuel": disruptions.fuel_quota()}
-
-
-@app.put("/api/fuel-quota")
-async def fuel_quota_set(body: FuelQuotaIn):
-    return disruptions.set_fuel_quota(body.weeklyLitres)
+    return disruptions.forecast(max(1, min(days, 14)))

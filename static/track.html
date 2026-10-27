@@ -160,7 +160,6 @@ function renderReply(d) {
   const min = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   box.innerHTML = `<div class="card reply">
     <h2>Will you be there?</h2>
-    ${d.cashDue ? `<div class="problem">Please keep <b>${Math.round(d.cashDue).toLocaleString()}</b> in cash ready for the rider.</div>` : ""}
     <label>Best time to deliver<select id="r-win">${Object.entries(WINDOWS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
     <label>Directions or a landmark near your door <input id="r-land" type="text" maxlength="200" value="${esc(d.landmark || "")}" placeholder="e.g. opposite the temple, blue gate"></label>
     <div class="btns"><button class="main" id="r-yes" type="button">Yes, I will be there</button></div>

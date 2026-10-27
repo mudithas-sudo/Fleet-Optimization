@@ -65,7 +65,7 @@ async function loadReport() {
 }
 
 
-// what to act on: cost of failures, weak sellers and areas, service level, delivery hours
+// what to act on: cost of failures, weak areas, service level, delivery hours
 async function loadInsights(days) {
   const box = $("rp-insights");
   if (!box) return;
@@ -89,8 +89,5 @@ async function loadInsights(days) {
       <div class="rp-panel"><h3>Service level by priority</h3>${r.service.length ? table(["Service", "Delivered", "On time"],
         r.service.map(s => `<tr><td>${prio[s.priority]}</td><td class="n">${s.delivered}</td><td class="n">${pct(s.onTimePct)}</td></tr>`).join("")) : `<div class="hint">No deliveries yet.</div>`}
         <h3 style="margin-top:14px">When deliveries happen</h3>${hours ? `<div class="rp-bars" role="img" aria-label="Deliveries by hour of the day">${hours}</div>` : `<div class="hint">No deliveries yet.</div>`}</div>
-    </div>
-    <div class="rp-panel"><h3>Sellers</h3>${r.sellers.length ? table(["Seller", "Parcels", "First time", "Returned", "Cash collected", "Still owed"],
-      r.sellers.map(s => `<tr><td>${pdEsc(s.seller)}</td><td class="n">${s.parcels}</td><td class="n">${pct(s.firstAttemptPct)}</td><td class="n">${pct(s.returnedPct)}</td><td class="n">${rpNum(s.codCollected)}</td><td class="n">${rpNum(s.codOwed)}</td></tr>`).join(""))
-      : `<div class="hint">No seller data yet: add the seller when you create cash-on-delivery parcels.</div>`}</div>`;
+    </div>`;
 }

@@ -1,9 +1,6 @@
-// Real-world operations (from the Sri Lanka courier research): the Cash page (cash on delivery held by
-// riders, counted in at the hub, owed to merchants), the confirmation call list and delivery-risk
-// score, area holds (flood / hartal), absent riders, the capacity forecast and fuel allowance, and
-// the first-attempt figures on Reports. Reads /api/cod, /api/risk, /api/disruptions, /api/capacity.
-
-let cashTimer = null;
+// Real-world operations (from the Sri Lanka courier research): the confirmation call list and delivery-risk score,
+// area holds (flood / hartal), absent riders, the capacity forecast, international imports held at Customs, and the
+// first-attempt figures. Reads /api/risk, /api/disruptions, /api/capacity, /api/customs.
 
 const fxEsc = s => typeof pdEsc === "function" ? pdEsc(s) : String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fxMoney = (n, cur = "LKR") => `${cur} ${Math.round(Number(n) || 0).toLocaleString()}`;
@@ -16,93 +13,6 @@ const fxDay = ts => new Date(ts * 1000).toLocaleDateString([], { weekday: "short
 function setupField() {
   const el = $("att-field");
   if (el) el.addEventListener("click", attentionClick);
-}
-
-// ------------------------------------------------------------------ cash page
-
-function startCash() {
-  loadCash();
-  clearInterval(cashTimer);
-  cashTimer = setInterval(() => { if (activeTab === "cash") loadCash(true); else clearInterval(cashTimer); }, 15000);
-}
-
-async function loadCash(quiet = false) {
-  let led;
-  try { led = await api("/api/cod/ledger"); }
-  catch (err) { if (!quiet) $("cash-riders").innerHTML = `<div class="empty-state"><b>Couldn’t load the cash ledger</b>${fxEsc(err.message)}</div>`; return; }
-  renderCash(led);
-}
-
-function renderCash(led) {
-  const cur = led.settings.currency, t = led.totals, kpi = (v, l, n = "") => `<div class="rp-kpi"><b>${v}</b><span>${l}</span>${n ? `<small>${n}</small>` : ""}</div>`;
-  $("cash-kpis").innerHTML = [
-    kpi(fxMoney(t.onTheRoad, cur), "Out for collection", "on parcels still on the road"),
-    kpi(fxMoney(t.withRiders, cur), "With riders", led.flags.overLimit ? `${led.flags.overLimit} over the limit` : "all within the limit"),
-    kpi(fxMoney(t.atHub, cur), "Counted at the hub", "waiting to be paid to merchants"),
-    kpi(fxMoney(t.paidOut, cur), "Paid to merchants"),
-    kpi(fxMoney(t.shortfall, cur), "Short at the door", "collected less than due"),
-  ].join("");
-
-  const canCount = can("cod.write"), canPay = can("cod.remit");
-  $("cash-riders").innerHTML = led.riders.length ? led.riders.map(r => `
-    <div class="fx-rider${r.overLimit ? " over" : ""}" data-driver="${fxEsc(r.driverId)}">
-      <div class="fx-rider-top"><b>${fxEsc(r.driverName)}</b>
-        <span class="fx-cash">${fxMoney(r.cash, cur)}</span>
-        ${r.overLimit ? `<span class="fx-flag bad">Over the ${fxMoney(led.settings.cashLimit, cur)} limit</span>` : ""}
-        ${r.overdue ? `<span class="fx-flag warn">Holding cash for ${fxAgo(r.oldestAt)}</span>` : ""}</div>
-      <div class="fx-meter" role="img" aria-label="${r.usedPct}% of the cash limit"><i style="width:${Math.min(100, r.usedPct)}%"></i></div>
-      <div class="hint">${r.parcels.length} parcel${r.parcels.length === 1 ? "" : "s"}: ${r.parcels.map(p => `${fxEsc(p.trackingNumber)} (${fxMoney(p.amount, cur)}, ${fxEsc(p.merchant)})`).join(" · ")}</div>
-      ${canCount ? `<div class="fx-count">
-        <label>Cash counted<input type="number" min="0" step="1" inputmode="decimal" value="${Math.round(r.cash)}" data-counted></label>
-        <label>Slip no.<input maxlength="60" placeholder="e.g. DEP-0412" data-ref></label>
-        <button type="button" class="btn btn-primary" data-count>Count cash in</button></div>` : ""}
-    </div>`).join("") : `<div class="empty-state"><b>No rider is holding cash</b>Cash taken at the door shows up here until it is counted in at the hub.</div>`;
-
-  $("cash-merchants").innerHTML = led.merchants.length ? `<thead><tr><th>Merchant</th><th>With riders</th><th>At the hub</th><th>Waiting</th><th>Paid out</th>${canPay ? "<th></th>" : ""}</tr></thead><tbody>${
-    led.merchants.map(m => `<tr data-merchant="${fxEsc(m.merchant)}"><td>${fxEsc(m.merchant)}</td><td>${fxMoney(m.withRiders, cur)}</td>
-      <td>${fxMoney(m.awaitingPayout, cur)}</td><td>${m.waitingDays == null ? "–" : m.waitingDays + " days"}</td><td>${fxMoney(m.paidOut, cur)}</td>
-      ${canPay ? `<td>${m.awaitingPayout > 0 ? `<span class="fx-pay"><input maxlength="60" placeholder="Bank ref" data-ref aria-label="Payment reference"><button type="button" class="btn btn-ghost" data-pay>Mark paid</button></span>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`
-    : `<tbody><tr><td class="hint">No cash on delivery yet.</td></tr></tbody>`;
-
-  $("cash-deposits").innerHTML = led.deposits.length ? `<thead><tr><th>When</th><th>Rider</th><th>Expected</th><th>Counted</th><th>Difference</th><th>Slip</th><th>By</th></tr></thead><tbody>${
-    led.deposits.map(d => `<tr><td>${new Date(d.createdAt * 1000).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
-      <td>${fxEsc(d.driverName)}</td><td>${fxMoney(d.expected, cur)}</td><td>${fxMoney(d.counted, cur)}</td>
-      <td class="${d.variance ? "fx-neg" : ""}">${d.variance ? (d.variance > 0 ? "+" : "") + fxMoney(d.variance, cur) : "none"}</td><td>${fxEsc(d.reference || "–")}</td><td>${fxEsc(d.by)}</td></tr>`).join("")}</tbody>`
-    : `<tbody><tr><td class="hint">No deposits yet.</td></tr></tbody>`;
-
-  $("cash-limit").value = led.settings.cashLimit;
-  $("cash-hours").value = led.settings.depositHours;
-  document.querySelectorAll("#tab-cash .fx-admin").forEach(e => { e.hidden = !can("cod.remit"); });
-}
-
-function setupCash() {
-  const page = $("tab-cash");
-  if (!page) return;
-  page.addEventListener("click", async e => {
-    const count = e.target.closest("[data-count]"), pay = e.target.closest("[data-pay]");
-    try {
-      if (count) {
-        const card = count.closest(".fx-rider");
-        count.disabled = true;
-        const dep = await api("/api/cod/deposit", { method: "POST", body: JSON.stringify({
-          driverId: card.dataset.driver, counted: Number(card.querySelector("[data-counted]").value), reference: card.querySelector("[data-ref]").value.trim() || null }) });
-        toast(dep.variance ? `Counted in. ${fxMoney(Math.abs(dep.variance))} ${dep.variance < 0 ? "short" : "over"} against what the rider should hold.` : "Counted in. The cash matches.");
-        loadCash();
-      } else if (pay) {
-        const row = pay.closest("tr");
-        pay.disabled = true;
-        const r = await api("/api/cod/remit", { method: "POST", body: JSON.stringify({ merchant: row.dataset.merchant, reference: row.querySelector("[data-ref]").value.trim() || null }) });
-        toast(`Paid ${fxMoney(r.amount)} to ${r.merchant}.`);
-        loadCash();
-      }
-    } catch (err) { toast(err.message); loadCash(); }
-  });
-  $("cash-settings-save").onclick = async () => {
-    try {
-      await api("/api/cod/settings", { method: "PUT", body: JSON.stringify({ cashLimit: Number($("cash-limit").value), depositHours: Number($("cash-hours").value) }) });
-      toast("Cash limits saved."); loadCash();
-    } catch (err) { toast(err.message); }
-  };
 }
 
 function toast(msg) {
@@ -138,7 +48,7 @@ function confirmList(q) {
     q.rows.slice(0, 12).map(r => `<div class="fx-row" data-id="${r.id}">
       <span class="fx-score ${r.level}" title="Risk score ${r.score} of 100">${levels[r.level]}</span>
       <div class="fx-main"><b><a href="#" data-open>${fxEsc(r.trackingNumber)}</a> · ${fxEsc(r.receiverName || r.name)}</b>
-        <span class="hint">${fxEsc(r.label || "")}${r.cod ? " · cash " + Math.round(r.cod).toLocaleString() : ""}</span>
+        <span class="hint">${fxEsc(r.label || "")}</span>
         <span class="hint">${r.top.map(fxEsc).join(" · ") || "No specific concern"}</span></div>
       <div class="fx-btns">${r.confirmation === "requested" ? `<span class="hint">Asked</span>` : r.phone ? `<button type="button" class="btn btn-ghost" data-ask>Send message</button>` : ""}
         <button type="button" class="btn btn-ghost" data-confirmed>Confirmed</button></div></div>`).join("") +
@@ -175,18 +85,10 @@ function absentBlock() {
 
 function capacityBlock(cap) {
   const label = { ok: "Enough riders", tight: "Tight", short: "Short of riders" };
-  const f = cap.fuel;
   return `<div class="hint" style="margin-bottom:8px">${fxEsc(cap.note)}</div>` + cap.days.map(d => `<div class="fx-row">
       <span class="fx-score ${d.status === "short" ? "high" : d.status === "tight" ? "medium" : "low"}">${label[d.status]}</span>
       <div class="fx-main"><b>${fxDay(d.date)}</b><span class="hint">${d.demand} parcels${d.blockedByDisruption ? ` (${d.blockedByDisruption} held in blocked areas)` : ""} for ${d.riders} riders who can serve about ${d.capacity}${d.utilisationPct != null ? " · " + d.utilisationPct + "% full" : ""}</span>
-      ${d.extraRiders ? `<span class="hint"><b>Needs about ${d.extraRiders} more rider${d.extraRiders === 1 ? "" : "s"}</b>: book gig or partner riders for this day.</span>` : ""}</div></div>`).join("") +
-    `<div class="fx-fuel"><b>Fuel allowance</b>
-      <div class="hint">When fuel is rationed, set the litres each vehicle may use per week. 0 means no limit.</div>
-      <div class="row"><input id="fq-litres" type="number" min="0" step="1" value="${f.weeklyLitres}" aria-label="Weekly litres per vehicle">
-      <button type="button" class="btn btn-ghost" data-fuel>Save allowance</button></div>
-      ${f.vehicles.length ? `<div class="rp-tablewrap"><table><thead><tr><th>Vehicle</th><th>Used this week</th><th>Left</th></tr></thead><tbody>${f.vehicles.map(v =>
-        `<tr><td>${fxEsc(v.vehicle)}</td><td>${v.litres} L</td><td>${v.remaining == null ? "–" : (v.remaining < 0 ? "over by " + Math.abs(v.remaining) : v.remaining) + " L"}</td></tr>`).join("")}</tbody></table></div>` : ""}
-    </div>`;
+      ${d.extraRiders ? `<span class="hint"><b>Needs about ${d.extraRiders} more rider${d.extraRiders === 1 ? "" : "s"}</b>: ask the contractor for extra capacity on this day.</span>` : ""}</div></div>`).join("");
 }
 
 async function attentionClick(e) {
@@ -218,10 +120,6 @@ async function attentionClick(e) {
       if (typeof loadRegistry === "function") loadRegistry();
       startAttentionField(); return;
     }
-    if (t.closest("[data-fuel]")) {
-      await api("/api/fuel-quota", { method: "PUT", body: JSON.stringify({ weeklyLitres: Number($("fq-litres").value) }) });
-      toast("Fuel allowance saved."); startAttentionField(); return;
-    }
   } catch (err) { toast(err.message); }
 }
 
@@ -243,14 +141,7 @@ async function holdArea() {
   } catch (e) { err.textContent = e.message; err.hidden = false; }
 }
 
-// ------------------------------------------------------------------ parcel detail: cash and risk
-
-function codFacts(p) {
-  if (!p.cod) return "";
-  const c = p.cod, cur = "LKR";
-  const state = { due: "to collect at the door", collected: "collected, with the rider", deposited: "counted at the hub", remitted: "paid to the merchant" }[c.state];
-  return `<div class="hint"><b>Cash on delivery ${fxMoney(c.amount, cur)}</b> · ${state}${c.short ? ` · ${fxMoney(c.short, cur)} short` : ""}${p.merchant ? ` · ${fxEsc(p.merchant)}` : ""}</div>`;
-}
+// ------------------------------------------------------------------ parcel detail: risk
 
 function riskBlock(p) {
   if (p.requestType === "pickup" || !["pending", "assigned", "awaiting_redelivery", "in_transit"].includes(p.status)) return "";
@@ -300,7 +191,6 @@ async function renderFirstAttempt(days) {
     kpi(pct(k.firstAttemptPct), "Delivered first time", `${k.parcels} parcels finished`),
     kpi(pct(k.confirmed.firstAttemptPct), "When confirmed first", `${k.confirmed.parcels} parcels`),
     kpi(pct(k.unconfirmed.firstAttemptPct), "When not confirmed", `${k.unconfirmed.parcels} parcels`),
-    kpi(pct(k.cod.firstAttemptPct), "Cash on delivery", `${k.cod.parcels} parcels`),
     kpi(pct(k.returnedPct), "Sent back to sender"),
   ].join("")}</div>
   ${k.failureReasons.length ? `<div class="hint" style="margin-top:6px">Why first attempts failed: ${k.failureReasons.map(r => `${fxEsc(r.reason)} (${r.parcels})`).join(" · ")}</div>` : ""}`;
@@ -318,14 +208,12 @@ async function renderScorecard(days) {
   let k;
   try { k = await api(`/api/scorecard?days=${days}`); } catch (_) { box.innerHTML = ""; return; }
   const pct = v => v == null ? "–" : v + "%";
-  const t = k.targets, c = k.cod;
+  const t = k.targets;
   const card = (v, label, target, note = "") => `<div class="rp-kpi"><b>${v}</b><span>${label}</span><small>${note ? note + " · " : ""}target ${target}</small></div>`;
   box.innerHTML = `<h3>Scorecard against the research targets</h3><div class="rp-kpis">${[
     card(pct(k.firstAttemptPct), "Delivered first time", t.firstAttemptPct, k.confirmedFirstPct != null ? `${k.confirmedFirstPct}% when confirmed, ${pct(k.unconfirmedFirstPct)} when not` : ""),
     card(pct(k.returnedPct), "Sent back to sender", t.returnedPct),
     card(pct(k.onTimePct), "On time", t.onTimePct),
-    card(c.avgDaysToPay == null ? "–" : c.avgDaysToPay + " days", "Cash to merchant", t.avgDaysToPay, `${fxMoney(c.waitingAtHub)} waiting at the hub`),
-    card(c.variancePct == null ? "–" : c.variancePct + "%", "Cash variance", t.variancePct, `${fxMoney(c.collected)} collected`),
     card(k.stopsPerHour == null ? "–" : k.stopsPerHour, "Stops per rider-hour", t.stopsPerHour),
     card(k.kmPerParcel == null ? "–" : k.kmPerParcel + " km", "Distance per parcel", t.kmPerParcel),
   ].join("")}</div>
@@ -335,15 +223,10 @@ async function renderScorecard(days) {
 async function refreshFieldFlags(force = false) {
   if (!force && Date.now() - fxFlags.at < 20000) return;
   fxFlags.at = Date.now();
-  const [led, q, zones] = await Promise.all([
-    can("cod.read") ? api("/api/cod/ledger").catch(() => null) : null,
+  const [q, zones] = await Promise.all([
     can("parcels.read") ? api("/api/risk/queue").catch(() => null) : null,
     can("runs.read") ? api("/api/disruptions").catch(() => []) : []]);
   const rows = [];
-  if (led && led.flags.overLimit) rows.push({ tag: "Cash", title: `${led.flags.overLimit} rider${led.flags.overLimit === 1 ? " is" : "s are"} over the cash limit`,
-    detail: "Ask them to hand cash in at the hub", go: "cash" });
-  if (led && led.flags.overdue) rows.push({ tag: "Cash", title: `${led.flags.overdue} rider${led.flags.overdue === 1 ? " has" : "s have"} held cash too long`,
-    detail: "Past the hand-in time", go: "cash" });
   if (q && q.high) rows.push({ tag: "Confirm", title: `${q.high} high-risk parcel${q.high === 1 ? "" : "s"} not confirmed`,
     detail: "Call or message the receiver before dispatch", go: "attention" });
   (zones || []).filter(z => z.isActive).forEach(z => rows.push({ tag: "Area hold", title: z.label, detail: `${z.parcelsInside} parcel${z.parcelsInside === 1 ? "" : "s"} held`, go: "attention" }));
@@ -357,7 +240,7 @@ async function refreshFieldFlags(force = false) {
   if (typeof renderDock === "function") renderDock();
 }
 
-// called by renderDock: puts the cash / confirmation / area-hold flags at the top of "Needs attention"
+// called by renderDock: puts the confirmation / area-hold flags at the top of "Needs attention"
 function addFieldAttention(box) {
   refreshFieldFlags();
   if (!fxFlags.rows.length) return;

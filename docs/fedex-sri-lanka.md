@@ -34,6 +34,7 @@ FedEx Delivery Manager features are offered locally. Third-party blogs make clai
 | Customer messages | A **Customs hold** message telling the receiver to attend the examination and pay at the Customs point, never to a person or private account; a **cleared** message when it is released. |
 | Tracking page | Shows "Awaiting customs clearance" or "Held by Customs: receiver must attend an examination" instead of a delivery status. |
 | Parcel list | `in customs`, `customs hold` and `import` chips. |
+| Removed |  Cash on delivery (cash page, ledger, merchant payouts, rider cash limits, sellers report) and the fuel allowance. They come from the domestic e-commerce courier research and do not apply to FedEx international express, which is mostly prepaid. |
 | Sample data | Five imports (two clearing, two held for examination, one cleared, express and priority among them). |
 
 There is still **no domestic or international split in the optimiser**: everything is one pool; Customs only decides when a parcel becomes plannable.
@@ -42,5 +43,5 @@ There is still **no domestic or international split in the optimiser**: everythi
 
 1. **Stations as drop-off and collection points.** FedEx has Colombo and Dehiwala stations. "Collect from the station" after a failed attempt would suit receivers who are never home.
 2. **Time-definite commit times** per service (the prototype has express, priority and standard with a deadline per parcel; FedEx's real commitments are not public).
-3. **Service contractor view**: if the contractor runs the vehicles, the Fleet and Cash pages are theirs, and FedEx sees only the Dashboard and Reports.
+3. **Service contractor view**: if the contractor runs the vehicles, the Fleet page is theirs, and FedEx sees only the Dashboard and Reports.
 4. **Customs integration.** Clearance status is entered by hand. An integration with the courier's customs system would update it automatically.

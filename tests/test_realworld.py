@@ -1,5 +1,5 @@
 """Real-world pain points from the Sri Lanka courier research, offline (FAKE_ROUTES, no keys):
-cash on delivery (collect, rider limit, deposit variance, merchant payout), confirmation and failure
+confirmation and failure
 risk, the receiver's own reply, address memory, flood/hartal area holds, an absent rider, and the
 capacity forecast. Run: `venv/bin/python tests/test_realworld.py` (or pytest)."""
 
@@ -61,55 +61,11 @@ def _run(parcels, driver):
     return res["created"][0]
 
 
-def test_01_cash_on_delivery_end_to_end():
-    cod = _parcel("Phone case", MAJESTIC, codAmount=12000, merchant="Daraz", recipientPhone="+94 77 111 2222")
-    assert cod["cod"] == {"amount": 12000.0, "state": "due"} and cod["merchant"] == "Daraz"
-    plain = _parcel("Book", NUGEGODA, recipientPhone="+94 77 111 3333")
-    trip = _run([cod, plain], S["Van 01"])
-    assert client.post(f"/api/trips/{trip}/start").status_code == 200
-    r = client.post(f"/api/parcels/{cod['id']}/pod", json={"method": "handed_over", "receivedBy": "Test"})
-    assert r.status_code == 400 and "cash" in r.json()["detail"].lower(), "cash comes before delivered"
-    r = client.post(f"/api/parcels/{cod['id']}/pod", json={"method": "handed_over", "receivedBy": "Test", "codCollected": 11900,
-                                                           "lat": 6.8936, "lng": 79.8554})
-    assert r.status_code == 200 and r.json()["status"] == "delivered"
-    assert r.json()["cod"]["state"] == "collected" and r.json()["cod"]["short"] == 100
-    led = client.get("/api/cod/ledger").json()
-    rider = next(x for x in led["riders"] if x["driverId"] == S["Van 01"]["id"])
-    assert rider["cash"] == 11900 and rider["parcels"][0]["merchant"] == "Daraz"
-    assert led["totals"]["withRiders"] == 11900
-    client.put("/api/cod/settings", json={"cashLimit": 10000})
-    assert next(x for x in client.get("/api/cod/ledger").json()["riders"])["overLimit"] is True
-    dep = client.post("/api/cod/deposit", json={"driverId": S["Van 01"]["id"], "counted": 11800, "reference": "SLIP-1"}).json()
-    assert dep["expected"] == 11900 and dep["variance"] == -100
-    assert client.post("/api/cod/deposit", json={"driverId": S["Van 01"]["id"], "counted": 1}).status_code == 409
-    led = client.get("/api/cod/ledger").json()
-    m = next(x for x in led["merchants"] if x["merchant"] == "Daraz")
-    assert m["awaitingPayout"] == 11900 and led["totals"]["atHub"] == 11900
-    out = client.post("/api/cod/remit", json={"merchant": "Daraz", "reference": "BANK-77"}).json()
-    assert out["amount"] == 11900
-    assert client.get("/api/cod/ledger").json()["totals"]["paidOut"] == 11900
-    S["trip1"] = trip
-    client.post(f"/api/trips/{trip}/end", json={"arrived": True})
-
-
-def test_02_driving_past_does_not_take_the_cash():
-    p = _parcel("COD parcel", BORELLA, codAmount=5000, merchant="Kapruka")
-    trip = _run([p], S["Car 01"])
-    client.post(f"/api/trips/{trip}/start")
-    t = client.get(f"/api/trips/{trip}").json()
-    path = t["route"]["path"]
-    for i, (lat, lng) in enumerate(path[:: max(1, len(path) // 40)] + [path[-1]]):
-        client.post(f"/api/trips/{trip}/position", json={"lat": lat, "lng": lng, "ts": time.time() + i * 10})
-    assert client.get(f"/api/parcels/{p['id']}").json()["status"] == "in_transit", "waits for the rider to take the cash"
-    client.post(f"/api/parcels/{p['id']}/pod", json={"method": "handed_over", "receivedBy": "X", "codCollected": 5000})
-    client.post(f"/api/trips/{trip}/end", json={"arrived": True})
-
-
 def test_03_risk_and_confirmation():
-    a = _parcel("No phone", MALABE, codAmount=30000)
+    a = _parcel("No phone", MALABE)
     b = _parcel("With phone", MALABE, recipientPhone="+94 71 999 0001", landmark="Opposite the temple")
     ra, rb = client.get(f"/api/parcels/{a['id']}/risk").json(), client.get(f"/api/parcels/{b['id']}/risk").json()
-    assert ra["score"] > rb["score"] and ra["level"] in ("medium", "high")
+    assert ra["score"] > rb["score"]
     assert any("phone" in r["text"].lower() for r in ra["reasons"]) and rb["address"]["score"] > ra["address"]["score"]
     q = client.get("/api/risk/queue").json()
     assert q["rows"][0]["score"] >= q["rows"][-1]["score"] and any(r["id"] == b["id"] for r in q["rows"])
@@ -199,14 +155,12 @@ def test_08_capacity_forecast_and_fuel_quota():
     cap = client.get("/api/capacity?days=3").json()
     today = cap["days"][0]
     assert today["demand"] >= 70 and today["capacity"] > 0 and today["status"] == "short" and today["extraRiders"] >= 1
-    assert len(cap["days"]) == 3 and cap["fuel"]["weeklyLitres"] == 0
-    q = client.put("/api/fuel-quota", json={"weeklyLitres": 40}).json()
-    assert q["weeklyLitres"] == 40 and q["vehicles"] and all(v["remaining"] is not None for v in q["vehicles"])
+    assert len(cap["days"]) == 3 and "fuel" not in cap
 
 
 def test_09_first_attempt_kpis():
     k = client.get("/api/risk/kpis?days=30").json()
-    assert {"parcels", "firstAttemptPct", "confirmed", "unconfirmed", "cod", "failureReasons"} <= set(k)
+    assert {"parcels", "firstAttemptPct", "confirmed", "unconfirmed", "failureReasons"} <= set(k)
 
 
 def test_09b_international_imports_wait_for_customs():
@@ -239,16 +193,12 @@ def test_09b_international_imports_wait_for_customs():
 def test_10_who_may_do_what():
     from app import auth
     need = lambda m, path: auth.required_perm(m, path)
-    assert auth.has_perm("warehouse", need("POST", "/api/cod/deposit")) and not auth.has_perm("warehouse", need("POST", "/api/cod/remit"))
-    assert auth.has_perm("supervisor", need("POST", "/api/cod/remit")) and auth.has_perm("supervisor", need("PUT", "/api/cod/settings"))
-    assert auth.has_perm("dispatcher", need("GET", "/api/cod/ledger")) and not auth.has_perm("dispatcher", need("POST", "/api/cod/deposit"))
-    assert not auth.has_perm("support", need("GET", "/api/cod/ledger")) and not auth.has_perm("fleet", need("GET", "/api/cod/ledger"))
     assert auth.has_perm("dispatcher", need("POST", "/api/disruptions")) and not auth.has_perm("warehouse", need("POST", "/api/disruptions"))
     assert auth.has_perm("dispatcher", need("POST", "/api/drivers/d-1/absent")) and not auth.has_perm("fleet", need("POST", "/api/drivers/d-1/absent"))
     assert auth.has_perm("support", need("POST", "/api/parcels/p-1/confirmation")), "customer service logs the receiver's answer"
     assert not auth.has_perm("supervisor", need("GET", "/api/users")) or True
     assert any(m == "POST" and p.match("/api/track/FO-1/respond") for m, p in auth.PUBLIC), "the receiver needs no account"
-    assert "cash" in auth.ROLE_INFO["warehouse"]["pages"] and "cash" not in auth.ROLE_INFO["support"]["pages"]
+    assert all("cash" not in r["pages"] for r in auth.ROLE_INFO.values()), "no cash page: international express is not cash on delivery"
 
 
 if __name__ == "__main__":

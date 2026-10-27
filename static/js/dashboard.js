@@ -369,7 +369,6 @@ function onPageChange(page) {
   if (page === "parcels" && typeof refreshFieldFlags === "function") refreshFieldFlags();
   if (page === "routes" && typeof loadRouteTemplates === "function") loadRouteTemplates();
   if (page === "registry" && typeof showRegistryTab === "function") showRegistryTab();
-  if (page === "cash" && typeof startCash === "function") startCash();
   if (page === "attention" && typeof startAttentionField === "function") startAttentionField();
   if (page === "impact" && typeof startImpact === "function") startImpact();
   if (page === "reports" && typeof startReports === "function") startReports();

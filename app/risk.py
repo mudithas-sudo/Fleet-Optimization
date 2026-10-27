@@ -1,7 +1,7 @@
 """Failed-delivery prevention: confirmation, address confidence and a risk score per parcel.
 
 The costliest thing in Sri Lankan last-mile is the failed first attempt (no one home, wrong or vague
-address, COD refused). Most of it can be seen coming, so every parcel gets a transparent score built
+address, refusal). Most of it can be seen coming, so every parcel gets a transparent score built
 from a few visible reasons, and the back office works a short list of parcels to confirm before the
 rider leaves. Nothing here is a black box: each point on the score has a stated reason.
 """
@@ -34,7 +34,7 @@ def customer_index(parcels: list[dict] | None = None) -> dict:
         key = _digits(p.get("recipientPhone"))
         if not key:
             continue
-        c = idx.setdefault(key, {"delivered": 0, "failed": 0, "refused": 0, "noOne": 0, "codRefused": 0, "pin": None})
+        c = idx.setdefault(key, {"delivered": 0, "failed": 0, "refused": 0, "noOne": 0, "pin": None})
         if p["status"] == "delivered":
             c["delivered"] += 1
             pos = (p.get("pod") or {}).get("position")
@@ -46,8 +46,6 @@ def customer_index(parcels: list[dict] | None = None) -> dict:
             c["failed"] += p["failedAttempts"]
             if lf and lf.get("reason") == "refused":
                 c["refused"] += 1
-                if p.get("cod"):
-                    c["codRefused"] += 1
             if lf and lf.get("reason") == "no_one_home":
                 c["noOne"] += 1
     return idx
@@ -98,15 +96,10 @@ def assess(parcel: dict, idx: dict | None = None, now: float | None = None) -> d
         pts.append((60, "Receiver cancelled"))
     elif parcel.get("recipientPhone"):
         pts.append((12, "Not confirmed with the receiver"))
-    cod = parcel.get("cod")
-    if cod and cod.get("state") == "due":
-        pts.append((15, f"Cash on delivery: {cod['amount']:,.0f}"))
-        if cod["amount"] >= 25000:
-            pts.append((8, "High-value cash on delivery"))
     if parcel.get("failedAttempts"):
         pts.append((20 * min(2, parcel["failedAttempts"]), f"{parcel['failedAttempts']} failed attempt(s) already"))
     if history:
-        if history["codRefused"] or history["refused"]:
+        if history["refused"]:
             pts.append((20, "This number has refused a parcel before"))
         elif history["noOne"]:
             pts.append((10, "No one was home on a past delivery to this number"))
@@ -144,7 +137,7 @@ def queue(limit: int = 40) -> dict:
         a = assess(p, idx, now)
         rows.append({"id": p["id"], "trackingNumber": p["trackingNumber"], "name": p["name"], "receiverName": p.get("receiverName"),
                      "phone": p.get("recipientPhone"), "label": p["destination"].get("label"), "status": p["status"],
-                     "deadline": p.get("deadline"), "cod": (p.get("cod") or {}).get("amount"),
+                     "deadline": p.get("deadline"),
                      "confirmation": (p.get("confirmation") or {}).get("state"), "score": a["score"], "level": a["level"],
                      "top": [r["text"] for r in sorted(a["reasons"], key=lambda r: -r["points"])[:2] if r["points"] > 0]})
     rows.sort(key=lambda r: -r["score"])
@@ -231,10 +224,8 @@ def first_attempt(days: int | None = 30, now: float | None = None) -> dict:
     conf = [p for p in done if (p.get("confirmation") or {}).get("state") == "confirmed"]
     unconf = [p for p in done if (p.get("confirmation") or {}).get("state") != "confirmed"]
     rate = lambda ps: round(100 * sum(1 for p in ps if p["status"] == "delivered" and not p.get("failedAttempts")) / len(ps), 1) if ps else None
-    cod = [p for p in done if p.get("cod")]
     return {"parcels": len(done), "firstAttemptPct": rate(done), "deliveredPct": round(100 * delivered / len(done), 1) if done else None,
             "returnedPct": round(100 * rto / len(done), 1) if done else None, "firstOk": first_ok,
             "confirmed": {"parcels": len(conf), "firstAttemptPct": rate(conf)},
             "unconfirmed": {"parcels": len(unconf), "firstAttemptPct": rate(unconf)},
-            "cod": {"parcels": len(cod), "firstAttemptPct": rate(cod)},
             "failureReasons": sorted(({"reason": k, "parcels": v} for k, v in reasons.items()), key=lambda r: -r["parcels"])}
