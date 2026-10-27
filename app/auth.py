@@ -221,7 +221,7 @@ _PATTERNS = {
     "loaded_parcel": re.compile(r"^/api/parcels/[^/]+/loaded$"),
     "received": re.compile(r"^/api/parcels/[^/]+/received$"),
     "loaded_run": re.compile(r"^/api/runs/[^/]+/loaded$"),
-    "review": re.compile(r"^/api/parcels/[^/]+/(?:review|reschedule|return|early)$"),
+    "review": re.compile(r"^/api/parcels/[^/]+/(?:review|reschedule|return|early|customs)$"),
     "operate": re.compile(r"^/api/parcels/[^/]+/(?:pod|fail|collect|move)$"),
     "notes": re.compile(r"^/api/(?:notifications|parcels/[^/]+/notifications)$"),
     "absent": re.compile(r"^/api/drivers/[^/]+/absent$"),
@@ -254,6 +254,8 @@ def required_perm(method: str, path: str) -> str | None:
         if path.endswith("/remit") or path.endswith("/settings"):
             return "cod.remit" if write else "cod.read"
         return "cod.write" if write else "cod.read"
+    if path.startswith("/api/customs"):
+        return "parcels.read"
     if path.startswith("/api/risk"):
         return "parcels.read"
     if path.startswith(("/api/disruptions", "/api/capacity")) or _PATTERNS["absent"].match(path):

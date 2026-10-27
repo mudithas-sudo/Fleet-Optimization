@@ -1151,6 +1151,12 @@
           </label>
           <div class="field"><label for="pf-notes">Delivery notes <span class="opt">(optional)</span></label>
             <textarea id="pf-notes" rows="2" placeholder="Gate code, floor, leave with neighbour…"></textarea></div>
+          <div class="form-grid">
+            <div class="field"><label for="pf-ship">Shipment</label>
+              <select id="pf-ship"><option value="domestic">Domestic</option><option value="import">International import (needs Customs clearance)</option></select></div>
+            <div class="field" id="pf-origin-field" hidden><label for="pf-origin">Arrived from <span class="opt">(optional)</span></label>
+              <input id="pf-origin" maxlength="60" placeholder="e.g. Singapore" autocomplete="off"></div>
+          </div>
           <div class="field"><label for="pf-landmark">Landmark or directions <span class="opt">(optional)</span></label>
             <input id="pf-landmark" maxlength="200" placeholder="e.g. opposite the temple, blue gate" autocomplete="off"></div>
           <div class="hint"><b>Cash on delivery</b>: only fill these in when the rider must collect money at the door.</div>

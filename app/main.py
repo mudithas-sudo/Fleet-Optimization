@@ -18,7 +18,7 @@ import httpx  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from sse_starlette.sse import EventSourceResponse  # noqa: E402
 
-from . import auth, cod, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, scorecard, route_templates, routing, store, warehouse  # noqa: E402
+from . import auth, cod, customs, db, delivery, deviation, disruptions, impact, notify, replan, reports, risk, rides, scorecard, route_templates, routing, store, warehouse  # noqa: E402
 from .planner.service import plan_route  # noqa: E402
 
 app = FastAPI(title="Fleet Transportation Planning")
@@ -168,6 +168,9 @@ class ParcelIn(BaseModel):
     codAmount: float | None = None      # optional — cash the rider must collect at the door
     merchant: str | None = None         # optional — the seller the cash is owed to
     landmark: str | None = None         # optional — directions or a landmark near the door
+    shipmentKind: str = "domestic"      # domestic | import (an international shipment that must clear Sri Lanka Customs)
+    origin: str | None = None           # import: where it came from
+    customsState: str | None = None     # import: clearing (default) | held_exam | cleared
 
 
 class PodIn(BaseModel):
@@ -262,6 +265,8 @@ def _validate_parcel(p: ParcelIn, exclude_id: str | None = None):
             raise HTTPException(400, "The collect-by time is before the customer's cut-off.")
     elif not p.destination or p.deadline is None:
         raise HTTPException(400, "A delivery needs a destination and a deadline.")
+    if p.shipmentKind not in ("domestic", "import"):
+        raise HTTPException(400, "shipmentKind must be domestic or import")
     if p.size not in delivery.SIZE_ORDER:
         raise HTTPException(400, f"size must be one of {delivery.SIZES}")
     if p.priority not in delivery.PRIORITIES:
@@ -606,7 +611,9 @@ async def track(tracking_number: str, request: Request):
     return {
         "trackingNumber": parcel["trackingNumber"],
         "status": parcel["status"],
-        "headline": (_PICKUP_LABEL if request else _TRACK_LABEL).get(parcel["status"], "In progress"),
+        "headline": (customs.STATES[(parcel.get("shipment") or {}).get("customs", {}).get("state")]
+                     if (parcel.get("shipment") or {}).get("customs", {}).get("state") in ("clearing", "held_exam")
+                     else (_PICKUP_LABEL if request else _TRACK_LABEL).get(parcel["status"], "In progress")),
         "step": (_PICKUP_STEP if request else _TRACK_STEP).get(parcel["status"], 0),
         "steps": _PICKUP_STEPS if request else _TRACK_STEPS,
         "kind": "pickup" if request else "delivery",
@@ -620,6 +627,8 @@ async def track(tracking_number: str, request: Request):
         "lastProblem": failure["label"] if failure and parcel["status"] in ("failed", "awaiting_redelivery", "returned") else None,
         "history": history,
         # what the receiver may do themselves: confirm they will be there, add directions, pick another day, cancel
+        "customs": ((parcel.get("shipment") or {}).get("customs") or {}).get("state"),
+        "origin": (parcel.get("shipment") or {}).get("origin"),
         "canRespond": (not request) and parcel["status"] in ("pending", "assigned", "awaiting_redelivery"),
         "confirmation": (parcel.get("confirmation") or {}).get("state"),
         "cashDue": parcel["cod"]["amount"] if parcel.get("cod") and parcel["cod"]["state"] == "due" else None,
@@ -935,6 +944,13 @@ async def edit_parcel(parcel_id: str, p: ParcelIn):
     data = _parcel_data(p, exclude_id=parcel_id)
     if not (data.get("trackingNumber") or "").strip():
         data["trackingNumber"] = parcel.get("trackingNumber")   # blank keeps the existing one
+    kind, origin, cstate = data.pop("shipmentKind", "domestic"), data.pop("origin", None), data.pop("customsState", None)
+    if kind == "import" and not parcel.get("shipment"):
+        parcel["shipment"] = customs.new_shipment(kind, origin, cstate)
+    elif kind == "domestic":
+        parcel["shipment"] = None
+    elif parcel.get("shipment"):
+        parcel["shipment"]["origin"] = (origin or "").strip()[:60] or None
     amount = data.pop("codAmount", None)
     if not parcel.get("cod") or parcel["cod"]["state"] == "due":
         parcel["cod"] = cod.new_cod(amount)
@@ -1896,6 +1912,33 @@ def _apply_confirmation(parcel: dict, body: ConfirmIn, actor: str) -> dict:
                             actor=actor, note=body.note)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+class CustomsIn(BaseModel):
+    state: str                   # clearing | held_exam | cleared
+    note: str | None = None
+
+
+@app.get("/api/customs")
+async def customs_queue():
+    return customs.queue()
+
+
+@app.post("/api/parcels/{parcel_id}/customs")
+async def parcel_customs(parcel_id: str, body: CustomsIn, request: Request):
+    parcel = _entity_or_404("parcels", parcel_id)
+    try:
+        customs.set_state(parcel, body.state, body.note, _who(request))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if body.state != "cleared" and parcel["status"] == "assigned" and parcel.get("tripId"):
+        try:
+            await replan.replan(parcel["tripId"], remove_ids=[parcel["id"]])
+        except delivery.RunError:
+            pass
+        parcel = db.load_entity("parcels", parcel_id)
+    store.broadcast_global("parcel", {"parcel": parcel, "deleted": False})
+    return parcel
 
 
 @app.get("/api/risk/queue")

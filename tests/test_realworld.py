@@ -209,6 +209,33 @@ def test_09_first_attempt_kpis():
     assert {"parcels", "firstAttemptPct", "confirmed", "unconfirmed", "cod", "failureReasons"} <= set(k)
 
 
+def test_09b_international_imports_wait_for_customs():
+    held = _parcel("Imported part", MAJESTIC, recipientPhone="+94 77 600 0001", shipmentKind="import", origin="Singapore")
+    assert held["shipment"]["customs"]["state"] == "clearing" and not delivery.is_plannable(held)
+    plain = _parcel("Home parcel", MAJESTIC, recipientPhone="+94 77 600 0002")
+    assert plain["shipment"] is None and delivery.is_plannable(plain)
+    plan = client.post("/api/dispatch/propose", json={"engine": "rules"}).json()
+    planned = {pid for b in plan["batches"] for pid in b["parcelIds"]}
+    assert held["id"] not in planned, "Customs has it: nothing is planned yet"
+    assert all(u.get("name") != "Imported part" for u in plan.get("unassigned", [])), "and it is not even offered as unplaced"
+    track = client.get(f"/api/track/{held['trackingNumber']}").json()
+    assert track["customs"] == "clearing" and "customs" in track["headline"].lower() and track["origin"] == "Singapore"
+    q = client.get("/api/customs").json()
+    assert any(r["id"] == held["id"] for r in q["rows"])
+    r = client.post(f"/api/parcels/{held['id']}/customs", json={"state": "held_exam", "note": "Examination 10:00"}).json()
+    assert r["shipment"]["customs"]["state"] == "held_exam"
+    notes = client.get(f"/api/parcels/{held['id']}/notifications").json()["messages"]
+    assert any(n["event"] == "customs_hold" and "never to a person" in n["message"] for n in notes)
+    assert client.post(f"/api/parcels/{plain['id']}/customs", json={"state": "cleared"}).status_code == 400
+    assert client.post(f"/api/parcels/{held['id']}/customs", json={"state": "bogus"}).status_code == 400
+    r = client.post(f"/api/parcels/{held['id']}/customs", json={"state": "cleared"}).json()
+    assert delivery.is_plannable(r) and not any(x["id"] == held["id"] for x in client.get("/api/customs").json()["rows"])
+    notes = client.get(f"/api/parcels/{held['id']}/notifications").json()["messages"]
+    assert any(n["event"] == "customs_cleared" for n in notes)
+    assert client.put(f"/api/parcels/{held['id']}", json={"name": "Imported part", "size": "small", "deadline": time.time() + 3600,
+                       "destination": MAJESTIC, "shipmentKind": "domestic"}).json()["shipment"] is None
+
+
 def test_10_who_may_do_what():
     from app import auth
     need = lambda m, path: auth.required_perm(m, path)

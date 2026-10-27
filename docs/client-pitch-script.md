@@ -114,7 +114,15 @@ Open **Cash**.
 
 > Say: "The customer answers in ten seconds, the rider arrives knowing someone is home and where the door is, and the cash is ready."
 
-### 3c. When the real world interferes (2 min), **Attention**
+### 3c. International imports held at Customs (1 min), `dispatcher1`
+**Attention > Held at Customs**: express parcels arriving from Singapore, Dubai and London that cannot go on a run yet. Press **Customs is holding it** on one: the receiver is
+told to attend the examination and to pay at the Customs point, never to the rider. Press **Cleared** and it becomes plannable. Open the tracking page to show the receiver sees
+"Held by Customs" instead of a delivery status.
+
+> Say: "A large share of FedEx parcels in Sri Lanka are imports that sit at Customs first. The receiver needs to know why, and the rider must not be sent to a door
+> with a parcel that is not released."
+
+### 3d. When the real world interferes (2 min), **Attention**
 - **Area holds**: type a town, **Hold this area**. Parcels there come off planned runs, stay out of Suggest runs, and customers are told why. **Reopen the area** afterwards.
 - **A rider isn't coming in**: their planned run drops back into the queue.
 - **Vehicle broke down**: open the live run, **Change this run > Vehicle broke down**, preview where each remaining parcel goes, then apply.

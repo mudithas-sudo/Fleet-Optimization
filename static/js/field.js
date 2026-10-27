@@ -117,11 +117,13 @@ function toast(msg) {
 async function startAttentionField() {
   const box = $("att-field");
   if (!box) return;
-  const [q, zones, cap] = await Promise.all([
-    api("/api/risk/queue").catch(() => null), api("/api/disruptions").catch(() => []), api("/api/capacity?days=5").catch(() => null)]);
+  const [q, zones, cap, cu] = await Promise.all([
+    api("/api/risk/queue").catch(() => null), api("/api/disruptions").catch(() => []), api("/api/capacity?days=5").catch(() => null),
+    api("/api/customs").catch(() => null)]);
   const live = zones.filter(z => z.isActive);
   const editable = can("runs.plan");
   box.innerHTML = [
+    cu ? accHtml("Held at Customs", customsBlock(cu), { open: cu.held > 0, count: cu.count, warn: cu.held > 0 }) : "",
     q ? accHtml("Confirm before dispatch", confirmList(q), { open: q.high > 0, count: q.count, warn: q.high > 0 }) : "",
     accHtml("Area holds: floods, hartals, closures", zonesBlock(live, editable), { open: live.length > 0, count: live.length, warn: live.length > 0 }),
     editable ? accHtml("A rider isn’t coming in", absentBlock(), {}) : "",
@@ -191,6 +193,11 @@ async function attentionClick(e) {
   const t = e.target;
   const row = t.closest("[data-id]");
   try {
+    if (t.closest("[data-customs]")) {
+      await api(`/api/parcels/${row.dataset.id}/customs`, { method: "POST", body: JSON.stringify({ state: t.closest("[data-customs]").dataset.customs }) });
+      toast(t.closest("[data-customs]").dataset.customs === "cleared" ? "Cleared. The parcel can now go on a run." : "Marked as held. The receiver has been told to attend Customs.");
+      startAttentionField(); return;
+    }
     if (t.closest("[data-open]")) { e.preventDefault(); if (typeof revealParcel === "function") revealParcel(row.dataset.id); return; }
     if (t.closest("[data-ask]")) {
       await api(`/api/parcels/${row.dataset.id}/confirmation`, { method: "POST", body: JSON.stringify({ action: "request" }) });
@@ -362,4 +369,24 @@ function addFieldAttention(box) {
       <svg viewBox="0 0 24 24" class="i di-go" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>`).join("");
   body.insertAdjacentHTML("afterbegin", html);
   body.querySelectorAll("[data-fgo]").forEach(b => { b.onclick = () => switchTab(b.dataset.fgo); });
+}
+
+// ------------------------------------------------------------------ international imports and Customs
+
+function customsBlock(cu) {
+  if (!cu.rows.length) return `<div class="hint">No international parcel is waiting for Customs.</div>`;
+  return `<div class="hint" style="margin-bottom:8px">International imports cannot go on a run until Sri Lanka Customs releases them. If Customs detains one, the receiver must attend an examination and pay any duty and tax at the Customs point, never to the rider.</div>` +
+    cu.rows.map(r => `<div class="fx-row" data-id="${r.id}">
+      <span class="fx-score ${r.state === "held_exam" ? "high" : "medium"}">${r.state === "held_exam" ? "Held" : "In customs"}</span>
+      <div class="fx-main"><b><a href="#" data-open>${fxEsc(r.trackingNumber)}</a> · ${fxEsc(r.receiverName || r.name)}</b>
+        <span class="hint">${fxEsc(r.name)}${r.origin ? " from " + fxEsc(r.origin) : ""}${r.priority && r.priority !== "standard" ? " · " + fxEsc(r.priority) : ""}${r.deadline ? " · due " + new Date(r.deadline * 1000).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span></div>
+      <div class="fx-btns">${r.state === "clearing" ? `<button type="button" class="btn btn-ghost" data-customs="held_exam">Customs is holding it</button>` : ""}
+        <button type="button" class="btn btn-primary" data-customs="cleared">Cleared</button></div></div>`).join("");
+}
+
+function customsFacts(p) {
+  if (!p.shipment) return "";
+  const s = p.shipment.customs.state;
+  const text = { clearing: "awaiting Customs clearance", held_exam: "held by Customs: the receiver must attend an examination", cleared: "cleared by Customs" }[s];
+  return `<div class="hint"><b>International import${p.shipment.origin ? " from " + fxEsc(p.shipment.origin) : ""}</b> · ${text}</div>`;
 }

@@ -115,6 +115,7 @@ function renderParcelDetail(p) {
       ${facts ? `<div class="hint">${pdEsc(facts)}</div>` : ""}
       ${p.notes ? `<div class="hint">Note: ${pdEsc(p.notes)}</div>` : ""}
       ${p.landmark ? `<div class="hint">Directions: ${pdEsc(p.landmark)}</div>` : ""}
+      ${customsFacts(p)}
       ${codFacts(p)}
       ${p.windowStart ? `<div class="hint">Not before ${pdWhen(p.windowStart)}</div>` : ""}
       <div class="hint">${deadline}${p.driverName ? ` · ${pdEsc(p.driverName)}` : ""}</div>

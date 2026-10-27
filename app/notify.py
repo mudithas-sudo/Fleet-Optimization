@@ -21,7 +21,7 @@ from . import db
 
 log = logging.getLogger("fleetops.notify")
 
-EVENTS = ("out_for_delivery", "nearby", "delivered", "failed", "rescheduled", "returned", "confirm_request", "delayed")
+EVENTS = ("out_for_delivery", "nearby", "delivered", "failed", "rescheduled", "returned", "confirm_request", "delayed", "customs_hold", "customs_cleared")
 
 
 def public_base_url() -> str:
@@ -77,6 +77,12 @@ def _compose(parcel: dict, event: str, **info) -> tuple[str, str]:
     if event == "rescheduled":
         when = time.strftime("%d %b %H:%M", time.localtime(info["deadline"])) if info.get("deadline") else "soon"
         return (f"Parcel {tn} rescheduled", f"{who}delivery of parcel {tn} is rescheduled for {when}. {url}")
+    if event == "customs_hold":
+        return (f"Parcel {tn} is held by Sri Lanka Customs",
+                f"{who}parcel {tn} has been held by Sri Lanka Customs. Please attend the examination at the Customs point and pay any duty and tax there "
+                f"(never to a person or a private account). We deliver as soon as it is released. {url}")
+    if event == "customs_cleared":
+        return (f"Parcel {tn} cleared Customs", f"{who}parcel {tn} has cleared Sri Lanka Customs and will be scheduled for delivery. {url}")
     if event == "confirm_request":
         cod = parcel.get("cod")
         pay = f" Please keep {cod['amount']:,.0f} ready in cash." if cod and cod.get("state") == "due" else ""

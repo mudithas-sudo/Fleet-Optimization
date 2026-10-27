@@ -96,6 +96,8 @@ def test_01b_the_sample_day_has_cash_risk_and_confirmation_data():
     ins = client.get("/api/reports/insights?days=all").json()
     assert ins["failedCost"]["attempts"] > 0 and ins["failedCost"]["total"] == ins["failedCost"]["attempts"] * 180
     assert ins["sellers"] and ins["areas"] and ins["service"] and sum(ins["byHour"]) > 0
+    cu = client.get("/api/customs").json()
+    assert cu["count"] >= 4 and cu["held"] >= 2, "imports waiting at Customs in the sample day"
     cap = client.get("/api/capacity?days=3").json()
     assert cap["days"][0]["demand"] > 20 and len(cap["days"]) == 3
 

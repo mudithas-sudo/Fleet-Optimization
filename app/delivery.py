@@ -10,7 +10,7 @@ import secrets
 import time
 import uuid
 
-from . import cod, db, disruptions, notify, routing, store
+from . import cod, customs, db, disruptions, notify, routing, store
 
 SIZES = ["small", "medium", "large"]
 SIZE_ORDER = {s: i for i, s in enumerate(SIZES)}
@@ -76,7 +76,7 @@ def is_plannable(p: dict, now: float | None = None) -> bool:
     held for a later day (a reviewed failure rescheduled for tomorrow waits)."""
     now = now or time.time()
     return (p["status"] in PARCEL_PLANNABLE_STATUSES and not (p.get("holdUntil") and p["holdUntil"] > now)
-            and not disruptions.blocking(p, now))
+            and not disruptions.blocking(p, now) and not customs.blocking(p))
 
 
 def _new_id(prefix: str) -> str:
@@ -132,6 +132,7 @@ def new_parcel(data: dict) -> dict:
         "fragile": bool(data.get("fragile")),
         "recipientPhone": (data.get("recipientPhone") or "").strip() or None,
         "notes": (data.get("notes") or "").strip() or None,
+        "shipment": customs.new_shipment(data.get("shipmentKind"), data.get("origin"), data.get("customsState")),   # international import: customs state
         "cod": cod.new_cod(data.get("codAmount")),     # cash to collect: {amount, state: due|collected|deposited|remitted, ...}
         "merchant": (data.get("merchant") or "").strip()[:80] or None,    # the seller the cash is owed to
         "landmark": (data.get("landmark") or "").strip()[:200] or None,   # directions that help the rider find the door

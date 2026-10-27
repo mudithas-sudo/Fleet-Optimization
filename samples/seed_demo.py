@@ -40,7 +40,7 @@ REAL_ROUTES = "--real-routes" in sys.argv
 if not REAL_ROUTES:
     os.environ["FAKE_ROUTES"] = "1"          # offline, no API calls
 
-from app import cod, db, delivery, disruptions, risk, routing, store  # noqa: E402
+from app import cod, customs, db, delivery, disruptions, risk, routing, store  # noqa: E402
 
 NOW = time.time()
 MIN, HOUR = 60, 3600
@@ -448,6 +448,23 @@ def risk_cases(rng, nxt):
     return again, second
 
 
+def import_cases(rng, nxt):
+    """International express arriving through Sri Lanka Customs: some still clearing, two detained for examination, one released."""
+    cases = [("Business documents", "Singapore", "clearing", "express", "bambalapitiya"), ("Laptop (warranty replacement)", "Dubai", "clearing", "priority", "rajagiriya"),
+             ("Medical samples", "London", "held_exam", "express", "borella"), ("Camera equipment", "Tokyo", "held_exam", "standard", "nugegoda"),
+             ("Contract originals", "Mumbai", "cleared", "express", "kollupitiya")]
+    for name, origin, state, prio, place in cases:
+        if place not in PLACES:
+            place = "kotte"
+        key = _gen_parcel(rng, nxt(), "van", rng.uniform(2, 6), rng.uniform(3, 9), place=place, size="small", priority=prio)
+        p = load(key)
+        p["name"] = name
+        p["shipment"] = customs.new_shipment("import", origin, state)
+        if state == "cleared":
+            p["shipment"]["customs"].update(since=NOW - 2 * HOUR)
+        db.save_entity("parcels", p)
+
+
 def add_more():
     rng = random.Random(7)
     for v in EXTRA_VEHICLES:
@@ -553,6 +570,7 @@ def add_more():
         for i in (2, 6, 9):
             risk.request_confirmation(db.load_entity("parcels", P[pend[i]]["id"]), "support1")
     risk_cases(rng, nxt)
+    import_cases(rng, nxt)
     cod.set_settings(cash_limit=100000, deposit_hours=12)       # riders should hand cash in within half a day
     new_oversize = _gen_parcel(rng, nxt(), "van", 3, 8, size="large")
     p = load(new_oversize)
