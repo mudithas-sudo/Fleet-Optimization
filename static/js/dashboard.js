@@ -367,6 +367,8 @@ function onPageChange(page) {
   if (page === "fleet" && typeof loadRouteTemplates === "function") loadRouteTemplates();
   if (page === "warehouse" && typeof startWarehouse === "function") startWarehouse();
   if (page === "parcels" && typeof refreshFieldFlags === "function") refreshFieldFlags();
+  if (page === "routes" && typeof loadRouteTemplates === "function") loadRouteTemplates();
+  if (page === "registry" && typeof showRegistryTab === "function") showRegistryTab();
   if (page === "cash" && typeof startCash === "function") startCash();
   if (page === "attention" && typeof startAttentionField === "function") startAttentionField();
   if (page === "impact" && typeof startImpact === "function") startImpact();
@@ -484,7 +486,7 @@ function renderDock() {
     accHtml("Needs attention", attnHtml, { open: true, count: attn.length, warn: attn.some(i => i.level === 0) }) +
     (pickups.length ? accHtml("Pickup requests", `<div class="hint" style="margin-bottom:6px">Customers waiting for a collection. Open one to find the best run, or drag it onto a ride.</div>${pickupHtml}`, { open: true, count: pickups.length }) : "") +
     accHtml("Unassigned parcels", `<div class="hint" style="margin-bottom:6px">Drag a parcel onto a ride in the table to add it to that run.</div>${queueHtml}
-      <div class="row" style="margin-top:10px"><button type="button" class="btn btn-ghost" id="dock-add">Add parcel</button>
+      <div class="row" style="margin-top:10px">
         <button type="button" class="btn btn-primary" id="dock-suggest"${queue.length ? "" : " disabled"}>Suggest runs</button></div>`,
       { open: true, count: queue.length });
 
@@ -497,7 +499,6 @@ function renderDock() {
     el.onclick = () => openParcelDetail(el.dataset.pid);
     el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openParcelDetail(el.dataset.pid); } };
   });
-  $("dock-add") && ($("dock-add").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); });
   $("dock-suggest") && ($("dock-suggest").onclick = () => { switchTab("parcels"); autoAssign("rules"); });
 }
 

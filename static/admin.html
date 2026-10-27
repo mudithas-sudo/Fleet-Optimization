@@ -916,7 +916,6 @@
       <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="ob-text">Search parcels, rides, drivers…</span><kbd>Ctrl K</kbd>
     </button>
     <div class="topbar-spacer"></div>
-    <button id="btn-add-top" class="btn-add" type="button"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add parcel</span></button>
     <span id="stream-pill" class="live-pill" data-state="" role="status" aria-live="polite"><span id="stream-dot"></span><span id="stream-text">Connecting</span></span>
     <button id="btn-bell" class="top-btn" type="button" aria-label="Needs attention" title="Needs attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0"/></svg><span class="dot-badge" id="bell-badge" hidden>0</span></button>
     <div class="menu-wrap">
@@ -970,6 +969,7 @@
     <button type="button" class="nav-item" id="tab-btn-dashboard"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="label">Dashboard</span></button>
     <button type="button" class="nav-item" id="tab-btn-parcels"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span class="label">Parcels</span><span class="badge warn" id="parcel-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-fleet"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg><span class="label">Runs</span><span class="badge" id="fleet-badge">0</span></button>
+    <button type="button" class="nav-item" id="tab-btn-routes"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8 6h6a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h6"/></svg><span class="label">Routes</span></button>
     <button type="button" class="nav-item" id="tab-btn-attention"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17.5h.01"/></svg><span class="label">Attention</span><span class="badge warn" id="attention-badge" hidden>0</span></button>
     <button type="button" class="nav-item" id="tab-btn-warehouse"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 10 12 4l9 6v10H3z"/><path d="M8 20v-6h8v6M3 10h18"/></svg><span class="label">Warehouse</span></button>
     <button type="button" class="nav-item" id="tab-btn-cash"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg><span class="label">Cash</span></button>
@@ -993,24 +993,20 @@
     <aside id="panel" aria-label="Lists">
     <!-- ================= PARCELS ================= -->
     <section id="tab-parcels" role="tabpanel" aria-label="Parcels">
-      <h2>Parcels
-        <span class="spacer"></span>
-        <button id="btn-auto" class="dispatch-btn" type="button" title="Packs your pending (or selected) parcels onto the fewest vehicles that can carry them and builds a run for each — you review before anything is created">
-          <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M4 12h5M9 12c4 0 4-6 9-6M9 12c4 0 4 6 9 6M9 12h9"/><path d="M17 4l3 2-3 2M17 14l3 2-3 2"/></svg>
-          Suggest runs
-        </button>
-        <button id="btn-auto-ai" class="link-action" type="button" title="Ask the Gemini dispatch agent for a plan instead (needs a Gemini key)">AI plan</button>
-        <button id="btn-import" class="link-action" type="button">
-          <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
-          Import
-        </button>
-        <button id="btn-add-parcel" class="link-action" type="button">
-          <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          Add
-        </button>
-        <button id="btn-clear-delivered" class="link-danger" type="button">Clear delivered</button>
-      </h2>
-      <p class="page-sub">Everything waiting, on the road or done. Pick parcels to plan a run, or let “Suggest runs” do it.</p>
+      <div class="pg-head">
+        <div><h2>Parcels <span class="pg-count" id="parcel-count"></span></h2>
+          <p class="page-sub">Everything waiting, on the road or done.</p></div>
+        <div class="pg-actions">
+          <button id="btn-import" class="btn btn-ghost" type="button"><svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import</button>
+          <button id="btn-auto" class="btn btn-ghost strong" type="button" title="Packs your pending (or selected) parcels onto the fewest vehicles that can carry them and builds a run for each. You review before anything is created.">
+            <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M4 12h5M9 12c4 0 4-6 9-6M9 12c4 0 4 6 9 6M9 12h9"/><path d="M17 4l3 2-3 2M17 14l3 2-3 2"/></svg>Suggest runs</button>
+          <button id="btn-add-parcel" class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add parcel</button>
+          <details class="pg-more"><summary aria-label="More actions"><svg viewBox="0 0 24 24" class="i" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary>
+            <div class="pg-menu"><button id="btn-auto-ai" type="button" title="Ask the Gemini dispatch agent for a plan instead (needs a Gemini key)">Plan with the AI agent</button>
+              <button id="btn-clear-delivered" type="button">Hide delivered parcels</button></div></details>
+        </div>
+      </div>
+      <div id="flt-chips" class="chips" role="group" aria-label="Show parcels"></div>
       <div id="depot-chip" style="margin-top:10px" title="Hub — every run starts here and pickups return here. Click to change it: search a place or click the map; Esc to cancel." role="button" tabindex="0" aria-pressed="false">
         <svg viewBox="0 0 24 24" class="i" aria-hidden="true"><path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/></svg>
         <span id="depot-label">…</span><span id="depot-action"> · edit</span>
@@ -1043,7 +1039,7 @@
             <option value="newest">Newest first</option>
             <option value="receiver">Receiver A–Z</option>
           </select>
-          <select id="flt-status" aria-label="Filter by status">
+          <select id="flt-status" aria-label="Filter by status" hidden>
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
             <option value="out">Out for delivery</option>
@@ -1157,6 +1153,7 @@
             <textarea id="pf-notes" rows="2" placeholder="Gate code, floor, leave with neighbour…"></textarea></div>
           <div class="field"><label for="pf-landmark">Landmark or directions <span class="opt">(optional)</span></label>
             <input id="pf-landmark" maxlength="200" placeholder="e.g. opposite the temple, blue gate" autocomplete="off"></div>
+          <div class="hint"><b>Cash on delivery</b>: only fill these in when the rider must collect money at the door.</div>
           <div class="form-grid">
             <div class="field"><label for="pf-cod">Cash to collect <span class="opt">(optional)</span></label>
               <input id="pf-cod" type="number" min="0" step="1" inputmode="decimal" placeholder="0 = prepaid"></div>
@@ -1206,7 +1203,15 @@
     <!-- ================= RUNS (fleet) ================= -->
     <section id="tab-fleet" role="tabpanel" aria-label="Runs" hidden>
       <h2>Delivery runs <span class="spacer"></span><button id="btn-clear-all" class="link-danger" type="button">Clear all</button></h2>
-      <p class="page-sub">Today’s runs and the standing routes they come from.</p>
+      <p class="page-sub">Today’s runs: one per driver, built from the parcels waiting.</p>
+      <div id="trip-list" style="margin-top:12px"></div>
+    </section>
+
+    <!-- ================= ATTENTION ================= -->
+    <!-- ================= ROUTES ================= -->
+    <section id="tab-routes" role="tabpanel" aria-label="Routes" hidden>
+      <h2>Predefined routes</h2>
+      <p class="page-sub">Standing routes the business runs every week: an area, a default driver, the days and start time, and recurring pickups. Press <b>Run today’s route</b> to build today’s run from the parcels waiting in that area.</p>
       <section id="routes-section" class="routes" aria-label="Predefined routes">
         <div class="routes-head"><div><h3>Predefined routes</h3><span class="hint">Standing routes: a zone, a driver, service days and recurring pickups.</span></div>
           <button id="btn-new-route" class="link-action" type="button"><svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> New route</button></div>
@@ -1238,10 +1243,8 @@
         </div>
         <div id="route-list"></div>
       </section>
-      <div id="trip-list" style="margin-top:12px"></div>
     </section>
 
-    <!-- ================= ATTENTION ================= -->
     <section id="tab-attention" role="tabpanel" aria-label="Attention" hidden>
       <h2>Needs attention</h2>
       <div class="hint" style="margin-top:4px">Most urgent first. Select an item to open it.</div>
@@ -1314,6 +1317,7 @@
     </div>
     <div id="rp-status" role="status"></div>
     <div id="rp-kpis" class="rp-kpis"></div>
+    <div id="rp-insights"></div>
     <div class="rp-grid">
       <div class="rp-panel"><h3>Deliveries per day</h3><div id="rp-daily"></div></div>
       <div class="rp-panel"><h3>Why deliveries fail</h3><div id="rp-fail"></div></div>
@@ -1324,6 +1328,11 @@
     <!-- ================= REGISTRY ================= -->
     <section id="tab-registry" role="tabpanel" aria-label="Fleet and drivers" hidden>
       <div class="page-title"><h2>Fleet and drivers</h2><span class="hint">Vehicles, who drives them, and who can sign in.</span></div>
+      <div class="wh-tabs" id="reg-tabs" role="tablist" aria-label="Fleet">
+        <button type="button" role="tab" data-reg="0" aria-selected="true">Vehicles <span class="n" id="reg-n-veh">0</span></button>
+        <button type="button" role="tab" data-reg="1" aria-selected="false">Drivers <span class="n" id="reg-n-drv">0</span></button>
+        <button type="button" role="tab" data-reg="2" aria-selected="false" id="reg-tab-team">Team</button>
+      </div>
 <section class="acc open">
   <div class="acc-bar"><button type="button" class="acc-head" aria-expanded="true"><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Vehicles</span><span class="acc-count" id="veh-count">0</span></button><div class="acc-actions"><button id="btn-add-vehicle" class="link-action" type="button">
           <svg viewBox="0 0 24 24" class="i i-sm" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -1388,10 +1397,10 @@
         <div class="form-grid">
           <div class="field"><label for="df-shift-start">Shift starts</label><input id="df-shift-start" type="time"></div>
           <div class="field"><label for="df-shift-end">Shift ends</label><input id="df-shift-end" type="time"></div>
-          <div class="field"><label for="df-max-stops">Max stops per run</label><input id="df-max-stops" type="number" min="1" inputmode="numeric" placeholder="No limit"></div>
-          <div class="field"><label for="df-max-hours">Max hours per run</label><input id="df-max-hours" type="number" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="No limit"></div>
+          <div class="field"><label for="df-max-stops">Max stops per run</label><div class="hint">Planning never gives this driver more.</div><input id="df-max-stops" type="number" min="1" inputmode="numeric" placeholder="No limit"></div>
+          <div class="field"><label for="df-max-hours">Max hours per run</label><div class="hint">Estimated working time must stay under this.</div><input id="df-max-hours" type="number" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="No limit"></div>
         </div>
-        <label class="check-row"><input type="checkbox" id="df-leave"><span>On leave (not scheduled for runs)</span></label>
+        <label class="check-row"><input type="checkbox" id="df-leave"><span>Unavailable today: on leave or absent (skipped when planning)</span></label>
         <div class="field-err form-err" id="df-err" role="alert" hidden></div>
         <div class="row">
           <button class="btn btn-ghost" id="df-cancel" type="button">Cancel</button>
@@ -1637,6 +1646,7 @@
 <script src="/static/js/warehouse.js"></script>
 <script src="/static/js/impact.js"></script>
 <script src="/static/js/field.js"></script>
+<script src="/static/js/pages.js"></script>
 <script src="/static/js/users.js"></script>
 <script src="/static/js/palette.js"></script>
 <script src="/static/js/admin.js"></script>

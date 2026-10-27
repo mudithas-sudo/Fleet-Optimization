@@ -64,21 +64,21 @@ ROLE_PERMS = {
 # registry = Fleet and drivers, impact, reports) and where they land after signing in
 ROLE_INFO = {
     "admin": {"help": "Everything, including people", "landing": "dashboard",
-              "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash", "registry", "impact", "reports"]},
+              "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"]},
     "supervisor": {"help": "Runs the operation: planning, fleet, hub, routes, reports", "landing": "dashboard",
-                   "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash", "registry", "impact", "reports"]},
+                   "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"]},
     "dispatcher": {"help": "Plans runs and handles parcels, pickups and failures", "landing": "dashboard",
-                   "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash"]},
+                   "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash"]},
     "support": {"help": "Customer calls: parcels, pickups, rescheduling, messages", "landing": "parcels",
-                "pages": ["parcels", "attention", "fleet"]},
+                "pages": ["parcels", "attention", "fleet", "routes"]},
     "warehouse": {"help": "Loading bay: what to hand each driver, and check-in of returns", "landing": "warehouse",
                   "pages": ["warehouse", "cash", "parcels"]},
     "fleet": {"help": "Vehicles and drivers: add, edit, availability", "landing": "registry",
-              "pages": ["registry", "fleet"]},
+              "pages": ["registry", "fleet", "routes"]},
     "analyst": {"help": "Reports and the Impact screen, read-only", "landing": "dashboard",
-                "pages": ["dashboard", "parcels", "fleet", "cash", "impact", "reports"]},
+                "pages": ["dashboard", "parcels", "fleet", "routes", "cash", "impact", "reports"]},
     "viewer": {"help": "Can look, can’t change anything", "landing": "dashboard",
-               "pages": ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash"]},
+               "pages": ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash"]},
 }
 
 

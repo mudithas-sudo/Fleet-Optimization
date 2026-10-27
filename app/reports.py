@@ -208,3 +208,71 @@ def export_csv(kind: str, days: int | None) -> str:
                     [[r["driver"], r["runs"], r["deliveries"], r["onTime"], r["onTimeRate"], r["failedAttempts"],
                       r["km"], r["hours"], r["stopsPerHour"], r["cost"], r["costPerDelivery"]] for r in s["perDriver"]])
     raise ValueError("kind must be parcels, runs or drivers")
+
+
+COST_PER_FAILED_ATTEMPT = 180.0      # LKR: the research's modelled cost of a failed attempt (re-attempt, handling, customer service). An assumption.
+
+
+def _area(parcel: dict) -> str:
+    label = ((parcel.get("destination") or {}).get("label") or "").strip()
+    return (label.split(",")[-1].strip() if "," in label else label) or "Unknown"
+
+
+def insights(days: int | None = 7) -> dict:
+    """What a courier operator acts on: what failures cost, which sellers and areas fail most, service level by
+    priority, and when deliveries happen."""
+    since, until = window(days)
+    parcels = [p for p in db.all_entities("parcels") if p.get("requestType") != "pickup" and _in(p.get("createdAt"), since, until)]
+    closed = [p for p in parcels if p["status"] in ("delivered", "failed", "returned", "awaiting_redelivery")]
+    first_ok = lambda p: p["status"] == "delivered" and not p.get("failedAttempts")
+    pct = lambda a, b: round(100 * a / b, 1) if b else None
+
+    failed_attempts = sum(p.get("failedAttempts", 0) for p in closed)
+    preventable = {"no_one_home", "wrong_address", "refused", "customer_unreachable"}
+    prevent = sum(1 for p in closed if p.get("failedAttempts") and (p.get("lastFailure") or {}).get("reason") in preventable)
+
+    sellers: dict[str, dict] = {}
+    for p in parcels:
+        name = p.get("merchant")
+        if not name:
+            continue
+        s = sellers.setdefault(name, {"seller": name, "parcels": 0, "closed": 0, "firstOk": 0, "returned": 0, "codCollected": 0.0, "codOwed": 0.0})
+        s["parcels"] += 1
+        if p in closed:
+            s["closed"] += 1
+            s["firstOk"] += first_ok(p)
+            s["returned"] += p["status"] == "returned"
+        cod = p.get("cod")
+        if cod and cod["state"] in ("collected", "deposited", "remitted"):
+            s["codCollected"] += cod.get("collected", 0)
+            if cod["state"] != "remitted":
+                s["codOwed"] += cod.get("collected", 0)
+    seller_rows = sorted(({"seller": s["seller"], "parcels": s["parcels"], "firstAttemptPct": pct(s["firstOk"], s["closed"]),
+                           "returnedPct": pct(s["returned"], s["closed"]), "codCollected": round(s["codCollected"]),
+                           "codOwed": round(s["codOwed"])} for s in sellers.values()), key=lambda r: -r["parcels"])[:10]
+
+    areas: dict[str, dict] = {}
+    for p in closed:
+        a = areas.setdefault(_area(p), {"area": _area(p), "closed": 0, "firstOk": 0, "failed": 0})
+        a["closed"] += 1
+        a["firstOk"] += first_ok(p)
+        a["failed"] += p.get("failedAttempts", 0)
+    area_rows = sorted(({"area": a["area"], "parcels": a["closed"], "firstAttemptPct": pct(a["firstOk"], a["closed"]), "failedAttempts": a["failed"]}
+                        for a in areas.values() if a["closed"] >= 3),
+                       key=lambda r: (r["firstAttemptPct"] if r["firstAttemptPct"] is not None else 101, -r["parcels"]))[:8]
+
+    service = []
+    for prio in ("express", "priority", "standard"):
+        mine = [p for p in parcels if (p.get("priority") or "standard") == prio and p["status"] == "delivered"]
+        if mine:
+            service.append({"priority": prio, "delivered": len(mine), "onTimePct": pct(sum(1 for p in mine if not p.get("deadlineMissed")), len(mine))})
+
+    by_hour = [0] * 24
+    for p in parcels:
+        if p["status"] == "delivered" and p.get("deliveredAt"):
+            by_hour[time.localtime(p["deliveredAt"]).tm_hour] += 1
+
+    return {"failedCost": {"attempts": failed_attempts, "perAttempt": COST_PER_FAILED_ATTEMPT, "total": round(failed_attempts * COST_PER_FAILED_ATTEMPT),
+                           "currency": "LKR", "preventableParcels": prevent,
+                           "note": "Cost per failed attempt is the research's modelled figure (an assumption); replace it with your own."},
+            "sellers": seller_rows, "areas": area_rows, "service": service, "byHour": by_hour}

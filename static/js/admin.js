@@ -69,9 +69,11 @@ async function init() {
 
   map.addListener("click", e => onMapClick(e.latLng.lat(), e.latLng.lng()));
 
-  ["dashboard", "parcels", "fleet", "attention", "warehouse", "registry", "impact", "reports"].forEach(t => {
-    $(`tab-btn-${t}`).onclick = () => switchTab(t);
+  PAGES.forEach(t => {
+    const btn = $(`tab-btn-${t}`);
+    if (btn) btn.onclick = () => switchTab(t);
   });
+  if (typeof setupPages === "function") setupPages();
 
   // fill the vehicle-type picker glyphs with SVG icons
   document.querySelectorAll("#vf-type [data-veh]").forEach(el => {
@@ -196,11 +198,12 @@ async function init() {
   setInterval(renderParcels, 30000);   // deadline countdowns
 }
 
-const PAGES = ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash", "registry", "impact", "reports"];
+const PAGES = ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"];
 
 function switchTab(tab) {
   if (!PAGES.includes(tab)) tab = "dashboard";
   if (currentUser && !currentUser.pages.includes(tab)) tab = currentUser.landing;     // a page this role doesn't have
+  if (tab !== activeTab && typeof closeFloatingPanels === "function") closeFloatingPanels();   // a panel belongs to the page it was opened on
   activeTab = tab;
   document.body.dataset.page = tab;
   PAGES.forEach(t => {
@@ -504,6 +507,7 @@ function parcelComparator(groupKey) {
 function renderParcels() {
   refreshOverview();
   const everything = Object.values(parcels);
+  if (typeof renderParcelChips === "function") renderParcelChips(everything);
   const all = everything.filter(parcelMatchesFilters);
   renderFilterNote(all.length, everything.length);
   const overdue = everything.filter(p => p.deadlineMissed && p.status !== "delivered").length;
@@ -658,7 +662,7 @@ function showMapFor(reason, on) {
 
 function toggleParcelForm(show) {
   $("parcel-form").style.display = show ? "flex" : "none";
-  showMapFor("pf-open", !!show);
+  document.body.classList.toggle("pf-form", !!show);
   if (show) {
     pfClearErrors();
     return;

@@ -93,6 +93,9 @@ def test_01b_the_sample_day_has_cash_risk_and_confirmation_data():
     sc = client.get("/api/scorecard?days=all").json()
     assert sc["firstAttemptPct"] is not None and sc["cod"]["collected"] > 0 and sc["cod"]["avgDaysToPay"] is not None
     assert sc["cod"]["variancePct"] is not None and sc["stopsPerHour"] and sc["targets"]["avgDaysToPay"]
+    ins = client.get("/api/reports/insights?days=all").json()
+    assert ins["failedCost"]["attempts"] > 0 and ins["failedCost"]["total"] == ins["failedCost"]["attempts"] * 180
+    assert ins["sellers"] and ins["areas"] and ins["service"] and sum(ins["byHour"]) > 0
     cap = client.get("/api/capacity?days=3").json()
     assert cap["days"][0]["demand"] > 20 and len(cap["days"]) == 3
 

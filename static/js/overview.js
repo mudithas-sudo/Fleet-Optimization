@@ -258,7 +258,6 @@ function setupOverview() {
   });
   $("flt-q").addEventListener("input", e => { FILTERS.q = e.target.value.trim(); renderParcels(); });
   $("gsearch").onclick = () => palOpen();
-  $("btn-add-top").onclick = () => { switchTab("parcels"); toggleParcelForm(true); $("pf-name").focus(); };
   $("btn-bell").onclick = () => switchTab("attention");
   $("flt-driver").addEventListener("change", e => { FILTERS.driverId = e.target.value; renderParcels(); });
   $("flt-when").addEventListener("change", e => { FILTERS.when = e.target.value; renderParcels(); });

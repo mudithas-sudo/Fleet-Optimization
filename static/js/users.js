@@ -54,12 +54,13 @@ function can(perm) { return !!currentUser && currentUser.permissions.includes(pe
 
 function applyRole() {
   // Impact and Reports follow their permissions, even if an older server's page list does not mention them
-  currentUser.pages = [...new Set([...currentUser.pages, ...(can("impact") ? ["impact"] : []), ...(can("reports") ? ["reports"] : []), ...(can("cod.read") ? ["cash"] : [])])];
+  currentUser.pages = [...new Set([...currentUser.pages, ...(can("impact") ? ["impact"] : []), ...(can("reports") ? ["reports"] : []), ...(can("cod.read") ? ["cash"] : []),
+    ...(currentUser.pages.includes("fleet") ? ["routes"] : [])])];
   const body = document.body;
   [...body.classList].filter(c => c.startsWith("role-") || c.startsWith("can-")).forEach(c => body.classList.remove(c));
   body.classList.add("role-" + currentUser.role);
   currentUser.permissions.forEach(p => body.classList.add("can-" + p.replace(/\./g, "-")));
-  ["dashboard", "parcels", "fleet", "attention", "warehouse", "cash", "registry", "impact", "reports"].forEach(page => {
+  ["dashboard", "parcels", "fleet", "routes", "attention", "warehouse", "cash", "registry", "impact", "reports"].forEach(page => {
     const btn = $("tab-btn-" + page);
     if (btn) btn.hidden = !currentUser.pages.includes(page);
   });

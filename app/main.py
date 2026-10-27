@@ -850,6 +850,11 @@ async def report_summary(days: str | None = None):
     return reports.summary(_period(days))
 
 
+@app.get("/api/reports/insights")
+async def report_insights(days: str | None = None):
+    return reports.insights(_period(days))
+
+
 @app.get("/api/reports/export")
 async def report_export(kind: str = "parcels", days: str | None = None):
     try:
